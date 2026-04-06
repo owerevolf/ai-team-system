@@ -68,6 +68,7 @@ class AITeamSystem:
         project_dir = Path.home() / "projects" / f"{project_name}_{timestamp}"
         
         self.project_path = project_dir
+        self.agent_manager.set_project_path(project_dir)
         project_dir.mkdir(parents=True, exist_ok=True)
         (project_dir / "code" / "backend").mkdir(parents=True, exist_ok=True)
         (project_dir / "code" / "frontend").mkdir(parents=True, exist_ok=True)
