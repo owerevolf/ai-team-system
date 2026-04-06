@@ -16,6 +16,31 @@ from .database import Database
 from .logger import setup_logger
 
 
+ALLOWED_COMMANDS = {
+    "python", "python3", "pip", "pip3", "pip install",
+    "node", "npm", "npx",
+    "git", "git add", "git commit", "git status", "git clone", "git pull", "git push",
+    "pytest", "pytest tests/", "python -m pytest",
+    "mkdir", "ls", "ls -la", "pwd", "cd",
+    "uvicorn", "flask", "fastapi",
+    "docker", "docker-compose",
+    "curl", "wget",
+    "cat", "head", "tail", "grep",
+    "chmod", "chown",
+    "echo"
+}
+
+ALLOWED_PATTERNS = [
+    r"^python.*",
+    r"^pip install.*",
+    r"^git .*",
+    r"^pytest.*",
+    r"^mkdir.*",
+    r"^ls.*",
+    r"^cd .* && .*",
+]
+
+
 @dataclass
 class Tool:
     name: str
@@ -43,23 +68,51 @@ class AgentManager:
         self.prompts_dir = Path(__file__).parent.parent / "prompts" / "roles"
         self.tools = self._register_tools()
         self.project_path: Optional[Path] = None
+        self.context = None
+        self.event_callback: Optional[Callable] = None
     
     def set_project_path(self, path: Path):
-        """Установить путь к проекту"""
         self.project_path = path
     
+    def set_context(self, context):
+        self.context = context
+    
+    def set_event_callback(self, callback: Callable):
+        self.event_callback = callback
+    
+    def emit_event(self, event_type: str, data: Dict[str, Any]):
+        if self.event_callback:
+            self.event_callback(event_type, data)
+        self.logger.info(f"Event: {event_type} - {data.get('agent', 'system')}")
+    
+    def _is_command_allowed(self, command: str) -> bool:
+        """Проверка команды по whitelist"""
+        command_lower = command.lower().strip()
+        
+        if command_lower in ALLOWED_COMMANDS:
+            return True
+        
+        for pattern in ALLOWED_PATTERNS:
+            if re.match(pattern, command_lower):
+                return True
+        
+        first_word = command_lower.split()[0] if command_lower.split() else ""
+        if first_word in ALLOWED_COMMANDS:
+            return True
+        
+        return False
+    
     def _register_tools(self) -> Dict[str, Tool]:
-        """Регистрация доступных инструментов"""
         return {
             "create_file": Tool(
                 name="create_file",
-                description="Создать файл с указанным содержимым. Используй для создания кода, конфигов, документации.",
+                description="Создать файл. Безопасная операция.",
                 parameters={
                     "type": "object",
                     "properties": {
-                        "path": {"type": "string", "description": "Путь к файлу относительно project_path"},
-                        "content": {"type": "string", "description": "Содержимое файла"},
-                        "description": {"type": "string", "description": "Описание что делает файл"}
+                        "path": {"type": "string"},
+                        "content": {"type": "string"},
+                        "description": {"type": "string"}
                     },
                     "required": ["path", "content"]
                 },
@@ -67,11 +120,11 @@ class AgentManager:
             ),
             "read_file": Tool(
                 name="read_file", 
-                description="Прочитать содержимое файла",
+                description="Прочитать файл.",
                 parameters={
                     "type": "object",
                     "properties": {
-                        "path": {"type": "string", "description": "Путь к файлу"}
+                        "path": {"type": "string"}
                     },
                     "required": ["path"]
                 },
@@ -79,23 +132,23 @@ class AgentManager:
             ),
             "list_directory": Tool(
                 name="list_directory",
-                description="Показать файлы в директории",
+                description="Показать файлы в директории.",
                 parameters={
                     "type": "object",
                     "properties": {
-                        "path": {"type": "string", "description": "Путь к директории"}
+                        "path": {"type": "string"}
                     }
                 },
                 handler=self._list_directory
             ),
             "run_command": Tool(
                 name="run_command",
-                description="Выполнить shell команду",
+                description="Выполнить безопасную команду. Разрешены только: python, pip, git, pytest, npm, mkdir, ls",
                 parameters={
                     "type": "object",
                     "properties": {
-                        "command": {"type": "string", "description": "Команда для выполнения"},
-                        "cwd": {"type": "string", "description": "Рабочая директория"}
+                        "command": {"type": "string"},
+                        "cwd": {"type": "string"}
                     },
                     "required": ["command"]
                 },
@@ -103,11 +156,11 @@ class AgentManager:
             ),
             "create_directory": Tool(
                 name="create_directory",
-                description="Создать директорию",
+                description="Создать директорию.",
                 parameters={
                     "type": "object",
                     "properties": {
-                        "path": {"type": "string", "description": "Путь к директории"}
+                        "path": {"type": "string"}
                     },
                     "required": ["path"]
                 },
@@ -115,12 +168,12 @@ class AgentManager:
             ),
             "write_to_file": Tool(
                 name="write_to_file",
-                description="Добавить содержимое в конец файла",
+                description="Добавить в конец файла.",
                 parameters={
                     "type": "object",
                     "properties": {
-                        "path": {"type": "string", "description": "Путь к файлу"},
-                        "content": {"type": "string", "description": "Добавляемое содержимое"}
+                        "path": {"type": "string"},
+                        "content": {"type": "string"}
                     },
                     "required": ["path", "content"]
                 },
@@ -129,7 +182,6 @@ class AgentManager:
         }
     
     def get_tools_for_prompt(self) -> str:
-        """Формирование текстового описания инструментов для промпта"""
         tools_desc = []
         for name, tool in self.tools.items():
             params = json.dumps(tool.parameters, indent=2)
@@ -137,7 +189,6 @@ class AgentManager:
         return "\n\n".join(tools_desc)
     
     def get_agent_prompt(self, agent_name: str) -> str:
-        """Загрузка промпта агента"""
         prompt_file = self.prompts_dir / f"{agent_name}.md"
         
         if not prompt_file.exists():
@@ -147,20 +198,20 @@ class AgentManager:
         return prompt_file.read_text(encoding='utf-8')
     
     def _get_default_prompt(self, agent_name: str) -> str:
-        """Дефолтный промпт если файл не найден"""
         return f"""Ты - {agent_name} agent в AI Team System.
-Твоя задача - создавать код и файлы для проекта.
-
-Используй инструменты для создания файлов.
-Всегда создавай РЕАЛЬНЫЙ рабочий код, не примеры.
-"""
+Создавай РЕАЛЬНЫЙ рабочий код.
+Используй инструменты для создания файлов."""
     
     def run_agent(self, agent_name: str, task: str, context: Dict = None) -> Dict[str, Any]:
-        """Запуск агента с задачей"""
         self.logger.info(f"Запуск агента: {agent_name}")
+        self.emit_event("agent_start", {"agent": agent_name})
         
         prompt_template = self.get_agent_prompt(agent_name)
         tools_description = self.get_tools_for_prompt()
+        
+        agent_context = {}
+        if self.context:
+            agent_context = self.context.get_context_for_agent(agent_name)
         
         full_prompt = f"""{prompt_template}
 
@@ -169,24 +220,25 @@ class AgentManager:
 ## AVAILABLE TOOLS
 {tools_description}
 
+## ALLOWED COMMANDS (whitelist)
+python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
+
 ## ЗАДАНИЕ
 {task}
 
-## КОНТЕКСТ
-{json.dumps(context or {}, indent=2, ensure_ascii=False) if context else 'Нет контекста'}
+## CONTEXT (от других агентов)
+{json.dumps(context or agent_context, indent=2, ensure_ascii=False) if (context or agent_context) else 'Нет контекста'}
 
 ## ИНСТРУКЦИИ
 1. Проанализируй задачу
-2. Если нужно создать код - используй create_file
-3. Если нужно прочитать существующие файлы - используй read_file
-4. Создавай РЕАЛЬНЫЙ рабочий код (не псевдокод)
-5. После завершения верни JSON:
-{{"status": "success", "files_created": ["file1.py", "file2.py"], "summary": "что сделано"}}
+2. Используй create_file для создания кода
+3. Создавай РЕАЛЬНЫЙ рабочий код
+4. После завершения верни JSON:
+{{"status": "success", "files_created": ["file1.py"], "summary": "что сделано"}}
 
-## FORMAT FOR TOOL CALLS
-Когда нужен инструмент, верни:
+## TOOL CALL FORMAT
 <tool_call>
-{{"tool": "tool_name", "path": "file.py", "content": "# код файла", "description": "что делает"}}
+{{"tool": "create_file", "path": "file.py", "content": "# код"}}
 </tool_call>
 
 Начни работу!
@@ -203,16 +255,18 @@ class AgentManager:
             result = {
                 "agent": agent_name,
                 "status": "success",
-                "response": response,
+                "response": response[:500],
                 "files_created": created_files,
                 "timestamp": datetime.now().isoformat()
             }
             
-            self.logger.info(f"Агент {agent_name} завершил работу. Создано файлов: {len(created_files)}")
+            self.emit_event("agent_complete", {"agent": agent_name, "files": created_files})
+            self.logger.info(f"Агент {agent_name} завершил. Файлов: {len(created_files)}")
             return result
             
         except Exception as e:
-            self.logger.error(f"Ошибка агента {agent_name}: {e}")
+            self.logger.error(f"Ошибка {agent_name}: {e}")
+            self.emit_event("agent_error", {"agent": agent_name, "error": str(e)})
             return {
                 "agent": agent_name,
                 "status": "error",
@@ -221,7 +275,6 @@ class AgentManager:
             }
     
     def _extract_and_create_files(self, response: str) -> List[str]:
-        """Извлечение и создание файлов из ответа модели"""
         created = []
         tool_pattern = r'<tool_call>\s*(.*?)\s*</tool_call>'
         matches = re.findall(tool_pattern, response, re.DOTALL)
@@ -235,29 +288,21 @@ class AgentManager:
                     result = self.tools[tool_name].handler(tool_data)
                     if result.get("success"):
                         created.append(result.get("path", "unknown"))
-                else:
-                    path = tool_data.get("path")
-                    content = tool_data.get("content", "")
-                    if path and content:
-                        success = self._create_file({"path": path, "content": content})
-                        if success:
-                            created.append(path)
-                            
+                        
             except json.JSONDecodeError:
-                self.logger.warning(f"Не удалось распарсить tool_call: {match[:100]}")
+                self.logger.warning(f"Bad tool_call: {match[:100]}")
         
         if not created and self.project_path:
             code_blocks = re.findall(r'```(?:\w+)?\s*(.*?)```', response, re.DOTALL)
             for i, code in enumerate(code_blocks):
                 path = f"code/generated_{len(created)}_{i}.py"
                 success = self._create_file({"path": path, "content": code.strip()})
-                if success:
+                if success.get("success"):
                     created.append(path)
         
         return created
     
     def _create_file(self, params: Dict) -> Dict[str, Any]:
-        """Создание файла"""
         try:
             if not self.project_path:
                 return {"success": False, "error": "project_path not set"}
@@ -266,14 +311,13 @@ class AgentManager:
             file_path.parent.mkdir(parents=True, exist_ok=True)
             file_path.write_text(params["content"], encoding='utf-8')
             
-            self.logger.info(f"Создан файл: {file_path}")
+            self.logger.info(f"Создан: {file_path}")
             return {"success": True, "path": str(file_path.relative_to(self.project_path))}
         except Exception as e:
-            self.logger.error(f"Ошибка создания файла: {e}")
+            self.logger.error(f"Ошибка: {e}")
             return {"success": False, "error": str(e)}
     
     def _read_file(self, params: Dict) -> Dict[str, Any]:
-        """Чтение файла"""
         try:
             if not self.project_path:
                 return {"success": False, "error": "project_path not set"}
@@ -288,7 +332,6 @@ class AgentManager:
             return {"success": False, "error": str(e)}
     
     def _list_directory(self, params: Dict) -> Dict[str, Any]:
-        """Список файлов в директории"""
         try:
             if not self.project_path:
                 return {"success": False, "error": "project_path not set"}
@@ -303,31 +346,39 @@ class AgentManager:
             return {"success": False, "error": str(e)}
     
     def _run_command(self, params: Dict) -> Dict[str, Any]:
-        """Выполнение команды"""
+        command = params.get("command", "")
+        
+        if not self._is_command_allowed(command):
+            self.logger.warning(f"Blocked command: {command}")
+            return {
+                "success": False,
+                "error": f"Command not allowed: {command[:50]}",
+                "blocked": True
+            }
+        
         try:
             cwd = params.get("cwd", str(self.project_path) if self.project_path else None)
             result = subprocess.run(
-                params["command"],
+                command,
                 shell=True,
                 cwd=cwd,
                 capture_output=True,
                 text=True,
-                timeout=300
+                timeout=120
             )
             
             return {
                 "success": result.returncode == 0,
-                "stdout": result.stdout,
-                "stderr": result.stderr,
+                "stdout": result.stdout[:2000],
+                "stderr": result.stderr[:1000],
                 "returncode": result.returncode
             }
         except subprocess.TimeoutExpired:
-            return {"success": False, "error": "Command timeout"}
+            return {"success": False, "error": "Command timeout (120s)"}
         except Exception as e:
             return {"success": False, "error": str(e)}
     
     def _create_directory(self, params: Dict) -> Dict[str, Any]:
-        """Создание директории"""
         try:
             if not self.project_path:
                 return {"success": False, "error": "project_path not set"}
@@ -340,7 +391,6 @@ class AgentManager:
             return {"success": False, "error": str(e)}
     
     def _append_to_file(self, params: Dict) -> Dict[str, Any]:
-        """Добавление в файл"""
         try:
             if not self.project_path:
                 return {"success": False, "error": "project_path not set"}
@@ -355,21 +405,29 @@ class AgentManager:
         except Exception as e:
             return {"success": False, "error": str(e)}
     
-    def run_parallel(self, tasks: Dict[str, str]) -> Dict[str, Any]:
+    def run_parallel(self, tasks: Dict[str, str], callback: Callable = None) -> Dict[str, Any]:
         """Параллельный запуск агентов"""
         import concurrent.futures
         
         results = {}
+        
+        def run_with_callback(agent, task):
+            result = self.run_agent(agent, task)
+            if callback:
+                callback(agent, result)
+            return agent, result
+        
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
             futures = {
-                executor.submit(self.run_agent, agent, task): agent 
+                executor.submit(run_with_callback, agent, task): agent 
                 for agent, task in tasks.items()
             }
             
             for future in concurrent.futures.as_completed(futures):
                 agent = futures[future]
                 try:
-                    results[agent] = future.result()
+                    _, result = future.result()
+                    results[agent] = result
                 except Exception as e:
                     results[agent] = {"agent": agent, "status": "error", "error": str(e)}
         

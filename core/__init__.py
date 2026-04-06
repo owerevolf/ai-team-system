@@ -9,8 +9,9 @@ from .database import Database
 from .logger import setup_logger, ProjectLogger
 from .system_scanner import SystemScanner
 from .git_manager import GitManager
+from .project_context import ProjectContext, AgentResult
 
-__version__ = "1.0.0"
+__version__ = "2.0.0"
 __all__ = [
     "AITeamSystem",
     "AgentManager", 
@@ -20,4 +21,6 @@ __all__ = [
     "ProjectLogger",
     "SystemScanner",
     "GitManager",
+    "ProjectContext",
+    "AgentResult",
 ]
