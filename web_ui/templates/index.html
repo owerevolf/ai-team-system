@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Team System</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 AI Team System</h1>
+            <p>Мультиагентная система разработки ПО</p>
+        </header>
+
+        <main>
+            <section class="system-info">
+                <h2>Информация о системе</h2>
+                <div id="system-info" class="grid-2">
+                    <div class="card">
+                        <h3>CPU</h3>
+                        <p id="cpu-cores">Загрузка...</p>
+                    </div>
+                    <div class="card">
+                        <h3>RAM</h3>
+                        <p id="ram-info">Загрузка...</p>
+                    </div>
+                    <div class="card">
+                        <h3>GPU</h3>
+                        <p id="gpu-info">Загрузка...</p>
+                    </div>
+                    <div class="card">
+                        <h3>Ollama</h3>
+                        <p id="ollama-info">Загрузка...</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="create-project">
+                <h2>Создать проект</h2>
+                <form id="project-form">
+                    <div class="form-group">
+                        <label for="project-name">Название проекта</label>
+                        <input type="text" id="project-name" placeholder="my-awesome-app" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="requirements">Требования</label>
+                        <textarea id="requirements" rows="10" placeholder="Опишите ваш проект..."></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="profile">Профиль железа</label>
+                        <select id="profile">
+                            <option value="light">Light (слабое железо)</option>
+                            <option value="medium" selected>Medium (среднее железо)</option>
+                            <option value="heavy">Heavy (мощное железо)</option>
+                        </select>
+                    </div>
+                    
+                    <button type="submit" class="btn-primary">🚀 Запустить проект</button>
+                </form>
+            </section>
+
+            <section class="recent-projects">
+                <h2>Последние проекты</h2>
+                <div id="projects-list" class="projects-grid">
+                    <p class="loading">Загрузка...</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        async function loadSystemInfo() {
+            try {
+                const response = await fetch('/api/system/info');
+                const data = await response.json();
+                
+                document.getElementById('cpu-cores').innerHTML = 
+                    `${data.cpu.cores} ядер / ${data.cpu.threads} потоков<br><small>Загрузка: ${data.cpu.usage_percent}%</small>`;
+                
+                document.getElementById('ram-info').innerHTML = 
+                    `${data.ram.total_gb} GB всего<br><small>Свободно: ${data.ram.available_gb} GB</small>`;
+                
+                document.getElementById('gpu-info').innerHTML = 
+                    data.gpu.name || 'Не обнаружена' +
+                    (data.gpu.vram_gb ? `<br><small>VRAM: ${data.gpu.vram_gb} GB</small>` : '');
+                
+                document.getElementById('ollama-info').innerHTML = 
+                    data.ollama.available ? 
+                    `✓ Доступна (${data.ollama.models.length} моделей)` :
+                    '✗ Недоступна';
+                
+            } catch (error) {
+                console.error('Error loading system info:', error);
+            }
+        }
+
+        async function loadProjects() {
+            try {
+                const response = await fetch('/api/projects');
+                const projects = await response.json();
+                
+                const container = document.getElementById('projects-list');
+                
+                if (projects.length === 0) {
+                    container.innerHTML = '<p>Проектов пока нет</p>';
+                    return;
+                }
+                
+                container.innerHTML = projects.map(p => `
+                    <div class="project-card">
+                        <h3>${p.name}</h3>
+                        <p class="date">${new Date(p.created).toLocaleDateString()}</p>
+                        <a href="/dashboard?project=${encodeURIComponent(p.name)}" class="btn-small">Открыть</a>
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                console.error('Error loading projects:', error);
+            }
+        }
+
+        document.getElementById('project-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const name = document.getElementById('project-name').value;
+            const requirements = document.getElementById('requirements').value;
+            const profile = document.getElementById('profile').value;
+            
+            const btn = e.target.querySelector('button');
+            btn.disabled = true;
+            btn.textContent = '⏳ Проект создаётся...';
+            
+            try {
+                const response = await fetch('/api/project/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, requirements, profile })
+                });
+                
+                const result = await response.json();
+                alert(result.message);
+                btn.textContent = '✅ Запущено!';
+                
+                setTimeout(() => {
+                    window.location.href = '/dashboard';
+                }, 1500);
+                
+            } catch (error) {
+                alert('Ошибка: ' + error);
+                btn.disabled = false;
+                btn.textContent = '🚀 Запустить проект';
+            }
+        });
+
+        loadSystemInfo();
+        loadProjects();
+    </script>
+</body>
+</html>

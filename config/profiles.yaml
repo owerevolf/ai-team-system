@@ -1,0 +1,42 @@
+# Профили железа для AI Team System
+
+profiles:
+  light:
+    description: "Для слабого железа (8GB RAM, 4CPU)"
+    max_parallel_agents: 2
+    ollama:
+      enabled: true
+      model: "qwen2.5-coder:7b"
+      num_ctx: 4096
+      temperature: 0.5
+    fallback_api: null
+    timeout_seconds: 300
+    memory_limit_mb: 4096
+
+  medium:
+    description: "Для среднего железа (16GB RAM, 6CPU, 8GB VRAM)"
+    max_parallel_agents: 4
+    ollama:
+      enabled: true
+      model: "qwen2.5-coder:7b"
+      num_ctx: 8192
+      temperature: 0.7
+    fallback_api:
+      provider: "anthropic"
+      model: "claude-3-haiku"
+    timeout_seconds: 600
+    memory_limit_mb: 8192
+
+  heavy:
+    description: "Для мощного железа (32GB+ RAM, 12CPU, 16GB+ VRAM)"
+    max_parallel_agents: 8
+    ollama:
+      enabled: true
+      model: "huihui_ai/qwen3.5-abliterated:27b-Claude"
+      num_ctx: 16384
+      temperature: 0.7
+    fallback_api:
+      provider: "anthropic"
+      model: "claude-3-5-sonnet"
+    timeout_seconds: 900
+    memory_limit_mb: 16384

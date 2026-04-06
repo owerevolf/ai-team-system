@@ -1,0 +1,74 @@
+# Основная конфигурация AI Team System
+
+system:
+  name: "AI Team System"
+  version: "1.0.0"
+  log_level: "INFO"
+  
+  paths:
+    projects_dir: "~/projects"
+    logs_dir: "~/.logs/ai_team"
+    db_path: "~/.ai_team/ai_team.db"
+    prompts_dir: "./prompts"
+
+agents:
+  enabled:
+    - teamlead
+    - architect
+    - backend
+    - frontend
+    - devops
+    - tester
+    - documentalist
+  
+  teamlead:
+    priority: 1
+    required: true
+    
+  architect:
+    priority: 2
+    required: true
+    
+  backend:
+    priority: 3
+    required: true
+    
+  frontend:
+    priority: 3
+    required: false
+    
+  devops:
+    priority: 4
+    required: false
+    
+  tester:
+    priority: 4
+    required: false
+    
+  documentalist:
+    priority: 5
+    required: false
+
+phases:
+  - name: "planning"
+    agents: ["teamlead"]
+    description: "Анализ требований и планирование"
+    
+  - name: "architecture"
+    agents: ["architect"]
+    description: "Проектирование архитектуры"
+    
+  - name: "development"
+    agents: ["backend", "frontend", "devops", "tester"]
+    description: "Разработка кода"
+    parallel: true
+    
+  - name: "documentation"
+    agents: ["documentalist"]
+    description: "Написание документации"
+
+quality:
+  min_coverage_percent: 70
+  require_tests: true
+  require_docs: true
+  lint_on_commit: true

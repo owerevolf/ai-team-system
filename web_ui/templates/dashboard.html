@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - AI Team System</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav>
+        <a href="/">← На главную</a>
+        <a href="/dashboard">Dashboard</a>
+        <a href="/report">Отчёт</a>
+    </nav>
+
+    <div class="container">
+        <header>
+            <h1>📊 Dashboard</h1>
+            <p id="project-name">Проект: <span>Загрузка...</span></p>
+        </header>
+
+        <main>
+            <section class="agents-status">
+                <h2>Статус агентов</h2>
+                <div id="agents-grid" class="agents-grid">
+                    <div class="agent-card" data-agent="teamlead">
+                        <div class="agent-icon">👑</div>
+                        <div class="agent-name">TeamLead</div>
+                        <div class="agent-status idle">Ожидание</div>
+                    </div>
+                    <div class="agent-card" data-agent="architect">
+                        <div class="agent-icon">🏗️</div>
+                        <div class="agent-name">Architect</div>
+                        <div class="agent-status idle">Ожидание</div>
+                    </div>
+                    <div class="agent-card" data-agent="backend">
+                        <div class="agent-icon">⚙️</div>
+                        <div class="agent-name">Backend</div>
+                        <div class="agent-status idle">Ожидание</div>
+                    </div>
+                    <div class="agent-card" data-agent="frontend">
+                        <div class="agent-icon">🎨</div>
+                        <div class="agent-name">Frontend</div>
+                        <div class="agent-status idle">Ожидание</div>
+                    </div>
+                    <div class="agent-card" data-agent="devops">
+                        <div class="agent-icon">🚀</div>
+                        <div class="agent-name">DevOps</div>
+                        <div class="agent-status idle">Ожидание</div>
+                    </div>
+                    <div class="agent-card" data-agent="tester">
+                        <div class="agent-icon">🧪</div>
+                        <div class="agent-name">Tester</div>
+                        <div class="agent-status idle">Ожидание</div>
+                    </div>
+                    <div class="agent-card" data-agent="documentalist">
+                        <div class="agent-icon">📝</div>
+                        <div class="agent-name">Documentalist</div>
+                        <div class="agent-status idle">Ожидание</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="logs-section">
+                <h2>Логи в реальном времени</h2>
+                <div class="logs-container">
+                    <pre id="logs-content">Ожидание логов...</pre>
+                </div>
+            </section>
+
+            <section class="files-section">
+                <h2>Созданные файлы</h2>
+                <div id="files-list" class="files-list">
+                    <p class="loading">Загрузка...</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const projectName = urlParams.get('project') || 'untitled';
+        
+        document.querySelector('#project-name span').textContent = projectName;
+
+        function updateAgentStatus(agent, status, message) {
+            const card = document.querySelector(`[data-agent="${agent}"]`);
+            if (card) {
+                const statusEl = card.querySelector('.agent-status');
+                statusEl.className = `agent-status ${status}`;
+                statusEl.textContent = message || status;
+            }
+        }
+
+        function addLog(message) {
+            const logsContent = document.getElementById('logs-content');
+            const timestamp = new Date().toLocaleTimeString();
+            logsContent.textContent += `\n[${timestamp}] ${message}`;
+            logsContent.scrollTop = logsContent.scrollHeight;
+        }
+
+        async function loadLogs() {
+            try {
+                const response = await fetch(`/api/project/${encodeURIComponent(projectName)}/logs`);
+                const logs = await response.json();
+                
+                const logsContent = document.getElementById('logs-content');
+                logsContent.textContent = logs.map(log => 
+                    `=== ${log.name} ===\n${log.content}`
+                ).join('\n\n');
+                
+            } catch (error) {
+                console.error('Error loading logs:', error);
+            }
+        }
+
+        async function loadFiles() {
+            try {
+                const response = await fetch(`/api/project/${encodeURIComponent(projectName)}/files`);
+                const files = await response.json();
+                
+                const container = document.getElementById('files-list');
+                container.innerHTML = files.map(f => 
+                    `<div class="file-item">📄 ${f}</div>`
+                ).join('');
+                
+            } catch (error) {
+                console.error('Error loading files:', error);
+            }
+        }
+
+        setInterval(loadLogs, 5000);
+        
+        loadLogs();
+        loadFiles();
+    </script>
+</body>
+</html>

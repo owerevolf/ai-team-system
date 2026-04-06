@@ -1,0 +1,46 @@
+{
+  "project_name": "example_project",
+  "created_at": "2024-01-01T00:00:00Z",
+  "structure": {
+    "folders": [
+      "code/backend",
+      "code/frontend",
+      "code/shared",
+      "tests/backend_tests",
+      "tests/frontend_tests",
+      "tests/integration_tests",
+      "docs",
+      ".agents",
+      ".logs"
+    ],
+    "files": [
+      "README.md",
+      "requirements.txt",
+      ".gitignore",
+      "docker-compose.yml"
+    ]
+  },
+  "agents": {
+    "teamlead": {
+      "task": "Анализ требований и планирование"
+    },
+    "architect": {
+      "task": "Проектирование архитектуры"
+    },
+    "backend": {
+      "task": "Разработка серверной части"
+    },
+    "frontend": {
+      "task": "Разработка интерфейса"
+    },
+    "devops": {
+      "task": "Docker, CI/CD"
+    },
+    "tester": {
+      "task": "Написание тестов"
+    },
+    "documentalist": {
+      "task": "Документация"
+    }
+  }
+}

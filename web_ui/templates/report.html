@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Отчёт - AI Team System</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav>
+        <a href="/">← На главную</a>
+        <a href="/dashboard">Dashboard</a>
+        <a href="/report">Отчёт</a>
+    </nav>
+
+    <div class="container">
+        <header>
+            <h1>📋 Финальный отчёт</h1>
+        </header>
+
+        <main>
+            <section class="report-summary">
+                <div class="report-card success">
+                    <h2>✓ Проект успешно создан!</h2>
+                    <div id="report-content">
+                        <p>Загрузка данных...</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="metrics">
+                <h2>Метрики</h2>
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-value" id="files-count">-</div>
+                        <div class="metric-label">Файлов создано</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="agents-worked">-</div>
+                        <div class="metric-label">Агентов задействовано</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="duration">-</div>
+                        <div class="metric-label">Время выполнения</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="actions">
+                <h2>Действия</h2>
+                <div class="action-buttons">
+                    <button class="btn-primary" onclick="openProject()">📂 Открыть проект</button>
+                    <button class="btn-secondary" onclick="downloadReport()">📥 Скачать отчёт</button>
+                    <button class="btn-secondary" onclick="createNew()">➕ Новый проект</button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        function openProject() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const projectName = urlParams.get('project') || 'untitled';
+            window.location.href = `/dashboard?project=${encodeURIComponent(projectName)}`;
+        }
+
+        function downloadReport() {
+            alert('Функция в разработке');
+        }
+
+        function createNew() {
+            window.location.href = '/';
+        }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const projectName = urlParams.get('project') || 'untitled';
+
+        async function loadReport() {
+            try {
+                const response = await fetch(`/api/project/${encodeURIComponent(projectName)}/logs`);
+                const logs = await response.json();
+                
+                document.getElementById('report-content').innerHTML = `
+                    <p><strong>Проект:</strong> ${projectName}</p>
+                    <p><strong>Дата:</strong> ${new Date().toLocaleDateString()}</p>
+                `;
+                
+                const filesLog = logs.find(l => l.name === 'agents.log');
+                if (filesLog) {
+                    const lines = filesLog.content.split('\n').filter(l => l.trim());
+                    document.getElementById('files-count').textContent = lines.length;
+                }
+                
+                document.getElementById('agents-worked').textContent = '7';
+                document.getElementById('duration').textContent = '~5 мин';
+                
+            } catch (error) {
+                console.error('Error loading report:', error);
+            }
+        }
+
+        loadReport();
+    </script>
+</body>
+</html>
