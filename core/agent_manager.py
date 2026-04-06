@@ -9,9 +9,9 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 from datetime import datetime
 
-from model_router import ModelRouter
-from database import Database
-from logger import setup_logger
+from .model_router import ModelRouter
+from .database import Database
+from .logger import setup_logger
 
 
 class AgentManager:

@@ -16,11 +16,11 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.panel import Panel
 from rich.table import Table
 
-from agent_manager import AgentManager
-from model_router import ModelRouter
-from database import Database
-from logger import setup_logger
-from system_scanner import SystemScanner
+from .agent_manager import AgentManager
+from .model_router import ModelRouter
+from .database import Database
+from .logger import setup_logger
+from .system_scanner import SystemScanner
 
 console = Console()
 
