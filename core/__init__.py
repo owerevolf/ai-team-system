@@ -22,8 +22,11 @@ from .rag import RAGSystem, Document, SimpleVectorStore
 from .event_bus import EventBus, Event
 from .sandbox import CodeSandbox, SandboxResult
 from .reasoning_trace import TraceManager, ReasoningTrace, ReasoningStep
+from .fallback_manager import FallbackManager, FallbackConfig, FallbackEvent
+from .learning_mode import LearningMode, TutorialStep, GlossaryEntry, LearningProgress
+from .mode_switcher import ModeSwitcher, ModeConfig, MODES
 
-__version__ = "5.0.0"
+__version__ = "5.1.0"
 __all__ = [
     "AITeamSystem",
     "AgentManager",
@@ -59,4 +62,14 @@ __all__ = [
     "TraceManager",
     "ReasoningTrace",
     "ReasoningStep",
+    "FallbackManager",
+    "FallbackConfig",
+    "FallbackEvent",
+    "LearningMode",
+    "TutorialStep",
+    "GlossaryEntry",
+    "LearningProgress",
+    "ModeSwitcher",
+    "ModeConfig",
+    "MODES",
 ]
