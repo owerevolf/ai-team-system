@@ -104,13 +104,13 @@ User → TeamLead → Architect → [Backend, Frontend, DevOps] → Tester → D
 
 | Агент | Роль | Модель (medium) |
 |-------|------|-----------------|
-| 👑 TeamLead | Координатор | qwen2.5-coder:7b |
-| 🏗️ Architect | Архитектор | qwen2.5-coder:7b |
-| ⚙️ Backend | Серверный код | qwen2.5-coder:7b |
-| 🎨 Frontend | UI | qwen2.5-coder:7b |
-| 🚀 DevOps | Docker, CI/CD | qwen2.5-coder:7b |
-| 🧪 Tester | Тесты | qwen2.5-coder:7b |
-| 📝 Documentalist | Документация | qwen2.5-coder:7b |
+| 👑 TeamLead | Координатор | qwen3:8b |
+| 🏗️ Architect | Архитектор | qwen3:8b |
+| ⚙️ Backend | Серверный код | qwen3:8b |
+| 🎨 Frontend | UI | qwen3:8b |
+| 🚀 DevOps | Docker, CI/CD | qwen3:8b |
+| 🧪 Tester | Тесты | qwen3:8b |
+| 📝 Documentalist | Документация | qwen3:8b |
 
 ---
 
@@ -144,6 +144,7 @@ python -m core.main --dry-run --project-name myapp --requirements "описан�
 ## 📦 Поддерживаемые модели
 
 ### Локальные (Ollama)
+- qwen3:4b / 8b / 14b / 32b
 - qwen2.5-coder:3b / 7b / 32b
 - codellama:7b / 13b
 - llama3.2:3b
@@ -195,25 +196,18 @@ ai-team-system/
 
 ## 🗺️ Roadmap
 
-### v5.0 (сейчас)
-- ✅ Per-agent model config
-- ✅ Long-term memory
-- ✅ RAG system
-- ✅ Event bus
-- ✅ Agent sandbox
-- ✅ Reasoning trace
+### v5.1 (сейчас)
+- ✅ Авто-детект железа в install.sh
+- ✅ Проактивный fallback на облако
+- ✅ Режим обучения для новичков
+- ✅ Переключатель режимов (simple/learning/advanced)
+- ✅ Обновление на qwen3:8b
 
-### v5.1 (планируется)
+### v5.2 (планируется)
 - [ ] Kanban dashboard
 - [ ] MCP server support
 - [ ] Self-improving agents
 - [ ] Multi-user collaboration
-
-### v6.0 (будущее)
-- [ ] LangGraph integration
-- [ ] Auto-deploy to Vercel/Render
-- [ ] Voice interface (Whisper)
-- [ ] Plugin marketplace
 
 ---
 
