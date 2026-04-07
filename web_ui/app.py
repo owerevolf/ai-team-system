@@ -3,6 +3,7 @@ Web UI v2 - Flask приложение с SSE и Session Management
 """
 
 import os
+import sys
 import json
 import uuid
 import queue
@@ -11,6 +12,9 @@ from datetime import datetime
 from flask import Flask, render_template, request, jsonify, Response, session
 from flask_cors import CORS
 import threading
+
+# Добавляем корень проекта в PYTHONPATH
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.system_scanner import SystemScanner
 from core.model_router import ModelRouter
