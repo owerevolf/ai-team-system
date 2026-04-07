@@ -116,16 +116,33 @@ class ModelRouter:
                     return self._generate_google(prompt, model)
                 elif provider == "openrouter":
                     return self._generate_openrouter(prompt, model)
-        elif provider == "xai":
-            return self._generate_xai(prompt, model)
-        elif provider == "ollama":
-            return self._generate_ollama(prompt, model)
-        elif provider == "anthropic":
-            return self._generate_anthropic(prompt, model)
-        elif provider == "openai":
-            return self._generate_openai(prompt, model)
+                elif provider == "xai":
+                    return self._generate_xai(prompt, model)
+                elif provider == "ollama":
+                    return self._generate_ollama(prompt, model)
+                elif provider == "anthropic":
+                    return self._generate_anthropic(prompt, model)
+                elif provider == "openai":
+                    return self._generate_openai(prompt, model)
+            except Exception:
+                # Fallback to next provider
+                provider = self._get_next_provider(provider)
+                continue
+            
+            break
         
-        raise ValueError(f"Неизвестный провайдер: {provider}")
+        raise RuntimeError(f"Все провайдеры не работают: {tried}")
+    
+    def _get_next_provider(self, current: str) -> Optional[str]:
+        """Получить следующий провайдер для fallback"""
+        try:
+            idx = self.priority.index(current)
+            for p in self.priority[idx + 1:]:
+                if self.providers[p]["enabled"]:
+                    return p
+        except ValueError:
+            pass
+        return None
     
     def _generate_groq(self, prompt: str, model: str = None) -> str:
         from openai import OpenAI
