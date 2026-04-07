@@ -15,6 +15,8 @@ import threading
 from core.system_scanner import SystemScanner
 from core.model_router import ModelRouter
 from core.main import AITeamSystem
+from core.zip_export import ZipExporter
+from core.security_scanner import SecurityScanner
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.secret_key = os.environ.get("SECRET_KEY", str(uuid.uuid4()))
@@ -76,6 +78,11 @@ session_manager = SessionManager()
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.route("/pipeline")
+def pipeline():
+    return render_template("pipeline.html")
 
 
 @app.route("/dashboard")
@@ -267,6 +274,34 @@ def project_report(project_name):
         return jsonify({"error": "Report not found"}), 404
     
     return jsonify(json.loads(report_file.read_text()))
+
+
+@app.route("/api/project/<path:project_name>/export")
+def project_export(project_name):
+    projects_dir = Path.home() / "projects"
+    project_path = projects_dir / project_name
+    
+    if not project_path.exists():
+        return jsonify({"error": "Project not found"}), 404
+    
+    exporter = ZipExporter(project_path)
+    output_path = exporter.export()
+    
+    return jsonify({"path": str(output_path), "size_mb": exporter.get_size_info()["total_size_mb"]})
+
+
+@app.route("/api/project/<path:project_name>/security")
+def project_security(project_name):
+    projects_dir = Path.home() / "projects"
+    project_path = projects_dir / project_name
+    
+    if not project_path.exists():
+        return jsonify({"error": "Project not found"}), 404
+    
+    scanner = SecurityScanner(project_path)
+    results = scanner.scan()
+    
+    return jsonify(results)
 
 
 if __name__ == "__main__":
