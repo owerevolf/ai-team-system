@@ -16,11 +16,17 @@ from .token_tracker import TokenTracker, TokenUsage
 from .plugins import PluginManager, Plugin
 from .dry_run import DryRunSimulator
 from .zip_export import ZipExporter
+from .agent_model_config import get_agent_model_config, list_agent_models, MODEL_PROFILES
+from .memory import AgentMemory, MemoryEntry
+from .rag import RAGSystem, Document, SimpleVectorStore
+from .event_bus import EventBus, Event
+from .sandbox import CodeSandbox, SandboxResult
+from .reasoning_trace import TraceManager, ReasoningTrace, ReasoningStep
 
-__version__ = "4.0.0"
+__version__ = "5.0.0"
 __all__ = [
     "AITeamSystem",
-    "AgentManager", 
+    "AgentManager",
     "ModelRouter",
     "Database",
     "setup_logger",
@@ -38,4 +44,19 @@ __all__ = [
     "Plugin",
     "DryRunSimulator",
     "ZipExporter",
+    "get_agent_model_config",
+    "list_agent_models",
+    "MODEL_PROFILES",
+    "AgentMemory",
+    "MemoryEntry",
+    "RAGSystem",
+    "Document",
+    "SimpleVectorStore",
+    "EventBus",
+    "Event",
+    "CodeSandbox",
+    "SandboxResult",
+    "TraceManager",
+    "ReasoningTrace",
+    "ReasoningStep",
 ]
