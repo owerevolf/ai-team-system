@@ -1,10 +1,12 @@
 """
-Model Router v2 - Поддержка бесплатных API
+Model Router v3 - Поддержка бесплатных API + проактивный fallback
 Groq, DeepSeek, Google AI, OpenRouter, xAI, Cerebras
 """
 
 import os
+import re
 import json
+import time
 import urllib.request
 import urllib.error
 from typing import Optional, Dict, Any, List
@@ -103,35 +105,68 @@ class ModelRouter:
         if not provider:
             raise RuntimeError("Нет доступных провайдеров! Настройте .env файл.")
         
-        # Try primary provider, fallback to next available
         tried = []
         while provider:
             tried.append(provider)
             try:
+                start_time = time.time()
+                
                 if provider == "groq":
-                    return self._generate_groq(prompt, model)
+                    response = self._generate_groq(prompt, model)
                 elif provider == "deepseek":
-                    return self._generate_deepseek(prompt, model)
+                    response = self._generate_deepseek(prompt, model)
                 elif provider == "google":
-                    return self._generate_google(prompt, model)
+                    response = self._generate_google(prompt, model)
                 elif provider == "openrouter":
-                    return self._generate_openrouter(prompt, model)
+                    response = self._generate_openrouter(prompt, model)
                 elif provider == "xai":
-                    return self._generate_xai(prompt, model)
+                    response = self._generate_xai(prompt, model)
                 elif provider == "ollama":
-                    return self._generate_ollama(prompt, model)
+                    response = self._generate_ollama(prompt, model)
                 elif provider == "anthropic":
-                    return self._generate_anthropic(prompt, model)
+                    response = self._generate_anthropic(prompt, model)
                 elif provider == "openai":
-                    return self._generate_openai(prompt, model)
-            except Exception:
-                # Fallback to next provider
+                    response = self._generate_openai(prompt, model)
+                else:
+                    raise ValueError(f"Неизвестный провайдер: {provider}")
+                
+                response_time = time.time() - start_time
+                
+                # Проактивная проверка: нужно ли переключиться на облако
+                if provider == "ollama" and self._should_fallback(response, response_time):
+                    print(f"🔄 Локальная модель неуверенна → переключаюсь на облако")
+                    provider = self._get_next_provider(provider)
+                    continue
+                
+                return response
+                
+            except Exception as e:
+                print(f"⚠️ Ошибка {provider}: {e}")
                 provider = self._get_next_provider(provider)
                 continue
             
             break
         
         raise RuntimeError(f"Все провайдеры не работают: {tried}")
+    
+    def _should_fallback(self, response: str, response_time: float) -> bool:
+        """Проверка: нужно ли переключиться на облако"""
+        if not response:
+            return True
+        
+        if response_time > 30:
+            return True
+        
+        if len(response.split()) < 50:
+            uncertain_patterns = [
+                r"not sure", r"don't know", r"не уверен", r"не знаю",
+                r"cannot determine", r"hard to say", r"возможно"
+            ]
+            for pattern in uncertain_patterns:
+                if re.search(pattern, response.lower()):
+                    return True
+        
+        return False
     
     def _get_next_provider(self, current: str) -> Optional[str]:
         """Получить следующий провайдер для fallback"""
