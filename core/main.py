@@ -22,6 +22,7 @@ from .database import Database
 from .logger import setup_logger
 from .system_scanner import SystemScanner
 from .project_context import ProjectContext, AgentResult
+from .code_validator import CodeValidator
 
 
 console = Console()
@@ -186,6 +187,19 @@ class AITeamSystem:
         
         self.console.print(f"[green]✓ Агенты завершили работу[/green]")
         
+        # Валидация кода
+        all_files = self.context.get_all_files()
+        if all_files:
+            self.console.print("[yellow]Валидация кода...[/yellow]")
+            validator = CodeValidator(self.project_path)
+            validation_results = validator.validate_all(all_files)
+            summary = validator.get_summary(validation_results)
+            
+            self.console.print(f"  Файлов: {summary['valid_files']}/{summary['total_files']} валидных")
+            if summary['total_errors'] > 0:
+                self.console.print(f"  [red]Ошибок: {summary['total_errors']}[/red]")
+        
+        # Тестирование
         tester_task = {
             "tester": f"Напиши тесты для созданного кода. Все созданные файлы: {self.context.get_all_files()}"
         }
@@ -202,6 +216,14 @@ class AITeamSystem:
                 status="success",
                 files_created=tester_result.get("files_created", [])
             ))
+            
+            # Запуск тестов
+            validator = CodeValidator(self.project_path)
+            test_result = validator.run_pytest()
+            if test_result.get("success"):
+                self.console.print("[green]✓ Тесты прошли![/green]")
+            else:
+                self.console.print(f"[yellow]⚠ Тесты: {test_result.get('error', 'Не удалось запустить')}[/yellow]")
         
         return results
     

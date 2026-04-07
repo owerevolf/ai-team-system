@@ -26,7 +26,7 @@ class TestAITeamSystem:
             mock_instance.get_info.return_value = {
                 "cpu": {"cores": 8, "threads": 16},
                 "ram": {"total_gb": 32},
-                "gpu": {"name": "RTX 3080"},
+                "gpu": {"name": "RTX 3080", "vram_gb": 8},
                 "ollama": {"available": True}
             }
             mock_scanner.return_value = mock_instance

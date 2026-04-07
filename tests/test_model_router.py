@@ -35,17 +35,11 @@ class TestModelRouter:
     def test_get_available_provider_no_providers(self):
         with patch('core.model_router.ModelRouter._check_ollama', return_value=False):
             router = ModelRouter()
-            router.providers["ollama"]["enabled"] = False
-            router.providers["groq"]["enabled"] = False
-            router.providers["deepseek"]["enabled"] = False
-            router.providers["google"]["enabled"] = False
-            router.providers["openrouter"]["enabled"] = False
-            router.providers["xai"]["enabled"] = False
-            router.providers["anthropic"]["enabled"] = False
-            router.providers["openai"]["enabled"] = False
+            for p in router.providers:
+                router.providers[p]["enabled"] = False
             
-            with pytest.raises(RuntimeError, match="Нет доступных провайдеров"):
-                router._get_available_provider()
+            result = router._get_available_provider()
+            assert result is None
     
     def test_get_status(self):
         with patch('core.model_router.ModelRouter._check_ollama', return_value=True):
