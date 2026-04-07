@@ -22,6 +22,12 @@ pydantic==2.10.0
 python-dotenv==1.0.1
 pyyaml==6.0.2
 aiofiles==24.1.0
+rich==13.9.4
+click==8.1.7
+sqlalchemy==2.0.36
+
+# 🗃️ Миграции
+alembic==1.14.0
 
 # 🧪 Тесты
 pytest==8.3.4
