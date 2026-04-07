@@ -1,5 +1,5 @@
 """
-AI Team System - Core Module
+AI Team System — Core Module v2.0
 """
 
 from .main import AITeamSystem
@@ -23,10 +23,12 @@ from .event_bus import EventBus, Event
 from .sandbox import CodeSandbox, SandboxResult
 from .reasoning_trace import TraceManager, ReasoningTrace, ReasoningStep
 from .fallback_manager import FallbackManager, FallbackConfig, FallbackEvent
-from .learning_mode import LearningMode, TutorialStep, GlossaryEntry, LearningProgress
+from .learning_mode import LearningMode, LearningProgress, TutorialStep
 from .mode_switcher import ModeSwitcher, ModeConfig, MODES
+from .hardware_detector import HardwareDetector
+from .export_lesson import ExportLesson
 
-__version__ = "5.1.0"
+__version__ = "2.0.0"
 __all__ = [
     "AITeamSystem",
     "AgentManager",
@@ -66,10 +68,11 @@ __all__ = [
     "FallbackConfig",
     "FallbackEvent",
     "LearningMode",
-    "TutorialStep",
-    "GlossaryEntry",
     "LearningProgress",
+    "TutorialStep",
     "ModeSwitcher",
     "ModeConfig",
     "MODES",
+    "HardwareDetector",
+    "ExportLesson",
 ]

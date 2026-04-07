@@ -1,7 +1,7 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════
-# AI Team System — One-Click Installer
-# Linux/Mac
+# AI Team System — One-Click Installer (Linux/macOS)
+# Версия: 2.0
 # ═══════════════════════════════════════════════════════════════
 
 set -e
@@ -10,205 +10,220 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
 NC='\033[0m'
 
-log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
-log_ok() { echo -e "${GREEN}[OK]${NC} $1"; }
-log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
-log_err() { echo -e "${RED}[ERROR]${NC} $1"; }
+INSTALL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+LOG_FILE="$INSTALL_DIR/scripts/install.log"
+CACHE_FILE="$INSTALL_DIR/.hardware_cache"
+
+mkdir -p "$(dirname "$LOG_FILE")"
+
+log_info() { echo -e "${BLUE}[INFO]${NC} $1" | tee -a "$LOG_FILE"; }
+log_ok()   { echo -e "${GREEN}[OK]${NC} $1" | tee -a "$LOG_FILE"; }
+log_warn() { echo -e "${YELLOW}[WARN]${NC} $1" | tee -a "$LOG_FILE"; }
+log_err()  { echo -e "${RED}[ERROR]${NC} $1" | tee -a "$LOG_FILE"; }
 
 echo ""
-echo "╔══════════════════════════════════════════════════════════╗"
-echo "║        🤖 AI Team System — Installer                    ║"
-echo "║        Мультиагентная система разработки ПО             ║"
-echo "╚══════════════════════════════════════════════════════════╝"
+echo -e "${CYAN}╔══════════════════════════════════════════════════════════╗${NC}"
+echo -e "${CYAN}║        🤖 AI Team System — Installer v2.0              ║${NC}"
+echo -e "${CYAN}║        Мультиагентная система разработки ПО             ║${NC}"
+echo -e "${CYAN}╚══════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
-# ─── 1. Проверка ОС ───
+log_info "Лог: $LOG_FILE"
+
 OS=$(uname -s)
 log_info "ОС: $OS"
 
-# ─── 2. Проверка Python ───
-if command -v python3 &> /dev/null; then
-    PY_VERSION=$(python3 --version | awk '{print $2}')
-    log_ok "Python найден: $PY_VERSION"
-else
-    log_warn "Python не найден. Устанавливаю..."
+PYTHON_CMD=""
+for cmd in python3.12 python3.11 python3.10 python3; do
+    if command -v "$cmd" &> /dev/null; then
+        PY_VERSION=$("$cmd" --version 2>&1 | awk '{print $2}')
+        PYTHON_CMD="$cmd"
+        log_ok "Python найден: $cmd $PY_VERSION"
+        break
+    fi
+done
+
+if [ -z "$PYTHON_CMD" ]; then
+    log_warn "Python 3.10+ не найден. Устанавливаю..."
     if [ "$OS" = "Darwin" ]; then
-        brew install python3
+        if command -v brew &> /dev/null; then
+            brew install python@3.12
+        else
+            log_err "Homebrew не найден. Установи Python вручную: https://www.python.org/downloads/"
+            exit 1
+        fi
     else
-        sudo apt update && sudo apt install -y python3 python3-pip python3-venv
+        if command -v apt-get &> /dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y python3.10 python3.10-venv python3-pip
+            PYTHON_CMD="python3.10"
+        elif command -v dnf &> /dev/null; then
+            sudo dnf install -y python3.10 python3-pip
+            PYTHON_CMD="python3.10"
+        elif command -v pacman &> /dev/null; then
+            sudo pacman -S --noconfirm python python-pip
+            PYTHON_CMD="python3"
+        else
+            log_err "Не удалось установить Python. Установи вручную."
+            exit 1
+        fi
     fi
     log_ok "Python установлен"
 fi
 
-# ─── 3. Создание директории ───
-INSTALL_DIR="$HOME/ai-team-system"
-if [ -d "$INSTALL_DIR" ]; then
-    log_warn "Папка уже существует: $INSTALL_DIR"
-    read -p "Перезаписать? (y/n): " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        rm -rf "$INSTALL_DIR"
-    else
-        log_info "Использую существующую установку"
-        cd "$INSTALL_DIR"
-        source venv/bin/activate 2>/dev/null || true
-        exec "$@"
-        exit 0
-    fi
-fi
-
-log_info "Создаю папку: $INSTALL_DIR"
-mkdir -p "$INSTALL_DIR"
-cd "$INSTALL_DIR"
-
-# ─── 4. Клонирование репозитория ───
-log_info "Скачиваю проект..."
-if command -v git &> /dev/null; then
-    git clone https://github.com/owerevolf/ai-team-system.git .
-    log_ok "Проект скачан"
-else
+if ! command -v git &> /dev/null; then
     log_warn "Git не найден. Устанавливаю..."
     if [ "$OS" = "Darwin" ]; then
         brew install git
-    else
-        sudo apt install -y git
+    elif command -v apt-get &> /dev/null; then
+        sudo apt-get install -y git
+    elif command -v dnf &> /dev/null; then
+        sudo dnf install -y git
+    elif command -v pacman &> /dev/null; then
+        sudo pacman -S --noconfirm git
     fi
-    git clone https://github.com/owerevolf/ai-team-system.git .
-    log_ok "Git установлен, проект скачан"
+    log_ok "Git установлен"
 fi
 
-# ─── 5. Виртуальное окружение ───
+cd "$INSTALL_DIR"
+
 log_info "Создаю виртуальное окружение..."
-python3 -m venv venv
+"$PYTHON_CMD" -m venv venv
 source venv/bin/activate
+pip install --upgrade pip -q
 log_ok "Виртуальное окружение создано"
 
-# ─── 6. Установка зависимостей ───
 log_info "Устанавливаю зависимости..."
-pip install -r requirements.txt -q
+pip install -r requirements.txt -q 2>&1 | tee -a "$LOG_FILE"
 log_ok "Зависимости установлены"
 
-# ─── 7. Авто-детект железа ───
-CACHE_FILE="$INSTALL_DIR/.hardware_cache"
-if [ -f "$CACHE_FILE" ]; then
-    log_info "Использую кэшированные данные железа"
-    HARDWARE_PROFILE=$(cat "$CACHE_FILE" | grep "profile=" | cut -d= -f2)
-    MODEL=$(cat "$CACHE_FILE" | grep "model=" | cut -d= -f2)
-else
-    log_info "Сканирую железо..."
-    
-    # Проверяем VRAM
+detect_hardware() {
     VRAM_GB=0
+    RAM_GB=0
+
     if command -v nvidia-smi &> /dev/null; then
-        VRAM_MB=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -1)
-        if [ -n "$VRAM_MB" ]; then
+        VRAM_MB=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' ')
+        if [ -n "$VRAM_MB" ] && [ "$VRAM_MB" -gt 0 ] 2>/dev/null; then
             VRAM_GB=$((VRAM_MB / 1024))
         fi
+    elif [ "$OS" = "Darwin" ]; then
+        UNIFIED_MEM=$(sysctl -n hw.memsize 2>/dev/null || echo "0")
+        RAM_GB=$((UNIFIED_MEM / 1073741824))
+        VRAM_GB=$RAM_GB
     fi
-    
-    # Проверяем RAM
+
     if [ "$OS" = "Darwin" ]; then
-        RAM_GB=$(sysctl -n hw.memsize 2>/dev/null | awk '{print $1/1073741824}')
+        RAM_GB=$(sysctl -n hw.memsize 2>/dev/null | awk '{print int($1/1073741824)}')
     else
         RAM_GB=$(free -g 2>/dev/null | awk '/^Mem:/{print $2}')
     fi
     RAM_GB=${RAM_GB:-8}
-    
-    # Выбираем профиль и модель
-    if [ "$VRAM_GB" -ge 12 ]; then
-        HARDWARE_PROFILE="heavy"
+
+    if [ "$VRAM_GB" -gt 12 ] 2>/dev/null; then
+        PROFILE="heavy"
         MODEL="qwen3:14b"
-        log_info "🔍 Обнаружено: ${VRAM_GB} ГБ VRAM, ${RAM_GB} ГБ RAM → профиль 'heavy'"
-    elif [ "$VRAM_GB" -ge 6 ]; then
-        HARDWARE_PROFILE="medium"
+    elif [ "$VRAM_GB" -ge 6 ] 2>/dev/null; then
+        PROFILE="medium"
         MODEL="qwen3:8b"
-        log_info "🔍 Обнаружено: ${VRAM_GB} ГБ VRAM, ${RAM_GB} ГБ RAM → профиль 'medium'"
     else
-        HARDWARE_PROFILE="light"
+        PROFILE="light"
         MODEL="qwen3:4b"
-        log_info "🔍 Обнаружено: ${VRAM_GB} ГБ VRAM, ${RAM_GB} ГБ RAM → профиль 'light'"
     fi
-    
-    # Кэшируем результат
-    echo "profile=$HARDWARE_PROFILE" > "$CACHE_FILE"
+
+    echo "profile=$PROFILE" > "$CACHE_FILE"
     echo "model=$MODEL" >> "$CACHE_FILE"
     echo "vram=$VRAM_GB" >> "$CACHE_FILE"
     echo "ram=$RAM_GB" >> "$CACHE_FILE"
-    log_ok "Результат сохранён в .hardware_cache"
-fi
+    echo "os=$OS" >> "$CACHE_FILE"
 
-# ─── 8. Проверка Ollama ───
-if command -v ollama &> /dev/null; then
-    log_ok "Ollama найдена"
-    
-    # Проверка модели
-    if ollama list 2>/dev/null | grep -q "$MODEL"; then
-        log_ok "Модель $MODEL найдена"
-    else
-        log_warn "Модель не найдена. Скачиваю $MODEL..."
-        log_info "Это может занять несколько минут..."
-        ollama pull "$MODEL"
-        log_ok "Модель скачана"
-    fi
+    log_info "Железо: ${VRAM_GB}ГБ VRAM, ${RAM_GB}ГБ RAM → профиль '$PROFILE', модель '$MODEL'"
+}
+
+if [ -f "$CACHE_FILE" ]; then
+    log_info "Использую кэш железа: $CACHE_FILE"
+    PROFILE=$(grep "^profile=" "$CACHE_FILE" | cut -d= -f2)
+    MODEL=$(grep "^model=" "$CACHE_FILE" | cut -d= -f2)
 else
-    log_warn "Ollama не найдена"
-    echo ""
-    echo "╔══════════════════════════════════════════════════════════╗"
-    echo "║  Ollama — локальный сервер для AI моделей               ║"
-    echo "║  Без неё система не сможет работать офлайн              ║"
-    echo "╚══════════════════════════════════════════════════════════╝"
-    echo ""
-    read -p "Установить Ollama? (y/n): " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        curl -fsSL https://ollama.ai/install.sh | sh
-        log_ok "Ollama установлена"
-        
-        log_info "Скачиваю модель $MODEL..."
-        ollama pull "$MODEL"
-        log_ok "Модель скачана"
+    log_info "Сканирую железо..."
+    detect_hardware
+    log_ok "Кэш сохранён в .hardware_cache"
+fi
+
+install_ollama() {
+    if command -v ollama &> /dev/null; then
+        log_ok "Ollama найдена"
     else
-        log_warn "Ollama не установлена. Можно использовать облачные API."
+        log_warn "Ollama не найдена. Устанавливаю..."
+        curl -fsSL https://ollama.ai/install.sh | sh 2>&1 | tee -a "$LOG_FILE"
+        log_ok "Ollama установлена"
+    fi
+
+    if ollama list 2>/dev/null | grep -q "$MODEL"; then
+        log_ok "Модель $MODEL уже загружена"
+    else
+        log_info "Загружаю модель $MODEL (это может занять время)..."
+        ollama pull "$MODEL" 2>&1 | tee -a "$LOG_FILE"
+        log_ok "Модель $MODEL загружена"
+    fi
+}
+
+if command -v ollama &> /dev/null || command -v curl &> /dev/null; then
+    read -p "Установить/обновить Ollama и модель? (y/n): " -n 1 -r -t 30 || true
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]] || [ -z "$REPLY" ]; then
+        install_ollama
+    else
+        log_warn "Ollama пропущена. Настрой .env для облачных API."
     fi
 fi
 
-# ─── 9. Конфигурация ───
-if [ ! -f ".env" ]; then
-    cp .env.example .env
-    # Обновляем модель в .env
-    sed -i.bak "s/OLLAMA_MODEL=.*/OLLAMA_MODEL=$MODEL/" .env 2>/dev/null || \
-        sed -i "" "s/OLLAMA_MODEL=.*/OLLAMA_MODEL=$MODEL/" .env 2>/dev/null || true
-    sed -i.bak "s/HARDWARE_PROFILE=.*/HARDWARE_PROFILE=$HARDWARE_PROFILE/" .env 2>/dev/null || \
-        sed -i "" "s/HARDWARE_PROFILE=.*/HARDWARE_PROFILE=$HARDWARE_PROFILE/" .env 2>/dev/null || true
-    rm -f .env.bak 2>/dev/null || true
-    log_ok "Конфиг .env создан (профиль: $HARDWARE_PROFILE, модель: $MODEL)"
+if [ ! -f "$INSTALL_DIR/.env" ]; then
+    cp "$INSTALL_DIR/.env.example" "$INSTALL_DIR/.env"
+    if command -v sed &> /dev/null; then
+        if [ "$OS" = "Darwin" ]; then
+            sed -i "" "s/^OLLAMA_MODEL=.*/OLLAMA_MODEL=$MODEL/" "$INSTALL_DIR/.env" 2>/dev/null || true
+            sed -i "" "s/^HARDWARE_PROFILE=.*/HARDWARE_PROFILE=$PROFILE/" "$INSTALL_DIR/.env" 2>/dev/null || true
+        else
+            sed -i "s/^OLLAMA_MODEL=.*/OLLAMA_MODEL=$MODEL/" "$INSTALL_DIR/.env" 2>/dev/null || true
+            sed -i "s/^HARDWARE_PROFILE=.*/HARDWARE_PROFILE=$PROFILE/" "$INSTALL_DIR/.env" 2>/dev/null || true
+        fi
+    fi
+    log_ok ".env создан (профиль: $PROFILE, модель: $MODEL)"
 fi
 
-# ─── 10. Создание папок ───
-mkdir -p ~/.logs/ai_team
-mkdir -p ~/projects
-log_ok "Папки созданы"
+mkdir -p "$HOME/.logs/ai_team"
+mkdir -p "$HOME/ai-team-lessons"
+mkdir -p "$HOME/projects"
+log_ok "Рабочие папки созданы"
 
-# ─── 11. Финал ───
 echo ""
-echo "╔══════════════════════════════════════════════════════════╗"
-echo "║                    ✅ ГОТОВО!                            ║"
-echo "╚══════════════════════════════════════════════════════════╝"
+echo -e "${GREEN}╔══════════════════════════════════════════════════════════╗${NC}"
+echo -e "${GREEN}║                    ✅ ГОТОВО!                           ║${NC}"
+echo -e "${GREEN}╚══════════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo "Запуск:"
+log_info "Запускаю веб-интерфейс..."
+
+cd "$INSTALL_DIR"
+source venv/bin/activate
+
+nohup python -m uvicorn web_ui.app:app --host 0.0.0.0 --port 8000 > "$LOG_FILE" 2>&1 &
+SERVER_PID=$!
+log_info "Сервер запущен (PID: $SERVER_PID)"
+
+sleep 2
+
+if command -v xdg-open &> /dev/null; then
+    xdg-open http://localhost:8000 &> /dev/null &
+elif command -v open &> /dev/null; then
+    open http://localhost:8000 &> /dev/null &
+elif command -v start &> /dev/null; then
+    start http://localhost:8000 &> /dev/null &
+fi
+
 echo ""
-echo "  cd $INSTALL_DIR"
-echo "  source venv/bin/activate"
-echo ""
-echo "  # Web UI (рекомендуется):"
-echo "  python web_ui/app.py"
-echo ""
-echo "  # CLI:"
-echo "  python -m core.main --project-name myapp --requirements 'описание'"
-echo ""
-echo "Открой в браузере: http://localhost:5000"
-echo ""
-echo "Документация: https://github.com/owerevolf/ai-team-system"
+echo -e "${CYAN}Веб-интерфейс: http://localhost:8000${NC}"
+echo -e "${CYAN}Лог установки: $LOG_FILE${NC}"
 echo ""

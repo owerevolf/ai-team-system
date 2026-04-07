@@ -1,5 +1,6 @@
 """
-Web UI v2 - Flask приложение с SSE и Session Management
+AI Team System Web UI — FastAPI приложение с SSE-стримингом
+Версия: 2.0
 """
 
 import os
@@ -7,308 +8,297 @@ import sys
 import json
 import uuid
 import queue
+import hashlib
+import time
+import threading
 from pathlib import Path
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify, Response, session
-from flask_cors import CORS
-import threading
+from typing import Optional, Dict, Any
 
-# Добавляем корень проекта в PYTHONPATH
-sys.path.insert(0, str(Path(__file__).parent.parent))
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
+from dotenv import load_dotenv
+from loguru import logger
 
-from core.system_scanner import SystemScanner
-from core.model_router import ModelRouter
-from core.main import AITeamSystem
-from core.zip_export import ZipExporter
-from core.security_scanner import SecurityScanner
+BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / ".env")
 
-app = Flask(__name__, template_folder="templates", static_folder="static")
-app.secret_key = os.environ.get("SECRET_KEY", str(uuid.uuid4()))
-CORS(app)
+app = FastAPI(title="AI Team System", version="2.0.0")
 
-sessions = {}
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+STATIC_DIR = BASE_DIR / "web_ui" / "static"
+TEMPLATES_DIR = BASE_DIR / "web_ui" / "templates"
+
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+
+logger.remove()
+log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+logger.add(sys.stderr, level=log_level, format="<green>{time:HH:mm:ss}</green> | <level>{level}</level> | {message}")
+logger.add(BASE_DIR / ".logs" / "web_ui.log", rotation="10 MB", level="DEBUG", encoding="utf-8")
+
+sessions: Dict[str, Dict[str, Any]] = {}
+session_lock = threading.Lock()
+
+
+class AgentQueryRequest(BaseModel):
+    query: str
+    agent_role: str = "teamlead"
+    user_level: str = "beginner"
+    session_id: Optional[str] = None
+
+
+class AgentQueryResponse(BaseModel):
+    status: str
+    response: str
+    metadata: Dict[str, Any]
 
 
 class SessionManager:
-    def __init__(self):
-        self.active = {}
-    
-    def create(self, profile="medium"):
+    def __init__(self) -> None:
+        self.active: Dict[str, Dict[str, Any]] = {}
+
+    def create(self, user_level: str = "beginner", profile: str = "medium") -> str:
         session_id = str(uuid.uuid4())
-        system = AITeamSystem(profile=profile)
-        event_queue = queue.Queue()
-        
-        def on_event(event_type, data):
-            event = {"type": event_type, "data": data, "time": datetime.now().isoformat()}
-            event_queue.put(event)
-        
-        system.agent_manager.set_event_callback(on_event)
-        
+        event_queue: queue.Queue[Dict[str, Any]] = queue.Queue()
+
         self.active[session_id] = {
-            "system": system,
+            "user_level": user_level,
+            "profile": profile,
             "events": event_queue,
-            "created": datetime.now(),
-            "status": "idle"
+            "created": datetime.now().isoformat(),
+            "status": "idle",
+            "history": [],
         }
-        
+
+        logger.info(f"Сессия создана: {session_id} (уровень={user_level})")
         return session_id
-    
-    def get(self, session_id):
+
+    def get(self, session_id: str) -> Optional[Dict[str, Any]]:
         return self.active.get(session_id)
-    
-    def get_events(self, session_id, timeout=0.1):
-        sess = self.get(session_id)
-        if not sess:
-            return []
-        
-        events = []
-        try:
-            while True:
-                event = sess["events"].get_nowait()
-                events.append(event)
-        except queue.Empty:
-            pass
-        
-        return events
-    
-    def cleanup(self, session_id):
-        if session_id in self.active:
-            del self.active[session_id]
+
+    def add_event(self, session_id: str, event: Dict[str, Any]) -> None:
+        sess = self.active.get(session_id)
+        if sess:
+            sess["events"].put(event)
+            sess["history"].append(event)
+
+    def cleanup(self, session_id: str) -> None:
+        self.active.pop(session_id, None)
 
 
 session_manager = SessionManager()
 
 
-@app.route("/")
-def index():
-    return render_template("index.html")
+def validate_env() -> bool:
+    env_file = BASE_DIR / ".env"
+    if not env_file.exists():
+        example = BASE_DIR / ".env.example"
+        if example.exists():
+            import shutil
+            shutil.copy2(example, env_file)
+            logger.warning(".env не найден, скопирован из .env.example")
+            return True
+        logger.error("Нет .env и .env.example")
+        return False
+    return True
 
 
-@app.route("/pipeline")
-def pipeline():
-    return render_template("pipeline.html")
+@app.on_event("startup")
+async def startup() -> None:
+    validate_env()
+    logger.info("AI Team System Web UI запущен на порту 8000")
 
 
-@app.route("/dashboard")
-def dashboard():
-    return render_template("dashboard.html")
+@app.get("/", response_class=HTMLResponse)
+async def index(request: Request) -> Response:
+    return templates.TemplateResponse("welcome.html", {"request": request})
 
 
-@app.route("/report")
-def report():
-    return render_template("report.html")
+@app.get("/api/health")
+async def health() -> JSONResponse:
+    return JSONResponse({"status": "ok", "version": "2.0.0"})
 
 
-@app.route("/api/system/info")
-def system_info():
-    scanner = SystemScanner()
-    return jsonify(scanner.get_info())
+@app.get("/favicon.ico")
+async def favicon() -> Response:
+    return Response(status_code=204)
 
 
-@app.route("/api/models")
-def models():
-    router = ModelRouter()
-    return jsonify(router.list_models())
+@app.get("/sw.js")
+async def service_worker() -> Response:
+    return Response(status_code=204)
 
 
-@app.route("/api/profile/recommend")
-def recommend_profile():
-    scanner = SystemScanner()
-    profile = scanner.recommend_profile()
-    return jsonify({"profile": profile})
+@app.get("/api/start")
+async def start_tour(user_level: str = "beginner") -> JSONResponse:
+    profile = os.getenv("HARDWARE_PROFILE", "medium")
+    session_id = session_manager.create(user_level=user_level, profile=profile)
+    return JSONResponse({"session_id": session_id, "status": "started", "user_level": user_level})
 
 
-@app.route("/api/projects")
-def list_projects():
-    projects_dir = Path.home() / "projects"
-    if not projects_dir.exists():
-        return jsonify([])
-    
-    projects = []
-    for p in sorted(projects_dir.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
-        if p.is_dir():
-            projects.append({
-                "name": p.name,
-                "path": str(p),
-                "created": datetime.fromtimestamp(p.stat().st_mtime).isoformat()
-            })
-    
-    return jsonify(projects)
-
-
-@app.route("/api/session/create", methods=["POST"])
-def create_session():
-    data = request.json or {}
-    profile = data.get("profile", "medium")
-    
-    session_id = session_manager.create(profile)
-    
-    return jsonify({
-        "session_id": session_id,
-        "status": "created"
-    })
-
-
-@app.route("/api/session/<session_id>/events")
-def session_events(session_id):
-    def generate():
-        last_event_id = 0
-        while True:
-            events = session_manager.get_events(session_id)
-            for i, event in enumerate(events):
-                last_event_id += 1
-                yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
-            
-            sess = session_manager.get(session_id)
-            if sess and sess["status"] == "completed":
-                yield f"data: {json.dumps({'type': 'complete', 'data': {}, 'time': datetime.now().isoformat()})}\n\n"
-                break
-            
-            import time
-            time.sleep(0.5)
-    
-    return Response(generate(), mimetype='text/event-stream')
-
-
-@app.route("/api/session/<session_id>/status")
-def session_status(session_id):
+@app.get("/api/stream")
+async def stream_events(session_id: str) -> Response:
     sess = session_manager.get(session_id)
     if not sess:
-        return jsonify({"error": "Session not found"}), 404
-    
-    return jsonify({
-        "status": sess["status"],
-        "created": sess["created"].isoformat(),
-        "events_count": sess["events"].qsize()
+        raise HTTPException(status_code=404, detail="Сессия не найдена")
+
+    async def event_generator():
+        while True:
+            try:
+                event = sess["events"].get(timeout=1.0)
+                data = json.dumps(event, ensure_ascii=False)
+                yield f"data: {data}\n\n"
+                if event.get("type") == "complete":
+                    break
+            except queue.Empty:
+                yield ": keepalive\n\n"
+
+    return Response(event_generator(), media_type="text/event-stream")
+
+
+@app.post("/api/export")
+async def export_lesson(request: Request) -> JSONResponse:
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Невалидный JSON")
+
+    session_id = body.get("session_id", "")
+    sess = session_manager.get(session_id)
+    if not sess:
+        raise HTTPException(status_code=404, detail="Сессия не найдена")
+
+    from core.export_lesson import ExportLesson
+    exporter = ExportLesson()
+    lesson_path = exporter.generate(sess["history"], body.get("title", "Урок"))
+
+    return JSONResponse({"path": str(lesson_path), "status": "exported"})
+
+
+@app.post("/api/lesson/step")
+async def lesson_step(request: Request) -> JSONResponse:
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Невалидный JSON")
+
+    session_id = body.get("session_id", "")
+    step = body.get("step", 0)
+    sess = session_manager.get(session_id)
+    if not sess:
+        raise HTTPException(status_code=404, detail="Сессия не найдена")
+
+    from core.learning_mode import LearningMode
+    lm = LearningMode()
+    beginner = sess["user_level"] == "beginner"
+    step_data = lm.get_step(step, beginner_mode=beginner)
+
+    session_manager.add_event(session_id, {
+        "type": "step",
+        "data": step_data,
+        "time": datetime.now().isoformat(),
     })
 
+    return JSONResponse(step_data)
 
-@app.route("/api/project/create", methods=["POST"])
-def create_project():
-    data = request.json
-    project_name = data.get("name", "untitled")
-    requirements = data.get("requirements", "")
-    profile = data.get("profile", "medium")
-    session_id = data.get("session_id")
-    
-    if session_id:
-        sess = session_manager.get(session_id)
-        if sess:
-            sess["status"] = "running"
-            
-            def run_async():
-                try:
-                    sess["system"].run_full_pipeline(project_name, requirements)
-                    sess["status"] = "completed"
-                except Exception as e:
-                    sess["status"] = "error"
-                    sess["system"].agent_manager.emit_event("error", {"error": str(e)})
-            
-            thread = threading.Thread(target=run_async)
-            thread.start()
-            
-            return jsonify({
-                "status": "started",
-                "session_id": session_id,
-                "message": f"Проект {project_name} запущен"
+
+@app.get("/api/hardware")
+async def hardware_info() -> JSONResponse:
+    from core.hardware_detector import HardwareDetector
+    detector = HardwareDetector()
+    info = detector.detect()
+    return JSONResponse(info)
+
+
+@app.get("/api/progress")
+async def get_progress(session_id: str) -> JSONResponse:
+    sess = session_manager.get(session_id)
+    if not sess:
+        raise HTTPException(status_code=404, detail="Сессия не найдена")
+
+    from core.learning_mode import LearningMode
+    lm = LearningMode()
+    progress = lm.get_progress_report()
+    return JSONResponse(progress)
+
+
+@app.post("/api/agent/query", response_model=AgentQueryResponse)
+async def agent_query(req: AgentQueryRequest) -> AgentQueryResponse:
+    logger.info(f"Запрос агента: role={req.agent_role}, level={req.user_level}, query_len={len(req.query)}")
+
+    beginner = req.user_level == "beginner"
+    profile = os.getenv("HARDWARE_PROFILE", "medium")
+
+    prompt = f"Роль: {req.agent_role}. Задача: {req.query}"
+    if beginner:
+        prompt = f"[BEGINNER] {prompt}"
+
+    prompt_hash = hashlib.sha256(f"{prompt}:{beginner}".encode()).hexdigest()[:12]
+
+    from core.model_router import ModelRouter
+    router = ModelRouter(profile=profile, beginner_mode=beginner)
+
+    cached = router.get_cached(prompt_hash)
+    if cached:
+        logger.debug(f"Кэш-попадение: {prompt_hash}")
+        return AgentQueryResponse(
+            status="success",
+            response=cached,
+            metadata={
+                "agent_role": req.agent_role,
+                "model_used": router.ollama_model,
+                "timestamp": datetime.now().isoformat(),
+                "beginner_mode": beginner,
+                "cached": True,
+            },
+        )
+
+    if not router.check_rate_limit():
+        raise HTTPException(status_code=429, detail="Слишком много запросов. Подождите.")
+
+    try:
+        answer = router.generate(prompt=prompt, agent=req.agent_role, beginner_mode=beginner)
+        router.cache_set(prompt_hash, answer)
+
+        if req.session_id:
+            session_manager.add_event(req.session_id, {
+                "type": "agent_response",
+                "data": {"role": req.agent_role, "query": req.query, "response_len": len(answer)},
+                "time": datetime.now().isoformat(),
             })
-    
-    system = AITeamSystem(profile=profile)
-    
-    def run_async():
-        try:
-            system.run_full_pipeline(project_name, requirements)
-        except Exception as e:
-            print(f"Error: {e}")
-    
-    thread = threading.Thread(target=run_async)
-    thread.start()
-    
-    return jsonify({
-        "status": "started",
-        "message": f"Проект {project_name} запущен"
-    })
 
-
-@app.route("/api/project/<path:project_name>/logs")
-def project_logs(project_name):
-    projects_dir = Path.home() / "projects"
-    project_path = projects_dir / project_name
-    
-    if not project_path.exists():
-        return jsonify({"error": "Project not found"}), 404
-    
-    logs_dir = project_path / ".logs"
-    if not logs_dir.exists():
-        return jsonify([])
-    
-    logs = []
-    for log_file in logs_dir.glob("*.log"):
-        logs.append({
-            "name": log_file.name,
-            "content": log_file.read_text()
-        })
-    
-    return jsonify(logs)
-
-
-@app.route("/api/project/<path:project_name>/files")
-def project_files(project_name):
-    projects_dir = Path.home() / "projects"
-    project_path = projects_dir / project_name
-    
-    if not project_path.exists():
-        return jsonify({"error": "Project not found"}), 404
-    
-    files = []
-    for f in project_path.rglob("*"):
-        if f.is_file():
-            files.append(str(f.relative_to(project_path)))
-    
-    return jsonify(files)
-
-
-@app.route("/api/project/<path:project_name>/report")
-def project_report(project_name):
-    projects_dir = Path.home() / "projects"
-    project_path = projects_dir / project_name
-    report_file = project_path / "report.json"
-    
-    if not report_file.exists():
-        return jsonify({"error": "Report not found"}), 404
-    
-    return jsonify(json.loads(report_file.read_text()))
-
-
-@app.route("/api/project/<path:project_name>/export")
-def project_export(project_name):
-    projects_dir = Path.home() / "projects"
-    project_path = projects_dir / project_name
-    
-    if not project_path.exists():
-        return jsonify({"error": "Project not found"}), 404
-    
-    exporter = ZipExporter(project_path)
-    output_path = exporter.export()
-    
-    return jsonify({"path": str(output_path), "size_mb": exporter.get_size_info()["total_size_mb"]})
-
-
-@app.route("/api/project/<path:project_name>/security")
-def project_security(project_name):
-    projects_dir = Path.home() / "projects"
-    project_path = projects_dir / project_name
-    
-    if not project_path.exists():
-        return jsonify({"error": "Project not found"}), 404
-    
-    scanner = SecurityScanner(project_path)
-    results = scanner.scan()
-    
-    return jsonify(results)
+        logger.info(f"Ответ агента получен: {len(answer)} символов")
+        return AgentQueryResponse(
+            status="success",
+            response=answer,
+            metadata={
+                "agent_role": req.agent_role,
+                "model_used": router.ollama_model,
+                "timestamp": datetime.now().isoformat(),
+                "beginner_mode": beginner,
+                "cached": False,
+            },
+        )
+    except RuntimeError as e:
+        logger.error(f"Ошибка маршрутизации: {e}")
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        logger.error(f"Ошибка агента: {e}")
+        raise HTTPException(status_code=500, detail=f"Внутренняя ошибка: {e}")
 
 
 if __name__ == "__main__":
-    print("🚀 AI Team System Web UI")
-    print("   http://localhost:5000")
-    app.run(host="0.0.0.0", port=5000, debug=True, threaded=True)
+    import uvicorn
+    uvicorn.run("web_ui.app:app", host="0.0.0.0", port=8000, reload=False)

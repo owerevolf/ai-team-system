@@ -1,15 +1,38 @@
-# Основная конфигурация AI Team System
+# Основная конфигурация AI Team System v2.0
 
 system:
   name: "AI Team System"
-  version: "1.0.0"
+  version: "2.0.0"
   log_level: "INFO"
-  
+  ai_mode: "local"
+
   paths:
     projects_dir: "~/projects"
     logs_dir: "~/.logs/ai_team"
+    lessons_dir: "~/ai-team-lessons"
     db_path: "~/.ai_team/ai_team.db"
     prompts_dir: "./prompts"
+
+hardware:
+  cache_file: ".hardware_cache"
+  cache_ttl_hours: 24
+
+  profiles:
+    light:
+      max_vram_gb: 6
+      max_ram_gb: 16
+      model: "qwen3:4b"
+      max_agents: 2
+    medium:
+      max_vram_gb: 12
+      max_ram_gb: 32
+      model: "qwen3:8b"
+      max_agents: 4
+    heavy:
+      max_vram_gb: 999
+      max_ram_gb: 999
+      model: "qwen3:14b"
+      max_agents: 8
 
 agents:
   enabled:
@@ -20,31 +43,31 @@ agents:
     - devops
     - tester
     - documentalist
-  
+
   teamlead:
     priority: 1
     required: true
-    
+
   architect:
     priority: 2
     required: true
-    
+
   backend:
     priority: 3
     required: true
-    
+
   frontend:
     priority: 3
     required: false
-    
+
   devops:
     priority: 4
     required: false
-    
+
   tester:
     priority: 4
     required: false
-    
+
   documentalist:
     priority: 5
     required: false
@@ -53,22 +76,50 @@ phases:
   - name: "planning"
     agents: ["teamlead"]
     description: "Анализ требований и планирование"
-    
+
   - name: "architecture"
     agents: ["architect"]
     description: "Проектирование архитектуры"
-    
+
   - name: "development"
     agents: ["backend", "frontend", "devops", "tester"]
     description: "Разработка кода"
     parallel: true
-    
+
   - name: "documentation"
     agents: ["documentalist"]
     description: "Написание документации"
+
+learning:
+  total_steps: 5
+  beginner_mode: true
+  save_lessons: true
+  lessons_dir: "~/ai-team-lessons"
+
+security:
+  sandbox: true
+  command_timeout: 30
+  shell: false
+  whitelist:
+    - "ls"
+    - "cat"
+    - "mkdir"
+    - "cp"
+    - "mv"
+    - "rm"
+    - "python"
+    - "pip"
+    - "git"
+    - "docker"
 
 quality:
   min_coverage_percent: 70
   require_tests: true
   require_docs: true
   lint_on_commit: true
+
+rate_limiting:
+  max_requests_per_min: 10
+  cache_max_size: 100
+  max_retries: 3
+  base_backoff: 1.0
