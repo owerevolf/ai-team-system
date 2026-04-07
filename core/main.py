@@ -274,13 +274,24 @@ class AITeamSystem:
         
         return report
     
-    def run_full_pipeline(self, project_name: str, requirements_path: str) -> dict:
+    def run_full_pipeline(self, project_name: str, requirements_path: str, 
+                          interactive: bool = False) -> dict:
         try:
             self.create_project(project_name, requirements_path)
             self.scan_hardware()
             
             self.run_planning_phase()
+            
+            if interactive:
+                self.console.print("\n[yellow]Нажмите Enter для продолжения...[/yellow]")
+                input()
+            
             self.run_architecture_phase()
+            
+            if interactive:
+                self.console.print("\n[yellow]Нажмите Enter для продолжения...[/yellow]")
+                input()
+            
             self.run_development_phase()
             self.run_documentation_phase()
             
@@ -298,11 +309,13 @@ class AITeamSystem:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="AI Team System v2")
+    parser = argparse.ArgumentParser(description="AI Team System v3")
     parser.add_argument("--profile", choices=["light", "medium", "heavy"], 
                        default="medium", help="Профиль железа")
     parser.add_argument("--project-name", help="Имя проекта")
     parser.add_argument("--requirements", help="Путь к requirements.md или текст")
+    parser.add_argument("--interactive", "-i", action="store_true", 
+                       help="Интерактивный режим (пауза между фазами)")
     
     args = parser.parse_args()
     
@@ -310,11 +323,13 @@ def main():
     system.scan_hardware()
     
     if args.project_name and args.requirements:
-        system.run_full_pipeline(args.project_name, args.requirements)
+        system.run_full_pipeline(args.project_name, args.requirements, 
+                                interactive=args.interactive)
     else:
         console.print("[yellow]Используйте:[/yellow]")
         console.print("  python -m core.main --project-name myapp --requirements 'описание'")
         console.print("  python -m core.main --project-name myapp --requirements requirements.md")
+        console.print("  python -m core.main -i --project-name myapp --requirements 'описание'")
 
 
 if __name__ == "__main__":
