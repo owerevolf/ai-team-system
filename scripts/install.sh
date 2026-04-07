@@ -90,17 +90,66 @@ log_info "Устанавливаю зависимости..."
 pip install -r requirements.txt -q
 log_ok "Зависимости установлены"
 
-# ─── 7. Проверка Ollama ───
+# ─── 7. Авто-детект железа ───
+CACHE_FILE="$INSTALL_DIR/.hardware_cache"
+if [ -f "$CACHE_FILE" ]; then
+    log_info "Использую кэшированные данные железа"
+    HARDWARE_PROFILE=$(cat "$CACHE_FILE" | grep "profile=" | cut -d= -f2)
+    MODEL=$(cat "$CACHE_FILE" | grep "model=" | cut -d= -f2)
+else
+    log_info "Сканирую железо..."
+    
+    # Проверяем VRAM
+    VRAM_GB=0
+    if command -v nvidia-smi &> /dev/null; then
+        VRAM_MB=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -1)
+        if [ -n "$VRAM_MB" ]; then
+            VRAM_GB=$((VRAM_MB / 1024))
+        fi
+    fi
+    
+    # Проверяем RAM
+    if [ "$OS" = "Darwin" ]; then
+        RAM_GB=$(sysctl -n hw.memsize 2>/dev/null | awk '{print $1/1073741824}')
+    else
+        RAM_GB=$(free -g 2>/dev/null | awk '/^Mem:/{print $2}')
+    fi
+    RAM_GB=${RAM_GB:-8}
+    
+    # Выбираем профиль и модель
+    if [ "$VRAM_GB" -ge 12 ]; then
+        HARDWARE_PROFILE="heavy"
+        MODEL="qwen3:14b"
+        log_info "🔍 Обнаружено: ${VRAM_GB} ГБ VRAM, ${RAM_GB} ГБ RAM → профиль 'heavy'"
+    elif [ "$VRAM_GB" -ge 6 ]; then
+        HARDWARE_PROFILE="medium"
+        MODEL="qwen3:8b"
+        log_info "🔍 Обнаружено: ${VRAM_GB} ГБ VRAM, ${RAM_GB} ГБ RAM → профиль 'medium'"
+    else
+        HARDWARE_PROFILE="light"
+        MODEL="qwen3:4b"
+        log_info "🔍 Обнаружено: ${VRAM_GB} ГБ VRAM, ${RAM_GB} ГБ RAM → профиль 'light'"
+    fi
+    
+    # Кэшируем результат
+    echo "profile=$HARDWARE_PROFILE" > "$CACHE_FILE"
+    echo "model=$MODEL" >> "$CACHE_FILE"
+    echo "vram=$VRAM_GB" >> "$CACHE_FILE"
+    echo "ram=$RAM_GB" >> "$CACHE_FILE"
+    log_ok "Результат сохранён в .hardware_cache"
+fi
+
+# ─── 8. Проверка Ollama ───
 if command -v ollama &> /dev/null; then
     log_ok "Ollama найдена"
     
     # Проверка модели
-    if ollama list 2>/dev/null | grep -q "qwen2.5-coder"; then
-        log_ok "Модель qwen2.5-coder найдена"
+    if ollama list 2>/dev/null | grep -q "$MODEL"; then
+        log_ok "Модель $MODEL найдена"
     else
-        log_warn "Модель не найдена. Скачиваю qwen2.5-coder:7b..."
+        log_warn "Модель не найдена. Скачиваю $MODEL..."
         log_info "Это может занять несколько минут..."
-        ollama pull qwen2.5-coder:7b
+        ollama pull "$MODEL"
         log_ok "Модель скачана"
     fi
 else
@@ -117,26 +166,32 @@ else
         curl -fsSL https://ollama.ai/install.sh | sh
         log_ok "Ollama установлена"
         
-        log_info "Скачиваю модель..."
-        ollama pull qwen2.5-coder:7b
+        log_info "Скачиваю модель $MODEL..."
+        ollama pull "$MODEL"
         log_ok "Модель скачана"
     else
         log_warn "Ollama не установлена. Можно использовать облачные API."
     fi
 fi
 
-# ─── 8. Конфигурация ───
+# ─── 9. Конфигурация ───
 if [ ! -f ".env" ]; then
     cp .env.example .env
-    log_ok "Конфиг .env создан"
+    # Обновляем модель в .env
+    sed -i.bak "s/OLLAMA_MODEL=.*/OLLAMA_MODEL=$MODEL/" .env 2>/dev/null || \
+        sed -i "" "s/OLLAMA_MODEL=.*/OLLAMA_MODEL=$MODEL/" .env 2>/dev/null || true
+    sed -i.bak "s/HARDWARE_PROFILE=.*/HARDWARE_PROFILE=$HARDWARE_PROFILE/" .env 2>/dev/null || \
+        sed -i "" "s/HARDWARE_PROFILE=.*/HARDWARE_PROFILE=$HARDWARE_PROFILE/" .env 2>/dev/null || true
+    rm -f .env.bak 2>/dev/null || true
+    log_ok "Конфиг .env создан (профиль: $HARDWARE_PROFILE, модель: $MODEL)"
 fi
 
-# ─── 9. Создание папок ───
+# ─── 10. Создание папок ───
 mkdir -p ~/.logs/ai_team
 mkdir -p ~/projects
 log_ok "Папки созданы"
 
-# ─── 10. Финал ───
+# ─── 11. Финал ───
 echo ""
 echo "╔══════════════════════════════════════════════════════════╗"
 echo "║                    ✅ ГОТОВО!                            ║"
