@@ -103,14 +103,19 @@ class ModelRouter:
         if not provider:
             raise RuntimeError("Нет доступных провайдеров! Настройте .env файл.")
         
-        if provider == "groq":
-            return self._generate_groq(prompt, model)
-        elif provider == "deepseek":
-            return self._generate_deepseek(prompt, model)
-        elif provider == "google":
-            return self._generate_google(prompt, model)
-        elif provider == "openrouter":
-            return self._generate_openrouter(prompt, model)
+        # Try primary provider, fallback to next available
+        tried = []
+        while provider:
+            tried.append(provider)
+            try:
+                if provider == "groq":
+                    return self._generate_groq(prompt, model)
+                elif provider == "deepseek":
+                    return self._generate_deepseek(prompt, model)
+                elif provider == "google":
+                    return self._generate_google(prompt, model)
+                elif provider == "openrouter":
+                    return self._generate_openrouter(prompt, model)
         elif provider == "xai":
             return self._generate_xai(prompt, model)
         elif provider == "ollama":
