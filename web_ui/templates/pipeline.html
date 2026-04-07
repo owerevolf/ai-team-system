@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Team System — Pipeline Dashboard</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+        
+        .header { background: #1e293b; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; }
+        .header h1 { font-size: 1.5rem; background: linear-gradient(135deg, #3b82f6, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .header .project-info { color: #94a3b8; font-size: 0.9rem; }
+        
+        .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+        
+        .pipeline { display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem; overflow-x: auto; padding: 1rem 0; }
+        .pipeline-step { display: flex; align-items: center; gap: 0.5rem; }
+        .pipeline-arrow { color: #475569; font-size: 1.5rem; }
+        
+        .agent-card { background: #1e293b; border: 2px solid #334155; border-radius: 12px; padding: 1rem; min-width: 160px; text-align: center; transition: all 0.3s; }
+        .agent-card.active { border-color: #3b82f6; box-shadow: 0 0 20px rgba(59, 130, 246, 0.3); }
+        .agent-card.done { border-color: #22c55e; }
+        .agent-card.error { border-color: #ef4444; }
+        .agent-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+        .agent-name { font-weight: 600; margin-bottom: 0.25rem; }
+        .agent-status { font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 20px; display: inline-block; }
+        .agent-status.idle { background: #334155; color: #94a3b8; }
+        .agent-status.working { background: #3b82f6; color: white; animation: pulse 1.5s infinite; }
+        .agent-status.done { background: #22c55e; color: #000; }
+        .agent-status.error { background: #ef4444; color: white; }
+        
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+        
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+        .stat-card { background: #1e293b; border-radius: 12px; padding: 1.5rem; border: 1px solid #334155; }
+        .stat-value { font-size: 2rem; font-weight: 700; color: #3b82f6; }
+        .stat-label { color: #94a3b8; font-size: 0.85rem; margin-top: 0.25rem; }
+        
+        .progress-section { margin-bottom: 2rem; }
+        .progress-bar-bg { background: #334155; border-radius: 10px; height: 8px; overflow: hidden; }
+        .progress-bar-fill { background: linear-gradient(90deg, #3b82f6, #22c55e); height: 100%; width: 0%; transition: width 0.5s; border-radius: 10px; }
+        .progress-text { text-align: center; margin-top: 0.5rem; color: #94a3b8; }
+        
+        .logs-section { background: #1e293b; border-radius: 12px; border: 1px solid #334155; overflow: hidden; }
+        .logs-header { padding: 1rem; border-bottom: 1px solid #334155; font-weight: 600; }
+        .logs-content { padding: 1rem; max-height: 400px; overflow-y: auto; font-family: 'Fira Code', monospace; font-size: 0.85rem; color: #94a3b8; }
+        .log-entry { margin-bottom: 0.5rem; }
+        .log-time { color: #64748b; }
+        .log-success { color: #22c55e; }
+        .log-error { color: #ef4444; }
+        .log-info { color: #3b82f6; }
+        
+        .files-section { margin-top: 2rem; }
+        .files-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0.5rem; margin-top: 1rem; }
+        .file-item { background: #1e293b; padding: 0.75rem 1rem; border-radius: 8px; border: 1px solid #334155; font-family: monospace; font-size: 0.85rem; }
+        
+        .controls { display: flex; gap: 1rem; margin-bottom: 2rem; flex-wrap: wrap; }
+        .btn { padding: 0.75rem 1.5rem; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .btn-primary { background: #3b82f6; color: white; }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-secondary { background: #334155; color: #e2e8f0; }
+        .btn-secondary:hover { background: #475569; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🤖 AI Team System</h1>
+        <div class="project-info">Проект: <span id="project-name">—</span> | Фаза: <span id="current-phase">—</span></div>
+    </div>
+
+    <div class="container">
+        <div class="pipeline" id="pipeline"></div>
+
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-value" id="stat-files">0</div><div class="stat-label">Файлов создано</div></div>
+            <div class="stat-card"><div class="stat-value" id="stat-agents">0/7</div><div class="stat-label">Агентов завершили</div></div>
+            <div class="stat-card"><div class="stat-value" id="stat-errors">0</div><div class="stat-label">Ошибок</div></div>
+            <div class="stat-card"><div class="stat-value" id="stat-tokens">0</div><div class="stat-label">Токенов</div></div>
+        </div>
+
+        <div class="progress-section">
+            <div class="progress-bar-bg"><div class="progress-bar-fill" id="progress-bar"></div></div>
+            <div class="progress-text" id="progress-text">0%</div>
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-primary" onclick="startProject()">🚀 Запустить проект</button>
+            <button class="btn btn-secondary" onclick="exportProject()">📦 Экспорт ZIP</button>
+            <button class="btn btn-secondary" onclick="showStats()">📊 Статистика</button>
+        </div>
+
+        <div class="logs-section">
+            <div class="logs-header">📋 Логи в реальном времени</div>
+            <div class="logs-content" id="logs-content"></div>
+        </div>
+
+        <div class="files-section">
+            <h3>📁 Созданные файлы</h3>
+            <div class="files-grid" id="files-grid"></div>
+        </div>
+    </div>
+
+    <script>
+        const agents = [
+            { name: 'teamlead', icon: '👑', label: 'TeamLead' },
+            { name: 'architect', icon: '🏗️', label: 'Architect' },
+            { name: 'backend', icon: '⚙️', label: 'Backend' },
+            { name: 'frontend', icon: '🎨', label: 'Frontend' },
+            { name: 'devops', icon: '🚀', label: 'DevOps' },
+            { name: 'tester', icon: '🧪', label: 'Tester' },
+            { name: 'documentalist', icon: '📝', label: 'Documentalist' }
+        ];
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const projectName = urlParams.get('project') || '';
+        const sessionId = urlParams.get('session') || '';
+
+        document.getElementById('project-name').textContent = projectName || 'Новый проект';
+
+        function renderPipeline() {
+            const pipeline = document.getElementById('pipeline');
+            pipeline.innerHTML = agents.map((a, i) => `
+                <div class="agent-card" id="card-${a.name}" data-agent="${a.name}">
+                    <div class="agent-icon">${a.icon}</div>
+                    <div class="agent-name">${a.label}</div>
+                    <div class="agent-status idle" id="status-${a.name}">Ожидание</div>
+                </div>
+                ${i < agents.length - 1 ? '<div class="pipeline-arrow">→</div>' : ''}
+            `).join('');
+        }
+
+        function updateAgent(agent, status, message) {
+            const card = document.getElementById(`card-${agent}`);
+            const statusEl = document.getElementById(`status-${agent}`);
+            if (!card || !statusEl) return;
+
+            card.className = `agent-card ${status}`;
+            statusEl.className = `agent-status ${status}`;
+            statusEl.textContent = message || status;
+        }
+
+        function addLog(message, type = 'info') {
+            const logs = document.getElementById('logs-content');
+            const time = new Date().toLocaleTimeString();
+            const cls = type === 'success' ? 'log-success' : type === 'error' ? 'log-error' : 'log-info';
+            logs.innerHTML += `<div class="log-entry"><span class="log-time">[${time}]</span> <span class="${cls}">${message}</span></div>`;
+            logs.scrollTop = logs.scrollHeight;
+        }
+
+        function updateProgress(percent) {
+            document.getElementById('progress-bar').style.width = percent + '%';
+            document.getElementById('progress-text').textContent = Math.round(percent) + '%';
+        }
+
+        function updateStats(files, agentsDone, errors, tokens) {
+            document.getElementById('stat-files').textContent = files;
+            document.getElementById('stat-agents').textContent = agentsDone + '/7';
+            document.getElementById('stat-errors').textContent = errors;
+            document.getElementById('stat-tokens').textContent = tokens.toLocaleString();
+        }
+
+        function handleEvent(event) {
+            const { type, data } = event;
+            if (type === 'agent_start') {
+                updateAgent(data.agent, 'working', 'Работает...');
+                addLog(`▶ ${data.agent} начал работу`);
+            } else if (type === 'agent_complete') {
+                updateAgent(data.agent, 'done', `✓ ${data.files?.length || 0} файлов`);
+                addLog(`✓ ${data.agent} завершил (${data.files?.length || 0} файлов)`, 'success');
+                updateStats(data.totalFiles || 0, data.agentsDone || 0, 0, data.tokens || 0);
+            } else if (type === 'agent_error') {
+                updateAgent(data.agent, 'error', `✗ Ошибка`);
+                addLog(`✗ ${data.agent}: ${data.error}`, 'error');
+            } else if (type === 'phase') {
+                document.getElementById('current-phase').textContent = data.phase;
+                updateProgress(data.progress || 0);
+            }
+        }
+
+        async function startProject() {
+            const name = prompt('Имя проекта:', 'myapp');
+            if (!name) return;
+            const req = prompt('Описание проекта:', 'REST API на FastAPI');
+            if (!req) return;
+
+            addLog(`Запуск проекта: ${name}`, 'info');
+            
+            try {
+                const res = await fetch('/api/project/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, requirements: req, profile: 'medium' })
+                });
+                const data = await res.json();
+                addLog(`Проект запущен: ${data.message}`, 'success');
+                document.getElementById('project-name').textContent = name;
+            } catch (e) {
+                addLog(`Ошибка: ${e.message}`, 'error');
+            }
+        }
+
+        async function exportProject() {
+            addLog('Экспорт проекта...', 'info');
+            window.location.href = `/api/project/${encodeURIComponent(projectName)}/export`;
+        }
+
+        async function showStats() {
+            try {
+                const res = await fetch(`/api/project/${encodeURIComponent(projectName)}/stats`);
+                const data = await res.json();
+                addLog(`Статистика: ${data.total_files} файлов, ${data.total_tokens} токенов`, 'info');
+            } catch (e) {
+                addLog('Не удалось загрузить статистику', 'error');
+            }
+        }
+
+        async function loadFiles() {
+            if (!projectName) return;
+            try {
+                const res = await fetch(`/api/project/${encodeURIComponent(projectName)}/files`);
+                const files = await res.json();
+                document.getElementById('files-grid').innerHTML = files.map(f => 
+                    `<div class="file-item">📄 ${f}</div>`
+                ).join('');
+            } catch (e) {}
+        }
+
+        if (sessionId) {
+            const es = new EventSource(`/api/session/${sessionId}/events`);
+            es.onmessage = (e) => handleEvent(JSON.parse(e.data));
+            es.onerror = () => es.close();
+        }
+
+        renderPipeline();
+        loadFiles();
+    </script>
+</body>
+</html>
