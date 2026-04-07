@@ -187,6 +187,9 @@ class AITeamSystem:
         
         self.console.print(f"[green]✓ Агенты завершили работу[/green]")
         
+        # Итеративное исправление кода
+        self._fix_code_errors()
+        
         # Валидация кода
         all_files = self.context.get_all_files()
         if all_files:
@@ -223,9 +226,62 @@ class AITeamSystem:
             if test_result.get("success"):
                 self.console.print("[green]✓ Тесты прошли![/green]")
             else:
-                self.console.print(f"[yellow]⚠ Тесты: {test_result.get('error', 'Не удалось запустить')}[/yellow]")
+                self.console.print(f"[yellow]⚠ Тесты не прошли, исправляю...[/yellow]")
+                self._fix_test_errors(test_result)
         
         return results
+    
+    def _fix_code_errors(self, max_iterations: int = 2):
+        """Итеративное исправление ошибок в коде"""
+        validator = CodeValidator(self.project_path)
+        
+        for iteration in range(max_iterations):
+            all_files = self.context.get_all_files()
+            if not all_files:
+                break
+            
+            validation_results = validator.validate_all(all_files)
+            errors = []
+            
+            for result in validation_results:
+                if not result.valid:
+                    errors.extend(result.errors)
+            
+            if not errors:
+                break
+            
+            self.console.print(f"[yellow]Итерация {iteration + 1}: Исправление {len(errors)} ошибок...[/yellow]")
+            
+            error_context = "\n".join(errors[:10])
+            fix_task = f"Исправь ошибки в коде:\n{error_context}\n\nВсе файлы: {all_files}"
+            
+            result = self.agent_manager.run_agent("backend", fix_task)
+            
+            if result.get("files_created"):
+                self.context.add_result(AgentResult(
+                    agent="backend-fix",
+                    status="success",
+                    files_created=result.get("files_created", [])
+                ))
+    
+    def _fix_test_errors(self, test_result: dict):
+        """Исправление ошибок в тестах"""
+        stderr = test_result.get("stderr", "")
+        if not stderr:
+            return
+        
+        self.console.print("[yellow]Исправление ошибок в тестах...[/yellow]")
+        
+        fix_task = f"Тесты не прошли. Ошибки:\n{stderr[:2000]}\n\nИсправь тесты и код."
+        
+        result = self.agent_manager.run_agent("tester", fix_task)
+        
+        if result.get("files_created"):
+            self.context.add_result(AgentResult(
+                agent="tester-fix",
+                status="success",
+                files_created=result.get("files_created", [])
+            ))
     
     def run_documentation_phase(self) -> dict:
         self.console.print("\n[bold cyan]═══ ФАЗА 4: ДОКУМЕНТАЦИЯ ═══[/bold cyan]")

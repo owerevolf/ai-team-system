@@ -17,6 +17,7 @@
         <header>
             <h1>📊 Dashboard</h1>
             <p id="project-name">Проект: <span>Загрузка...</span></p>
+            <p id="phase-info">Фаза: <span id="current-phase">—</span></p>
         </header>
 
         <main>
@@ -61,6 +62,14 @@
                 </div>
             </section>
 
+            <section class="progress-section">
+                <h2>Прогресс</h2>
+                <div class="progress-bar-container">
+                    <div id="progress-bar" class="progress-bar" style="width: 0%"></div>
+                </div>
+                <p id="progress-text">0%</p>
+            </section>
+
             <section class="logs-section">
                 <h2>Логи в реальном времени</h2>
                 <div class="logs-container">
@@ -80,8 +89,12 @@
     <script>
         const urlParams = new URLSearchParams(window.location.search);
         const projectName = urlParams.get('project') || 'untitled';
+        const sessionId = urlParams.get('session');
         
         document.querySelector('#project-name span').textContent = projectName;
+
+        const phases = ['planning', 'architecture', 'development', 'testing', 'documentation'];
+        let currentPhaseIndex = 0;
 
         function updateAgentStatus(agent, status, message) {
             const card = document.querySelector(`[data-agent="${agent}"]`);
@@ -97,6 +110,30 @@
             const timestamp = new Date().toLocaleTimeString();
             logsContent.textContent += `\n[${timestamp}] ${message}`;
             logsContent.scrollTop = logsContent.scrollHeight;
+        }
+
+        function updateProgress() {
+            const percent = Math.min((currentPhaseIndex / phases.length) * 100, 100);
+            document.getElementById('progress-bar').style.width = percent + '%';
+            document.getElementById('progress-text').textContent = Math.round(percent) + '%';
+            document.getElementById('current-phase').textContent = phases[currentPhaseIndex] || 'done';
+        }
+
+        function handleEvent(event) {
+            const { type, data } = event;
+            
+            if (type === 'agent_start') {
+                updateAgentStatus(data.agent, 'working', 'Работает...');
+                addLog(`▶ ${data.agent} начал работу`);
+            } else if (type === 'agent_complete') {
+                updateAgentStatus(data.agent, 'completed', `✓ ${data.files?.length || 0} файлов`);
+                addLog(`✓ ${data.agent} завершил (${data.files?.length || 0} файлов)`);
+                currentPhaseIndex = Math.min(currentPhaseIndex + 1, phases.length);
+                updateProgress();
+            } else if (type === 'agent_error') {
+                updateAgentStatus(data.agent, 'error', `✗ ${data.error}`);
+                addLog(`✗ ${data.agent}: ${data.error}`);
+            }
         }
 
         async function loadLogs() {
@@ -129,10 +166,25 @@
             }
         }
 
+        if (sessionId) {
+            const eventSource = new EventSource(`/api/session/${sessionId}/events`);
+            
+            eventSource.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                handleEvent(data);
+            };
+            
+            eventSource.onerror = () => {
+                console.log('SSE connection closed');
+                eventSource.close();
+            };
+        }
+
         setInterval(loadLogs, 5000);
         
         loadLogs();
         loadFiles();
+        updateProgress();
     </script>
 </body>
 </html>

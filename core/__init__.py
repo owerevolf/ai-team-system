@@ -12,8 +12,12 @@ from .git_manager import GitManager
 from .project_context import ProjectContext, AgentResult
 from .code_validator import CodeValidator, ValidationResult
 from .response_cache import ResponseCache
+from .token_tracker import TokenTracker, TokenUsage
+from .plugins import PluginManager, Plugin
+from .dry_run import DryRunSimulator
+from .zip_export import ZipExporter
 
-__version__ = "3.0.0"
+__version__ = "4.0.0"
 __all__ = [
     "AITeamSystem",
     "AgentManager", 
@@ -28,4 +32,10 @@ __all__ = [
     "CodeValidator",
     "ValidationResult",
     "ResponseCache",
+    "TokenTracker",
+    "TokenUsage",
+    "PluginManager",
+    "Plugin",
+    "DryRunSimulator",
+    "ZipExporter",
 ]
