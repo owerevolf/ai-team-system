@@ -27,6 +27,13 @@ class TutorialStep:
 
 
 @dataclass
+class GlossaryEntry:
+    term: str
+    definition: str
+    example: str = ""
+
+
+@dataclass
 class LearningProgress:
     user_id: str
     started_at: str = field(default_factory=lambda: datetime.now().isoformat())
@@ -49,6 +56,7 @@ class LearningMode:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.progress = self._load_progress()
         self.tutorials = self._build_tutorials()
+        self.glossary = self._build_glossary()
 
     def _load_progress(self) -> LearningProgress:
         progress_file = self.data_dir / "progress.json"
@@ -120,6 +128,18 @@ class LearningMode:
             ),
         ]
 
+    def _build_glossary(self) -> List[GlossaryEntry]:
+        return [
+            GlossaryEntry("Агент", "AI-программа, которая выполняет задачи самостоятельно", "TeamLead анализирует требования и создаёт план"),
+            GlossaryEntry("Промпт", "Инструкция для AI модели", "Создай REST API с JWT аутентификацией"),
+            GlossaryEntry("RAG", "Retrieval Augmented Generation — поиск информации перед генерацией ответа", "Агент ищет похожие проекты перед созданием кода"),
+            GlossaryEntry("Fallback", "Переключение на другой провайдер если текущий не работает", "Ollama не отвечает → переключение на Groq"),
+            GlossaryEntry("Pipeline", "Последовательность фаз разработки", "Planning → Architecture → Development → Testing → Docs"),
+            GlossaryEntry("Sandbox", "Безопасная среда для выполнения кода", "Код проверяется перед запуском"),
+            GlossaryEntry("Ollama", "Локальный сервер для запуска AI моделей", "ollama pull qwen3:8b"),
+            GlossaryEntry("Docker", "Контейнеризация — упаковка приложения в контейнер", "docker-compose up -d"),
+        ]
+
     def get_step(self, step_id: int, beginner_mode: bool = False) -> Dict[str, Any]:
         step = None
         for s in self.tutorials:
@@ -130,6 +150,21 @@ class LearningMode:
         if not step:
             return {"error": "Шаг не найден", "step_id": step_id}
 
+        if beginner_mode:
+            prompt = (
+                f"РЕЖИМ НОВИЧКА: Объясни простыми словами, как будто говоришь с человеком без опыта программирования.\n"
+                f"Тема: {step.title}\n"
+                f"Описание: {step.description}\n"
+                f"Аналогия: {step.beginner_analogy}\n"
+                f"Подсказка: {step.hint}"
+            )
+        else:
+            prompt = (
+                f"СТАНДАРТНЫЙ РЕЖИМ: {step.title}\n"
+                f"{step.description}\n"
+                f"Подсказка: {step.hint}"
+            )
+
         result: Dict[str, Any] = {
             "step": step.id,
             "title": step.title,
@@ -137,6 +172,7 @@ class LearningMode:
             "visual": step.visual,
             "hint": step.hint,
             "action": step.action,
+            "prompt": prompt,
             "progress": self.progress.progress_percent,
         }
 
@@ -158,6 +194,43 @@ class LearningMode:
             "progress": self.progress.progress_percent,
             "is_complete": self.progress.is_complete,
         }
+
+    def reset_progress(self) -> None:
+        self.progress.completed_steps = []
+        self.progress.concepts_learned = []
+        self._save_progress()
+        logger.info("Прогресс обучения сброшен")
+
+    def get_current_step(self) -> Optional[TutorialStep]:
+        for step in self.tutorials:
+            if step.id not in self.progress.completed_steps:
+                return step
+        return None
+
+    def get_next_action(self) -> Dict[str, Any]:
+        step = self.get_current_step()
+        if not step:
+            return {"status": "complete", "message": "Все шаги пройдены!"}
+        return {
+            "status": "in_progress",
+            "step": step.id,
+            "title": step.title,
+            "action": step.action,
+        }
+
+    def get_glossary(self) -> List[Dict[str, str]]:
+        return [
+            {"term": e.term, "definition": e.definition, "example": e.example}
+            for e in self.glossary
+        ]
+
+    def search_glossary(self, query: str) -> List[Dict[str, str]]:
+        query_lower = query.lower()
+        return [
+            {"term": e.term, "definition": e.definition, "example": e.example}
+            for e in self.glossary
+            if query_lower in e.term.lower() or query_lower in e.definition.lower()
+        ]
 
     def get_progress_report(self) -> Dict[str, Any]:
         return {
