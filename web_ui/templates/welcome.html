@@ -4,10 +4,374 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AI Team System</title>
-<link rel="stylesheet" href="/static/style.css">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Unbounded:wght@300;400;600&display=swap');
+
+  :root {
+    --bg:       #0d0d0f;
+    --surface:  #141417;
+    --border:   #232329;
+    --accent:   #7c6ef5;
+    --accent2:  #4fc3f7;
+    --text:     #e8e8f0;
+    --muted:    #6b6b7e;
+    --success:  #4ade80;
+    --agent-colors: #7c6ef5, #4fc3f7, #f472b6, #fb923c, #a3e635, #facc15, #e879f9;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── HEADER ── */
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+  .logo-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 12px var(--accent);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  header h1 {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 14px;
+    font-weight: 400;
+    letter-spacing: .08em;
+    color: var(--text);
+  }
+  .hw-badge {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    padding: 3px 10px;
+    border-radius: 20px;
+  }
+
+  /* ── AGENTS BAR ── */
+  .agents-bar {
+    display: flex;
+    gap: 6px;
+    padding: 10px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+    overflow-x: auto;
+  }
+  .agent-chip {
+    font-size: 11px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    white-space: nowrap;
+    transition: all .2s;
+    cursor: default;
+  }
+  .agent-chip.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(124,110,245,.08);
+  }
+  .agent-chip.done {
+    border-color: var(--success);
+    color: var(--success);
+  }
+
+  /* ── CHAT AREA ── */
+  .chat-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    scroll-behavior: smooth;
+  }
+  .chat-area::-webkit-scrollbar { width: 4px; }
+  .chat-area::-webkit-scrollbar-track { background: transparent; }
+  .chat-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* messages */
+  .msg {
+    display: flex;
+    gap: 12px;
+    max-width: 780px;
+    animation: fadeUp .25s ease both;
+  }
+  @keyframes fadeUp {
+    from { opacity:0; transform:translateY(8px); }
+    to   { opacity:1; transform:translateY(0); }
+  }
+  .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+
+  .avatar {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+    border: 1px solid var(--border);
+  }
+  .msg.user .avatar { background: rgba(124,110,245,.15); border-color: var(--accent); }
+  .msg.ai   .avatar { background: var(--surface); }
+
+  .bubble {
+    padding: 12px 16px;
+    border-radius: 12px;
+    font-size: 13px;
+    line-height: 1.65;
+    max-width: 620px;
+  }
+  .msg.user .bubble {
+    background: rgba(124,110,245,.15);
+    border: 1px solid rgba(124,110,245,.3);
+    border-radius: 12px 2px 12px 12px;
+  }
+  .msg.ai .bubble {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 2px 12px 12px 12px;
+  }
+  .msg.ai .bubble .agent-tag {
+    font-size: 10px;
+    color: var(--accent);
+    letter-spacing: .06em;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
+
+  /* typing indicator */
+  .typing { display: flex; gap: 4px; align-items: center; padding: 4px 0; }
+  .typing span {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--muted);
+    animation: blink 1.2s infinite;
+  }
+  .typing span:nth-child(2) { animation-delay:.2s }
+  .typing span:nth-child(3) { animation-delay:.4s }
+  @keyframes blink { 0%,80%,100%{opacity:.2} 40%{opacity:1} }
+
+  /* choices */
+  .choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .choice-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 7px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .choice-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(124,110,245,.08);
+  }
+  .choice-btn.selected {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(124,110,245,.12);
+  }
+
+  /* progress steps */
+  .progress-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .step-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--muted);
+    transition: color .3s;
+  }
+  .step-item.active { color: var(--accent); }
+  .step-item.done   { color: var(--success); }
+  .step-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    border: 1px solid currentColor;
+    flex-shrink: 0;
+    transition: background .3s;
+  }
+  .step-item.done .step-dot   { background: var(--success); }
+  .step-item.active .step-dot { background: var(--accent); }
+
+  /* code block */
+  .code-block {
+    background: #0a0a0c;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 12px;
+    margin-top: 8px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: #a0f0a0;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  /* ── INPUT AREA ── */
+  .input-area {
+    padding: 16px 24px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+  .input-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+  }
+  textarea {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    resize: none;
+    outline: none;
+    min-height: 46px;
+    max-height: 140px;
+    line-height: 1.5;
+    transition: border-color .2s;
+  }
+  textarea:focus { border-color: var(--accent); }
+  textarea::placeholder { color: var(--muted); }
+
+  .send-btn {
+    width: 46px; height: 46px;
+    background: var(--accent);
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: all .2s;
+    font-size: 18px;
+  }
+  .send-btn:hover { background: #6a5ee0; transform: scale(1.04); }
+  .send-btn:disabled { background: var(--border); cursor: not-allowed; transform: none; }
+
+  .input-hint {
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 6px;
+    text-align: center;
+  }
+
+  /* ── WELCOME OVERLAY ── */
+  #welcome-overlay {
+    position: fixed; inset: 0;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 32px;
+    z-index: 100;
+    transition: opacity .4s;
+  }
+  .welcome-logo {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 28px;
+    font-weight: 300;
+    letter-spacing: .1em;
+    text-align: center;
+  }
+  .welcome-logo span { color: var(--accent); }
+  .welcome-sub {
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+    line-height: 1.8;
+  }
+  .welcome-actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    padding: 12px 28px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .btn-primary:hover { background: #6a5ee0; transform: translateY(-2px); }
+  .btn-ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    padding: 12px 28px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .btn-ghost:hover { color: var(--text); border-color: var(--muted); }
+
+  /* result card */
+  .result-card {
+    background: rgba(74,222,128,.05);
+    border: 1px solid rgba(74,222,128,.2);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-top: 8px;
+  }
+  .result-card h4 { color: var(--success); font-size: 12px; margin-bottom: 8px; }
+  .result-card p  { font-size: 12px; color: var(--muted); line-height: 1.7; }
+  .download-btn {
+    margin-top: 10px;
+    background: transparent;
+    border: 1px solid var(--success);
+    color: var(--success);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .download-btn:hover { background: rgba(74,222,128,.1); }
+</style>
 </head>
 <body>
 
+<!-- WELCOME OVERLAY -->
 <div id="welcome-overlay">
   <div class="welcome-logo">AI <span>Team</span> System</div>
   <div class="welcome-sub">
@@ -16,17 +380,19 @@
   </div>
   <div id="hw-info-welcome" style="font-size:11px;color:var(--muted);border:1px solid var(--border);padding:4px 14px;border-radius:20px;"></div>
   <div class="welcome-actions">
-    <button class="btn-primary" id="btn-tour">🚀 Начать тур</button>
-    <button class="btn-ghost" id="btn-skip">Сразу к делу</button>
+    <button class="btn-primary" onclick="startChat('tour')">🚀 Начать тур</button>
+    <button class="btn-ghost"   onclick="startChat('skip')">Сразу к делу</button>
   </div>
 </div>
 
+<!-- HEADER -->
 <header>
   <div class="logo-dot"></div>
   <h1>AI TEAM SYSTEM</h1>
   <div class="hw-badge" id="hw-badge">загрузка...</div>
 </header>
 
+<!-- AGENTS BAR -->
 <div class="agents-bar" id="agents-bar">
   <div class="agent-chip" id="chip-teamlead">👔 TeamLead</div>
   <div class="agent-chip" id="chip-architect">🏛 Architect</div>
@@ -37,16 +403,491 @@
   <div class="agent-chip" id="chip-documentalist">📝 Docs</div>
 </div>
 
+<!-- CHAT -->
 <div class="chat-area" id="chat"></div>
 
+<!-- INPUT -->
 <div class="input-area">
   <div class="input-row">
-    <textarea id="user-input" placeholder="Опиши что хочешь создать..." rows="1"></textarea>
-    <button class="send-btn" id="send-btn">➤</button>
+    <textarea id="user-input" placeholder="Опиши что хочешь создать..." rows="1"
+      onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+    <button class="send-btn" id="send-btn" onclick="sendMessage()" title="Отправить">➤</button>
   </div>
   <div class="input-hint">Enter — отправить · Shift+Enter — новая строка</div>
 </div>
 
-<script src="/static/app.js"></script>
+<script>
+// ══════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════
+const state = {
+  phase: 'welcome',   // welcome → level → idea → clarify → building → done
+  level: null,        // 'zero' | 'beginner' | 'advanced'
+  projectName: '',
+  projectIdea: '',
+  clarifications: {},
+  currentAgent: null,
+  building: false,
+};
+
+const AGENTS = ['teamlead','architect','backend','frontend','devops','tester','documentalist'];
+const AGENT_LABELS = {
+  teamlead:'👔 TeamLead', architect:'🏛 Architect', backend:'⚙️ Backend',
+  frontend:'🎨 Frontend', devops:'🚀 DevOps', tester:'🧪 Tester', documentalist:'📝 Docs'
+};
+
+// ══════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════
+async function init() {
+  try {
+    const r = await fetch('/api/hardware');
+    const d = await r.json();
+    const txt = `${d.profile || 'medium'} · VRAM ${d.vram_gb||'?'}GB · RAM ${d.ram_gb||'?'}GB`;
+    document.getElementById('hw-badge').textContent = txt;
+    document.getElementById('hw-info-welcome').textContent = txt;
+  } catch(e) {
+    document.getElementById('hw-badge').textContent = 'локальный режим';
+    document.getElementById('hw-info-welcome').textContent = 'локальный режим';
+  }
+}
+init();
+
+// ══════════════════════════════════════════
+//  WELCOME
+// ══════════════════════════════════════════
+function startChat(mode) {
+  const overlay = document.getElementById('welcome-overlay');
+  overlay.style.opacity = '0';
+  setTimeout(() => { overlay.style.display = 'none'; }, 400);
+
+  if (mode === 'tour') {
+    askLevel();
+  } else {
+    // skip — сразу к идее
+    state.phase = 'idea';
+    addAiMsg('system', 'Отлично. Опиши свою идею — что хочешь создать?');
+  }
+}
+
+// ══════════════════════════════════════════
+//  LEVEL SELECTION
+// ══════════════════════════════════════════
+function askLevel() {
+  state.phase = 'level';
+  addAiMsg('system',
+    'Привет! Прежде чем начать — скажи мне, какой у тебя уровень. Это поможет мне правильно объяснять.',
+    null,
+    [
+      { label: '🐣 Знания: ноль — объясняй всё', value: 'zero' },
+      { label: '📚 Начинающий — знаю основы', value: 'beginner' },
+      { label: '🚀 Продвинутый — только суть', value: 'advanced' },
+    ],
+    onLevelSelect
+  );
+}
+
+function onLevelSelect(value, label) {
+  state.level = value;
+  addUserMsg(label);
+  setTimeout(() => {
+    const txt = value === 'zero'
+      ? 'Понял! Буду объяснять каждый шаг простыми словами. Не торопись — задавай вопросы в любой момент.\n\nТеперь главный вопрос: что ты хочешь создать? Опиши своими словами — как другу.'
+      : value === 'beginner'
+      ? 'Отлично. Буду объяснять логику решений, не разжёвывая каждую строку.\n\nЧто хочешь создать?'
+      : 'Принял. Минимум лирики, максимум дела.\n\nЧто за проект?';
+    state.phase = 'idea';
+    addAiMsg('TeamLead', txt);
+    focusInput();
+  }, 400);
+}
+
+// ══════════════════════════════════════════
+//  USER INPUT
+// ══════════════════════════════════════════
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+}
+
+async function sendMessage() {
+  const input = document.getElementById('user-input');
+  const text  = input.value.trim();
+  if (!text || state.building) return;
+
+  input.value = '';
+  input.style.height = 'auto';
+  addUserMsg(text);
+
+  if (state.phase === 'idea') {
+    state.projectIdea = text;
+    state.projectName = text.split(' ').slice(0,3).join('_').toLowerCase() || 'my_project';
+    await askClarification();
+  } else if (state.phase === 'clarify') {
+    state.clarifications['detail'] = text;
+    await startBuilding();
+  } else if (state.phase === 'done') {
+    // новый проект
+    addAiMsg('system', 'Хочешь создать ещё один проект? Опиши идею!');
+    state.phase = 'idea';
+  }
+}
+
+// ══════════════════════════════════════════
+//  CLARIFICATION
+// ══════════════════════════════════════════
+async function askClarification() {
+  state.phase = 'clarify';
+  showTyping();
+
+  // Имитируем "думаем" — потом заменить на реальный LLM-запрос
+  await sleep(900);
+  removeTyping();
+
+  const questions = generateClarifyQuestions(state.projectIdea, state.level);
+  addAiMsg('TeamLead', questions);
+}
+
+function generateClarifyQuestions(idea, level) {
+  if (level === 'zero') {
+    return `Понял идею! Прежде чем мы начнём, пару простых вопросов:\n\n` +
+      `1. Это только для тебя или для других людей тоже?\n` +
+      `2. Нужно ли входить через логин/пароль?\n` +
+      `3. Где будет работать — на твоём компьютере или в интернете?\n\n` +
+      `Можешь ответить в одном сообщении, как тебе удобно.`;
+  } else if (level === 'beginner') {
+    return `Ясно. Уточняющие вопросы:\n\n` +
+      `• Авторизация нужна?\n` +
+      `• Данные хранить (база данных)?\n` +
+      `• Предпочтения по стеку — или оставить на усмотрение команды?\n\n` +
+      `Отвечай как хочешь.`;
+  } else {
+    return `Понял. Стек, авторизация, БД — есть предпочтения? Если нет — команда решит сама.`;
+  }
+}
+
+// ══════════════════════════════════════════
+//  BUILDING
+// ══════════════════════════════════════════
+async function startBuilding() {
+  state.phase = 'building';
+  state.building = true;
+  document.getElementById('send-btn').disabled = true;
+
+  addAiMsg('TeamLead',
+    `Отлично, всё понял. Передаю задачу команде.\n\nБудем создавать: **${state.projectIdea}**`,
+    null, null, null,
+    buildProgressBlock()
+  );
+
+  try {
+    // SSE стриминг от агентов
+    await streamAgents();
+  } catch(e) {
+    // Fallback: обычный запрос
+    await fallbackBuild();
+  }
+}
+
+function buildProgressBlock() {
+  const steps = AGENTS.map(a =>
+    `<div class="step-item" id="step-${a}">` +
+    `<div class="step-dot"></div><span>${AGENT_LABELS[a]}</span>` +
+    `</div>`
+  ).join('');
+  return `<div class="progress-steps">${steps}</div>`;
+}
+
+async function streamAgents() {
+  const payload = {
+    project_name: state.projectName,
+    query: state.projectIdea,
+    clarifications: state.clarifications,
+    level: state.level,
+  };
+
+  const response = await fetch('/api/create_project_stream', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) throw new Error('stream failed');
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  let buildDoneCalled = false; // защита от двойного вызова
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop();
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        try {
+          const data = JSON.parse(line.slice(6));
+          handleStreamEvent(data, () => { buildDoneCalled = true; });
+        } catch {}
+      }
+    }
+  }
+
+  // Вызываем только если сервер не прислал событие 'done'
+  if (!buildDoneCalled) onBuildDone();
+}
+
+function handleStreamEvent(data, markDone) {
+  if (data.type === 'agent_start') {
+    setAgentActive(data.agent);
+  } else if (data.type === 'agent_chunk') {
+    // чанки в реальном времени — можно добавить позже
+  } else if (data.type === 'agent_done') {
+    setAgentDone(data.agent);
+    addAiMsg(AGENT_LABELS[data.agent] || data.agent,
+      summarizeResponse(data.response, state.level));
+  } else if (data.type === 'done') {
+    markDone && markDone();
+    onBuildDone(data);
+  }
+}
+
+function cleanToolCall(text) {
+  // Модель иногда отвечает в формате tool_call JSON — чистим для UI
+  if (!text) return '';
+  // Убираем обёртку <tool_call>...</tool_call>
+  text = text.replace(/<tool_call>[\s\S]*?<\/tool_call>/g, '[файл создан]');
+  // Убираем голый JSON с "tool": "create_file"
+  try {
+    const parsed = JSON.parse(text.trim());
+    if (parsed.tool === 'create_file') {
+      return `📄 Создан файл: \`${parsed.path}\``;
+    }
+    if (parsed.status === 'success' && parsed.files_created) {
+      return `✅ Создано файлов: ${parsed.files_created.length}\n` +
+        parsed.files_created.map(f => `• ${f}`).join('\n');
+    }
+  } catch {}
+  return text;
+}
+
+function summarizeResponse(text, level) {
+  if (!text) return '✓ Выполнено';
+  text = cleanToolCall(text);
+  if (level === 'zero') {
+    const short = text.slice(0, 220).replace(/```[\s\S]*?```/g, '[код]');
+    return short + (text.length > 220 ? '...' : '');
+  }
+  return text.slice(0, 400) + (text.length > 400 ? '...' : '');
+}
+
+async function fallbackBuild() {
+  // Если SSE не работает — поочерёдно вызываем агентов
+  for (const agent of AGENTS) {
+    setAgentActive(agent);
+    await sleep(800 + Math.random() * 600);
+
+    try {
+      const r = await fetch('/api/agent_response', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          role: agent,
+          query: `Создай проект '${state.projectName}': ${state.projectIdea}`,
+        }),
+      });
+      const d = await r.json();
+      setAgentDone(agent);
+      addAiMsg(AGENT_LABELS[agent], summarizeResponse(d.response || d.result, state.level));
+    } catch {
+      setAgentDone(agent);
+      addAiMsg(AGENT_LABELS[agent], '✓ Завершено');
+    }
+  }
+  onBuildDone();
+}
+
+function onBuildDone(data) {
+  state.phase = 'done';
+  state.building = false;
+  document.getElementById('send-btn').disabled = false;
+
+  const mdName = `${state.projectName || 'project'}.md`;
+
+  addAiMsg('system',
+    `✅ Проект создан!\n\nКоманда завершила работу. Что дальше?`,
+    null,
+    [
+      { label: '📥 Скачать Markdown', value: 'download' },
+      { label: '🔍 Что было создано?', value: 'explain' },
+      { label: '✨ Новый проект',       value: 'new' },
+    ],
+    (value) => {
+      if (value === 'download') {
+        window.location.href = `/api/download/${mdName}`;
+      } else if (value === 'explain') {
+        addUserMsg('Что было создано?');
+        addAiMsg('TeamLead',
+          `Команда создала структуру проекта "${state.projectIdea}":\n\n` +
+          `• **TeamLead** — составил план и распределил задачи\n` +
+          `• **Architect** — спроектировал архитектуру (как устроены части)\n` +
+          `• **Backend** — написал серверную логику\n` +
+          `• **Frontend** — создал интерфейс пользователя\n` +
+          `• **DevOps** — подготовил Docker и инфраструктуру\n` +
+          `• **Tester** — написал тесты\n` +
+          `• **Docs** — оформил документацию\n\n` +
+          `Все файлы в Markdown. Скачай и открой — там полный код.`
+        );
+        state.phase = 'done';
+      } else if (value === 'new') {
+        addUserMsg('Новый проект');
+        state.phase = 'idea';
+        state.projectIdea = '';
+        AGENTS.forEach(resetAgent);
+        addAiMsg('TeamLead', 'Отлично! Какой следующий проект?');
+        focusInput();
+      }
+    }
+  );
+}
+
+// ══════════════════════════════════════════
+//  AGENT CHIPS
+// ══════════════════════════════════════════
+function setAgentActive(agent) {
+  state.currentAgent = agent;
+  AGENTS.forEach(a => {
+    const chip = document.getElementById(`chip-${a}`);
+    if (!chip) return;
+    if (a === agent) chip.className = 'agent-chip active';
+  });
+  const step = document.getElementById(`step-${agent}`);
+  if (step) step.className = 'step-item active';
+}
+
+function setAgentDone(agent) {
+  const chip = document.getElementById(`chip-${agent}`);
+  if (chip) chip.className = 'agent-chip done';
+  const step = document.getElementById(`step-${agent}`);
+  if (step) step.className = 'step-item done';
+}
+
+function resetAgent(agent) {
+  const chip = document.getElementById(`chip-${agent}`);
+  if (chip) chip.className = 'agent-chip';
+  const step = document.getElementById(`step-${agent}`);
+  if (step) { step.className = 'step-item'; }
+}
+
+// ══════════════════════════════════════════
+//  RENDER HELPERS
+// ══════════════════════════════════════════
+function addUserMsg(text) {
+  const chat = document.getElementById('chat');
+  const el = document.createElement('div');
+  el.className = 'msg user';
+  el.innerHTML =
+    `<div class="avatar">👤</div>` +
+    `<div class="bubble">${escHtml(text)}</div>`;
+  chat.appendChild(el);
+  scrollDown();
+}
+
+function addAiMsg(agent, text, html, choices, onChoice, extraHtml) {
+  const chat = document.getElementById('chat');
+  const el = document.createElement('div');
+  el.className = 'msg ai';
+
+  const agentTag = agent && agent !== 'system'
+    ? `<div class="agent-tag">${escHtml(agent)}</div>` : '';
+
+  const bodyHtml = html || formatText(text || '');
+
+  let choicesHtml = '';
+  if (choices && choices.length) {
+    const btns = choices.map(c =>
+      `<button class="choice-btn" onclick="onChoiceClick(this,'${c.value}')">` +
+      `${escHtml(c.label)}</button>`
+    ).join('');
+    choicesHtml = `<div class="choices" data-handler="pending">${btns}</div>`;
+  }
+
+  el.innerHTML =
+    `<div class="avatar">🤖</div>` +
+    `<div class="bubble">` +
+      agentTag +
+      bodyHtml +
+      (extraHtml || '') +
+      choicesHtml +
+    `</div>`;
+
+  if (choices && onChoice) {
+    el.dataset.onChoice = 'yes';
+    el._onChoice = onChoice;
+  }
+
+  chat.appendChild(el);
+  scrollDown();
+  return el;
+}
+
+function onChoiceClick(btn, value) {
+  const choicesEl = btn.closest('.choices');
+  if (!choicesEl || choicesEl.dataset.handler === 'done') return;
+  choicesEl.dataset.handler = 'done';
+  choicesEl.querySelectorAll('.choice-btn').forEach(b => {
+    b.disabled = true;
+    if (b === btn) b.className = 'choice-btn selected';
+  });
+  const msgEl = btn.closest('.msg');
+  if (msgEl && msgEl._onChoice) msgEl._onChoice(value, btn.textContent);
+}
+
+function showTyping() {
+  const chat = document.getElementById('chat');
+  const el = document.createElement('div');
+  el.className = 'msg ai'; el.id = 'typing-indicator';
+  el.innerHTML =
+    `<div class="avatar">🤖</div>` +
+    `<div class="bubble"><div class="typing"><span></span><span></span><span></span></div></div>`;
+  chat.appendChild(el);
+  scrollDown();
+}
+
+function removeTyping() {
+  const el = document.getElementById('typing-indicator');
+  if (el) el.remove();
+}
+
+function formatText(text) {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n/g, '<br>');
+}
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+
+function scrollDown() {
+  const chat = document.getElementById('chat');
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function focusInput() {
+  document.getElementById('user-input').focus();
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+</script>
 </body>
 </html>

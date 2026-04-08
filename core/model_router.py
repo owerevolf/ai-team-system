@@ -1,6 +1,14 @@
 """
-Model Router v4 — маршрутизация LLM с кэшем, rate limiter и exponential backoff
-Версия: 4.0
+Model Router v4.1 — маршрутизация LLM с кэшем, rate limiter и защитой от зацикливания
+Версия: 4.1
+
+Изменения vs 4.0:
+- _should_fallback: время ответа больше НЕ является причиной fallback
+  (локальная модель на 8GB VRAM может думать 30-60 сек — это нормально)
+- Fallback только если ответ реально пустой или содержит явную ошибку
+- Защита от зацикливания: каждый провайдер пробуется максимум 1 раз
+- Если все провайдеры недоступны — понятное сообщение пользователю
+- Новый метод get_fallback_message() для UI
 """
 
 import os
@@ -12,7 +20,6 @@ import urllib.request
 import urllib.error
 from typing import Optional, Dict, Any, List
 from collections import OrderedDict
-from functools import lru_cache
 from dotenv import load_dotenv
 from loguru import logger
 
@@ -22,6 +29,9 @@ MAX_REQUESTS_PER_MIN = 10
 CACHE_MAX_SIZE = 100
 MAX_RETRIES = 3
 BASE_BACKOFF = 1.0
+
+# Минимальная длина ответа чтобы считать его валидным
+MIN_RESPONSE_LENGTH = 20
 
 
 class RateLimiter:
@@ -152,6 +162,26 @@ class ModelRouter:
                 return provider
         return None
 
+    def _has_cloud_fallback(self) -> bool:
+        """Проверяем есть ли хоть один облачный провайдер с ключом"""
+        cloud_providers = ["groq", "deepseek", "google", "openrouter", "xai", "anthropic", "openai"]
+        return any(self.providers[p]["enabled"] for p in cloud_providers)
+
+    def get_fallback_message(self) -> str:
+        """Сообщение для UI когда все провайдеры не справились"""
+        if self._has_cloud_fallback():
+            return (
+                "⚠️ Локальная модель не справилась с задачей, "
+                "но облачный провайдер тоже не ответил. "
+                "Попробуй позже или упрости запрос."
+            )
+        return (
+            "⚠️ Локальная модель не справилась с задачей. "
+            "Облачные провайдеры не настроены. "
+            "Добавь API-ключ в .env (например GROQ_API_KEY — бесплатно) "
+            "чтобы система могла обратиться за помощью в облако."
+        )
+
     def check_rate_limit(self) -> bool:
         return self.rate_limiter.check_rate_limit()
 
@@ -164,7 +194,13 @@ class ModelRouter:
     def _hash_prompt(self, prompt: str) -> str:
         return hashlib.sha256(prompt.encode()).hexdigest()[:12]
 
-    def generate(self, prompt: str, agent: Optional[str] = None, model: Optional[str] = None, beginner_mode: Optional[bool] = None) -> str:
+    def generate(
+        self,
+        prompt: str,
+        agent: Optional[str] = None,
+        model: Optional[str] = None,
+        beginner_mode: Optional[bool] = None,
+    ) -> str:
         bm = beginner_mode if beginner_mode is not None else self.beginner_mode
 
         prompt_hash = self._hash_prompt(f"{prompt}:{bm}")
@@ -180,86 +216,114 @@ class ModelRouter:
 
         provider = self._get_available_provider()
         if not provider:
-            raise RuntimeError("Нет доступных провайдеров! Настройте .env файл.")
+            raise RuntimeError(self.get_fallback_message())
 
+        # Защита от зацикливания: храним уже опробованные провайдеры
         tried: List[str] = []
         last_error: Optional[Exception] = None
+        fallback_triggered = False  # флаг: уже был один fallback
 
-        for attempt in range(MAX_RETRIES):
-            if not provider:
-                break
-
+        while provider and provider not in tried:
             tried.append(provider)
+
             try:
                 if bm:
                     from core.learning_mode import LearningMode
                     lm = LearningMode()
-                    full_prompt = lm.generate_agent_prompt(agent or "assistant", prompt, beginner_mode=True)
+                    full_prompt = lm.generate_agent_prompt(
+                        agent or "assistant", prompt, beginner_mode=True
+                    )
                 else:
                     full_prompt = prompt
 
                 start_time = time.time()
-
-                if provider == "groq":
-                    response = self._generate_openai_compat(full_prompt, "groq", model)
-                elif provider == "deepseek":
-                    response = self._generate_openai_compat(full_prompt, "deepseek", model)
-                elif provider == "google":
-                    response = self._generate_google(full_prompt, model)
-                elif provider == "openrouter":
-                    response = self._generate_openai_compat(full_prompt, "openrouter", model)
-                elif provider == "xai":
-                    response = self._generate_openai_compat(full_prompt, "xai", model)
-                elif provider == "ollama":
-                    response = self._generate_ollama(full_prompt, model)
-                elif provider == "anthropic":
-                    response = self._generate_anthropic(full_prompt, model)
-                elif provider == "openai":
-                    response = self._generate_openai_compat(full_prompt, "openai", model)
-                else:
-                    raise ValueError(f"Неизвестный провайдер: {provider}")
-
+                response = self._call_provider(provider, full_prompt, model)
                 response_time = time.time() - start_time
+
                 logger.info(f"Ответ от {provider} за {response_time:.1f}с")
 
-                if provider == "ollama" and self._should_fallback(response, response_time):
-                    logger.info("Локальная модель неуверенна → fallback на облако")
-                    provider = self._get_next_provider(provider)
-                    continue
+                # Проверяем качество ответа только для ollama
+                # и только если fallback ещё не был (защита от зацикливания)
+                if provider == "ollama" and not fallback_triggered:
+                    if self._should_fallback(response):
+                        next_provider = self._get_next_provider(provider, tried)
+                        if next_provider:
+                            logger.info(
+                                f"Ollama дала пустой/некачественный ответ → "
+                                f"пробуем {next_provider}"
+                            )
+                            fallback_triggered = True
+                            provider = next_provider
+                            continue
+                        else:
+                            logger.warning(
+                                "Ollama дала слабый ответ, облако недоступно — "
+                                "возвращаем что есть"
+                            )
 
+                # Ответ принят
                 self.cache.set(prompt_hash, response)
                 return response
 
             except Exception as e:
                 last_error = e
-                logger.warning(f"Ошибка {provider} (попытка {attempt + 1}): {e}")
-                backoff = BASE_BACKOFF * (2 ** attempt)
-                time.sleep(backoff)
-                provider = self._get_next_provider(provider)
-                continue
+                logger.warning(f"Ошибка {provider}: {e}")
 
-        raise RuntimeError(f"Все провайдеры не работают: {tried}. Последняя ошибка: {last_error}")
+                next_provider = self._get_next_provider(provider, tried)
+                if next_provider:
+                    logger.info(f"Переключаемся на {next_provider}")
+                    # Небольшая пауза перед следующей попыткой
+                    time.sleep(BASE_BACKOFF)
+                    provider = next_provider
+                else:
+                    break
 
-    def _should_fallback(self, response: str, response_time: float) -> bool:
+        # Все провайдеры исчерпаны
+        error_msg = self.get_fallback_message()
+        logger.error(f"Провайдеры опробованы: {tried}. {error_msg}")
+        raise RuntimeError(error_msg)
+
+    def _call_provider(self, provider: str, prompt: str, model: Optional[str]) -> str:
+        """Вызов конкретного провайдера. Без retry — retry делает generate()."""
+        if provider == "groq":
+            return self._generate_openai_compat(prompt, "groq", model)
+        elif provider == "deepseek":
+            return self._generate_openai_compat(prompt, "deepseek", model)
+        elif provider == "google":
+            return self._generate_google(prompt, model)
+        elif provider == "openrouter":
+            return self._generate_openai_compat(prompt, "openrouter", model)
+        elif provider == "xai":
+            return self._generate_openai_compat(prompt, "xai", model)
+        elif provider == "ollama":
+            return self._generate_ollama(prompt, model)
+        elif provider == "anthropic":
+            return self._generate_anthropic(prompt, model)
+        elif provider == "openai":
+            return self._generate_openai_compat(prompt, "openai", model)
+        else:
+            raise ValueError(f"Неизвестный провайдер: {provider}")
+
+    def _should_fallback(self, response: str) -> bool:
+        """
+        Нужен ли fallback на облако?
+
+        ВАЖНО: время ответа НЕ является критерием.
+        Локальная модель на 8GB VRAM может думать 30-60 сек — это нормально.
+        Fallback только если ответ реально пустой или слишком короткий.
+        """
         if not response:
             return True
-        if response_time > 30:
+        if len(response.strip()) < MIN_RESPONSE_LENGTH:
             return True
-        if len(response.split()) < 50:
-            uncertain_patterns = [
-                r"not sure", r"don't know", r"не уверен", r"не знаю",
-                r"cannot determine", r"hard to say", r"возможно",
-            ]
-            for pattern in uncertain_patterns:
-                if re.search(pattern, response.lower()):
-                    return True
         return False
 
-    def _get_next_provider(self, current: str) -> Optional[str]:
+    def _get_next_provider(self, current: str, already_tried: List[str]) -> Optional[str]:
+        """Следующий доступный провайдер которого ещё не пробовали"""
         try:
             idx = self.priority.index(current)
             for p in self.priority[idx + 1:]:
-                if self.providers[p]["enabled"]:
+                if self.providers[p]["enabled"] and p not in already_tried:
                     return p
         except ValueError:
             pass
@@ -365,6 +429,7 @@ class ModelRouter:
         return {
             "active_provider": self._get_available_provider(),
             "available_providers": [n for n, c in self.providers.items() if c["enabled"]],
+            "has_cloud_fallback": self._has_cloud_fallback(),
             "profile": self.profile,
             "beginner_mode": self.beginner_mode,
             "cache_size": len(self.cache._cache),
