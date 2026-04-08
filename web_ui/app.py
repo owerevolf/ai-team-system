@@ -11,13 +11,14 @@ import queue
 import hashlib
 import time
 import threading
+import asyncio
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Dict, Any
 
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -57,6 +58,13 @@ class AgentQueryRequest(BaseModel):
     agent_role: str = "teamlead"
     user_level: str = "beginner"
     session_id: Optional[str] = None
+
+
+class CreateProjectRequest(BaseModel):
+    project_name: str
+    query: str
+    clarifications: Optional[Dict] = {}
+    level: Optional[str] = "beginner"
 
 
 class AgentQueryResponse(BaseModel):
@@ -297,6 +305,78 @@ async def agent_query(req: AgentQueryRequest) -> AgentQueryResponse:
     except Exception as e:
         logger.error(f"Ошибка агента: {e}")
         raise HTTPException(status_code=500, detail=f"Внутренняя ошибка: {e}")
+
+
+def _level_hint(level: str) -> str:
+    """Добавляем подсказку агентам о уровне пользователя"""
+    hints = {
+        "zero": "ВАЖНО: Пользователь — абсолютный новичок. Объясняй каждый шаг простыми словами с аналогиями.",
+        "beginner": "ВАЖНО: Пользователь — начинающий. Объясняй логику решений.",
+        "advanced": "Пользователь — продвинутый. Минимум объяснений, максимум конкретики.",
+    }
+    return hints.get(level, hints["beginner"])
+
+
+@app.post("/api/create_project_stream")
+async def create_project_stream(req: CreateProjectRequest):
+    """SSE-стриминг работы агентов"""
+    
+    async def event_stream():
+        agents = ["teamlead", "architect", "backend", "frontend", "devops", "tester", "documentalist"]
+        full_query = f"Создай проект '{req.project_name}': {req.query}"
+        if req.clarifications:
+            full_query += f"\nДополнения: {json.dumps(req.clarifications, ensure_ascii=False)}"
+        
+        level_hint = _level_hint(req.level)
+        query_with_level = f"{level_hint}\n\n{full_query}"
+        
+        results = {}
+        
+        for agent in agents:
+            yield f"data: {json.dumps({'type': 'agent_start', 'agent': agent})}\n\n"
+            await asyncio.sleep(0)
+            
+            try:
+                from core.agent_manager import AgentManager
+                manager = AgentManager()
+                result = manager.run_agent(agent, query_with_level)
+                response = result.get('summary', result.get('response', str(result)))
+                results[agent] = response
+                yield f"data: {json.dumps({'type': 'agent_done', 'agent': agent, 'response': response}, ensure_ascii=False)}\n\n"
+            except Exception as e:
+                results[agent] = f"Ошибка: {str(e)}"
+                yield f"data: {json.dumps({'type': 'agent_done', 'agent': agent, 'response': str(e)})}\n\n"
+            
+            await asyncio.sleep(0.1)
+        
+        yield f"data: {json.dumps({'type': 'done', 'project': req.project_name})}\n\n"
+        
+        try:
+            from core.export_lesson import ExportLesson
+            exporter = ExportLesson()
+            exporter.generate([{"type": "project", "data": results}], req.project_name)
+        except Exception:
+            pass
+    
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+    )
+
+
+@app.get("/api/download/{filename}")
+async def download_file(filename: str):
+    """Скачать Markdown-результат проекта"""
+    from core.export_lesson import ExportLesson
+    exporter = ExportLesson()
+    lessons = exporter.list_lessons()
+    
+    for lesson in lessons:
+        if filename in lesson.get("name", ""):
+            return FileResponse(lesson["path"], media_type="text/markdown", filename=filename)
+    
+    raise HTTPException(status_code=404, detail=f"Файл {filename} не найден")
 
 
 if __name__ == "__main__":

@@ -1,82 +1,52 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Team System — Добро пожаловать</title>
-    <link rel="stylesheet" href="/static/style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Team System</title>
+<link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div class="bg-gradient"></div>
 
-    <div id="welcome-screen" class="screen active">
-        <div class="container">
-            <div class="logo">
-                <span class="logo-icon">🤖</span>
-                <h1>AI Team System</h1>
-            </div>
-            <div class="welcome-text">
-                <h2 class="fade-in">✨ Тебя приветствует новый мир интересных идей</h2>
-                <p class="fade-in delay-1">7 AI-агентов помогут создать проект с нуля. Без опыта программирования.</p>
-            </div>
-            <div class="buttons fade-in delay-2">
-                <button id="btn-tour" class="btn btn-primary">🎓 Начать тур</button>
-                <button id="btn-skip" class="btn btn-secondary">💡 Пропустить</button>
-            </div>
-            <div class="hardware-info fade-in delay-3" id="hardware-info"></div>
-        </div>
-    </div>
+<div id="welcome-overlay">
+  <div class="welcome-logo">AI <span>Team</span> System</div>
+  <div class="welcome-sub">
+    7 AI-агентов. Один разговор. Готовый проект.<br>
+    Просто опиши что хочешь — остальное сделает команда.
+  </div>
+  <div id="hw-info-welcome" style="font-size:11px;color:var(--muted);border:1px solid var(--border);padding:4px 14px;border-radius:20px;"></div>
+  <div class="welcome-actions">
+    <button class="btn-primary" id="btn-tour">🚀 Начать тур</button>
+    <button class="btn-ghost" id="btn-skip">Сразу к делу</button>
+  </div>
+</div>
 
-    <div id="tour-screen" class="screen">
-        <div class="container">
-            <div class="tour-header">
-                <div class="progress-bar">
-                    <div class="progress-fill" id="progress-fill"></div>
-                </div>
-                <span class="step-counter" id="step-counter">Шаг 1 из 5</span>
-            </div>
-            <div class="tour-content">
-                <h3 id="step-title"></h3>
-                <p id="step-description"></p>
-                <div class="step-visual" id="step-visual"></div>
-                <div class="step-hint" id="step-hint"></div>
-            </div>
-            <div class="tour-buttons">
-                <button id="btn-prev" class="btn btn-secondary" disabled>← Назад</button>
-                <button id="btn-next" class="btn btn-primary">Далее →</button>
-            </div>
-        </div>
-    </div>
+<header>
+  <div class="logo-dot"></div>
+  <h1>AI TEAM SYSTEM</h1>
+  <div class="hw-badge" id="hw-badge">загрузка...</div>
+</header>
 
-    <div id="project-screen" class="screen">
-        <div class="container">
-            <h2>🚀 Создай свой первый проект</h2>
-            <form id="project-form">
-                <div class="form-group">
-                    <label for="project-name">Название проекта</label>
-                    <input type="text" id="project-name" placeholder="my-first-app" required>
-                </div>
-                <div class="form-group">
-                    <label for="project-desc">Описание (простыми словами)</label>
-                    <textarea id="project-desc" placeholder="Хочу сайт-визитку с контактами..." rows="4" required></textarea>
-                </div>
-                <button type="submit" class="btn btn-primary btn-large">✨ Создать проект</button>
-            </form>
-            <div id="project-result" class="result-box" style="display:none;"></div>
-        </div>
-    </div>
+<div class="agents-bar" id="agents-bar">
+  <div class="agent-chip" id="chip-teamlead">👔 TeamLead</div>
+  <div class="agent-chip" id="chip-architect">🏛 Architect</div>
+  <div class="agent-chip" id="chip-backend">⚙️ Backend</div>
+  <div class="agent-chip" id="chip-frontend">🎨 Frontend</div>
+  <div class="agent-chip" id="chip-devops">🚀 DevOps</div>
+  <div class="agent-chip" id="chip-tester">🧪 Tester</div>
+  <div class="agent-chip" id="chip-documentalist">📝 Docs</div>
+</div>
 
-    <div id="lesson-screen" class="screen">
-        <div class="container">
-            <h2>📚 Твой урок готов!</h2>
-            <div id="lesson-content" class="lesson-box"></div>
-            <div class="lesson-actions">
-                <button id="btn-download" class="btn btn-primary">📥 Скачать Markdown</button>
-                <button id="btn-new-project" class="btn btn-secondary">➕ Новый проект</button>
-            </div>
-        </div>
-    </div>
+<div class="chat-area" id="chat"></div>
 
-    <script src="/static/app.js"></script>
+<div class="input-area">
+  <div class="input-row">
+    <textarea id="user-input" placeholder="Опиши что хочешь создать..." rows="1"></textarea>
+    <button class="send-btn" id="send-btn">➤</button>
+  </div>
+  <div class="input-hint">Enter — отправить · Shift+Enter — новая строка</div>
+</div>
+
+<script src="/static/app.js"></script>
 </body>
 </html>
