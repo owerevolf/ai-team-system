@@ -338,7 +338,9 @@ async def create_project_stream(req: CreateProjectRequest):
             
             try:
                 from core.agent_manager import AgentManager
-                manager = AgentManager()
+                from core.model_router import ModelRouter
+                router = ModelRouter(profile=os.getenv("HARDWARE_PROFILE", "medium"))
+                manager = AgentManager(model_router=router)
                 result = manager.run_agent(agent, query_with_level)
                 response = result.get('summary', result.get('response', str(result)))
                 results[agent] = response
