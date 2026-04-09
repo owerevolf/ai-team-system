@@ -188,25 +188,34 @@ class AgentManager:
             tools_desc.append(f"## {tool.name}\n{tool.description}\nParameters: {params}")
         return "\n\n".join(tools_desc)
     
-    def get_agent_prompt(self, agent_name: str) -> str:
+    def get_agent_prompt(self, agent_name: str, level: str = "advanced") -> str:
+        """
+        Загружает промт агента с учётом уровня пользователя.
+        level: zero | beginner | advanced
+        """
+        # Сначала ищем файл с уровнем
+        level_file = self.prompts_dir / f"{agent_name}_{level}.md"
+        if level_file.exists():
+            return level_file.read_text(encoding='utf-8')
+        
+        # Fallback на обычный промт
         prompt_file = self.prompts_dir / f"{agent_name}.md"
+        if prompt_file.exists():
+            return prompt_file.read_text(encoding='utf-8')
         
-        if not prompt_file.exists():
-            self.logger.warning(f"Промпт для {agent_name} не найден")
-            return self._get_default_prompt(agent_name)
-        
-        return prompt_file.read_text(encoding='utf-8')
+        self.logger.warning(f"Промпт для {agent_name} не найден")
+        return self._get_default_prompt(agent_name)
     
     def _get_default_prompt(self, agent_name: str) -> str:
         return f"""Ты - {agent_name} agent в AI Team System.
 Создавай РЕАЛЬНЫЙ рабочий код.
 Используй инструменты для создания файлов."""
     
-    def run_agent(self, agent_name: str, task: str, context: Dict = None) -> Dict[str, Any]:
-        self.logger.info(f"Запуск агента: {agent_name}")
+    def run_agent(self, agent_name: str, task: str, context: Dict = None, level: str = "advanced") -> Dict[str, Any]:
+        self.logger.info(f"Запуск агента: {agent_name} (level={level})")
         self.emit_event("agent_start", {"agent": agent_name})
         
-        prompt_template = self.get_agent_prompt(agent_name)
+        prompt_template = self.get_agent_prompt(agent_name, level)
         tools_description = self.get_tools_for_prompt()
         
         agent_context = {}

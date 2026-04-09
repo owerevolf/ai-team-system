@@ -437,7 +437,7 @@ async def create_project_stream(req: CreateProjectRequest):
 
             try:
                 result = await asyncio.get_event_loop().run_in_executor(
-                    None, lambda a=agent: manager.run_agent(a, query_with_level)
+                    None, lambda a=agent: manager.run_agent(a, query_with_level, level=req.level)
                 )
 
                 raw_response = result.get('response', '')
