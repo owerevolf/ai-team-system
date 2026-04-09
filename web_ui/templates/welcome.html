@@ -738,12 +738,19 @@ function onBuildDone(data) {
     null,
     [
       { label: '📥 Скачать Markdown', value: 'download' },
+      { label: '📂 Открыть папку',    value: 'open' },
       { label: '🔍 Что было создано?', value: 'explain' },
-      { label: '✨ Новый проект',       value: 'new' },
+      { label: '✨ Новый проект',     value: 'new' },
     ],
     (value) => {
       if (value === 'download') {
         window.location.href = `/api/download/${mdName}`;
+      } else if (value === 'open') {
+        fetch('/api/open_folder', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({path: projectDir})
+        });
       } else if (value === 'explain') {
         addUserMsg('Что было создано?');
         addAiMsg('TeamLead',

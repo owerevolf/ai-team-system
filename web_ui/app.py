@@ -487,6 +487,17 @@ async def download_file(filename: str):
     raise HTTPException(status_code=404, detail=f"Файл {filename} не найден")
 
 
+@app.post("/api/open_folder")
+async def open_folder(request: Request):
+    """Открыть папку проекта в файловом менеджере"""
+    body = await request.json()
+    path = body.get("path", "")
+    if path and Path(path).exists():
+        import subprocess
+        subprocess.Popen(["xdg-open", path])
+    return JSONResponse({"status": "ok"})
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("web_ui.app:app", host="0.0.0.0", port=8000, reload=False)
