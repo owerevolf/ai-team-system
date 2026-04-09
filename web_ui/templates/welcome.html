@@ -429,7 +429,6 @@ const state = {
   clarifications: {},
   currentAgent: null,
   building: false,
-  abortController: null,
 };
 
 const AGENTS = ['teamlead','architect','backend','frontend','devops','tester','documentalist'];
@@ -614,25 +613,24 @@ async function streamAgents() {
     level: state.level,
   };
 
-  const response = await fetch('/api/create_project_stream', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) throw new Error('stream failed');
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-
-  state.abortController = new AbortController();
-  let buildDoneCalled = false; // защита от двойного вызова
-
   try {
+    const response = await fetch('/api/create_project_stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) throw new Error('stream failed');
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    let buildDoneCalled = false;
+
     while (true) {
       if (!state.building) {
-        state.abortController.abort();
+        reader.cancel();
         break;
       }
       const { done, value } = await reader.read();
@@ -649,17 +647,12 @@ async function streamAgents() {
         }
       }
     }
-  } catch (e) {
-    if (e.name === 'AbortError') {
-      return; // stream cancelled
-    }
-    throw e;
-  } finally {
-    state.abortController = null;
-  }
 
-  // Вызываем только если сервер не прислал событие 'done'
-  if (!buildDoneCalled && state.building) onBuildDone();
+    if (!buildDoneCalled && state.building) onBuildDone();
+  } catch (e) {
+    console.log('Stream error:', e.message);
+    if (state.building) onBuildDone();
+  }
 }
 
 function handleStreamEvent(data, markDone) {
@@ -929,24 +922,26 @@ function stopBuild() {
   state.building = false;
   document.getElementById('send-btn').disabled = false;
   document.getElementById('stop-btn').classList.remove('visible');
-  addAiMsg('system', '⏹ Сборка остановлена пользователем.\n\nХочешь начать заново или продолжить с того места где остановился?',
+  
+  removeTyping();
+  
+  const existingTyping = document.getElementById('typing-indicator');
+  if (existingTyping) existingTyping.remove();
+  
+  addAiMsg('system', '⏹ Сборка остановлена пользователем.',
     null,
     [
       { label: '🔄 Начать заново', value: 'restart' },
-      { label: '⏩ Продолжить',   value: 'continue' },
     ],
     (value) => {
       if (value === 'restart') {
         addUserMsg('Начать заново');
         state.phase = 'idea';
         state.projectIdea = '';
+        state.projectName = '';
         AGENTS.forEach(resetAgent);
         addAiMsg('TeamLead', 'Ок! Какой проект хочешь создать?');
         focusInput();
-      } else if (value === 'continue') {
-        addUserMsg('Продолжить');
-        addAiMsg('TeamLead', 'Продолжаем работу над текущим проектом...');
-        startBuilding();
       }
     }
   );
