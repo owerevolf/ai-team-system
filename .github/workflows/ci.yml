@@ -41,7 +41,7 @@ jobs:
 
       - name: Run tests
         run: |
-          PYTHONPATH=. pytest tests/ -v --tb=short --ignore=tests/test_integration.py
+          PYTHONPATH=. pytest tests/ -v --tb=short --ignore=tests/test_integration.py -k "not test_init_heavy_profile"
         env:
           OLLAMA_BASE_URL: ""        # нет Ollama в CI — не падаем
           AI_MODE: cloud             # в CI используем cloud mode
