@@ -649,10 +649,15 @@ function handleStreamEvent(data, markDone) {
     setAgentActive(data.agent);
   } else if (data.type === 'agent_chunk') {
     // чанки в реальном времени — можно добавить позже
+  } else if (data.type === 'project_dir') {
+    state.projectDir = data.path;
   } else if (data.type === 'agent_done') {
     setAgentDone(data.agent);
+    const files = data.files && data.files.length
+      ? `\n\n📄 Создано файлов: ${data.files.length}\n` + data.files.map(f => `• ${f}`).join('\n')
+      : '';
     addAiMsg(AGENT_LABELS[data.agent] || data.agent,
-      summarizeResponse(data.response, state.level));
+      summarizeResponse(data.response, state.level) + files);
   } else if (data.type === 'done') {
     markDone && markDone();
     onBuildDone(data);
@@ -715,14 +720,21 @@ async function fallbackBuild() {
 }
 
 function onBuildDone(data) {
+  if (state.phase === 'done') return; // защита от двойного вызова
   state.phase = 'done';
   state.building = false;
   document.getElementById('send-btn').disabled = false;
 
+  const totalFiles = data && data.total_files ? data.total_files : 0;
+  const projectDir = data && data.project_dir ? data.project_dir : (state.projectDir || '~/ai-team-projects');
   const mdName = `${state.projectName || 'project'}.md`;
 
+  const summary = totalFiles > 0
+    ? `✅ Проект создан! Файлов на диске: **${totalFiles}**\n📁 Папка: \`${projectDir}\`\n\nКоманда завершила работу. Что дальше?`
+    : `✅ Проект создан!\n\nКоманда завершила работу. Что дальше?`;
+
   addAiMsg('system',
-    `✅ Проект создан!\n\nКоманда завершила работу. Что дальше?`,
+    summary,
     null,
     [
       { label: '📥 Скачать Markdown', value: 'download' },

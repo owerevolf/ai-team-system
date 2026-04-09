@@ -307,6 +307,54 @@ async def agent_query(req: AgentQueryRequest) -> AgentQueryResponse:
         raise HTTPException(status_code=500, detail=f"Внутренняя ошибка: {e}")
 
 
+def _parse_and_write_files(response: str, project_dir: Path) -> list:
+    """
+    Парсим ответ агента, находим tool_call с create_file
+    и реально пишем файлы на диск.
+    Возвращает список созданных файлов.
+    """
+    import re
+    created = []
+
+    # Ищем все JSON-блоки с "tool": "create_file"
+    # Модель может выдать как <tool_call>{...}</tool_call> так и голый JSON
+    patterns = [
+        r'<tool_call>\s*(\{[\s\S]*?\})\s*</tool_call>',  # обёрнутый
+        r'(\{"tool"\s*:\s*"create_file"[\s\S]*?\})(?=\s*\{|\s*$)',  # голый JSON
+    ]
+
+    candidates = []
+    for pattern in patterns:
+        candidates.extend(re.findall(pattern, response))
+
+    for raw in candidates:
+        # Пробуем распарсить — JSON может быть обрезан
+        # Добиваем закрывающие скобки если не хватает
+        for suffix in ['', '}', '}}', '}}}']:
+            try:
+                data = json.loads(raw + suffix)
+                if data.get('tool') == 'create_file' and 'path' in data and 'content' in data:
+                    rel_path = data['path'].lstrip('/')
+                    # Защита от path traversal
+                    target = (project_dir / rel_path).resolve()
+                    if not str(target).startswith(str(project_dir)):
+                        logger.warning(f"Path traversal попытка: {rel_path}")
+                        break
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    content = data['content']
+                    # Убираем markdown-обёртку если есть (```python ... ```)
+                    content = re.sub(r'^```\w*\n', '', content)
+                    content = re.sub(r'\n```$', '', content)
+                    target.write_text(content, encoding='utf-8')
+                    created.append(str(rel_path))
+                    logger.info(f"Файл создан: {rel_path}")
+                    break
+            except (json.JSONDecodeError, KeyError):
+                continue
+
+    return created
+
+
 def _level_hint(level: str) -> str:
     """Добавляем подсказку агентам о уровне пользователя"""
     hints = {
@@ -319,47 +367,75 @@ def _level_hint(level: str) -> str:
 
 @app.post("/api/create_project_stream")
 async def create_project_stream(req: CreateProjectRequest):
-    """SSE-стриминг работы агентов"""
-    
+    """SSE-стриминг работы агентов с реальной записью файлов на диск"""
+
     async def event_stream():
         agents = ["teamlead", "architect", "backend", "frontend", "devops", "tester", "documentalist"]
         full_query = f"Создай проект '{req.project_name}': {req.query}"
         if req.clarifications:
             full_query += f"\nДополнения: {json.dumps(req.clarifications, ensure_ascii=False)}"
-        
+
         level_hint = _level_hint(req.level)
         query_with_level = f"{level_hint}\n\n{full_query}"
-        
+
+        # Папка проекта — ~/ai-team-projects/<project_name>/
+        projects_root = Path.home() / "ai-team-projects"
+        safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in req.project_name)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        project_dir = projects_root / f"{safe_name}_{timestamp}"
+        project_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Папка проекта: {project_dir}")
+
+        # Сообщаем UI где будет проект
+        yield f"data: {json.dumps({'type': 'project_dir', 'path': str(project_dir)})}\n\n"
+
         results = {}
-        
+        all_files = []
+
+        # Инициализируем AgentManager и ModelRouter один раз
+        from core.agent_manager import AgentManager
+        from core.model_router import ModelRouter
+        router = ModelRouter(profile=os.getenv("HARDWARE_PROFILE", "medium"))
+        manager = AgentManager(model_router=router)
+
         for agent in agents:
             yield f"data: {json.dumps({'type': 'agent_start', 'agent': agent})}\n\n"
             await asyncio.sleep(0)
-            
+
             try:
-                from core.agent_manager import AgentManager
-                from core.model_router import ModelRouter
-                router = ModelRouter(profile=os.getenv("HARDWARE_PROFILE", "medium"))
-                manager = AgentManager(model_router=router)
-                result = manager.run_agent(agent, query_with_level)
-                response = result.get('summary', result.get('response', str(result)))
-                results[agent] = response
-                yield f"data: {json.dumps({'type': 'agent_done', 'agent': agent, 'response': response}, ensure_ascii=False)}\n\n"
+                result = await asyncio.get_event_loop().run_in_executor(
+                    None, lambda a=agent: manager.run_agent(a, query_with_level)
+                )
+                raw_response = result.get('response', result.get('summary', str(result)))
+
+                # Пишем файлы на диск
+                created_files = await asyncio.get_event_loop().run_in_executor(
+                    None, lambda r=raw_response: _parse_and_write_files(r, project_dir)
+                )
+                all_files.extend(created_files)
+
+                results[agent] = raw_response
+
+                yield f"data: {json.dumps({'type': 'agent_done', 'agent': agent, 'response': raw_response, 'files': created_files}, ensure_ascii=False)}\n\n"
+
             except Exception as e:
+                logger.error(f"Агент {agent} ошибка: {e}")
                 results[agent] = f"Ошибка: {str(e)}"
-                yield f"data: {json.dumps({'type': 'agent_done', 'agent': agent, 'response': str(e)})}\n\n"
-            
+                yield f"data: {json.dumps({'type': 'agent_done', 'agent': agent, 'response': str(e), 'files': []})}\n\n"
+
             await asyncio.sleep(0.1)
-        
-        yield f"data: {json.dumps({'type': 'done', 'project': req.project_name})}\n\n"
-        
+
+        # Финал
+        yield f"data: {json.dumps({'type': 'done', 'project': req.project_name, 'project_dir': str(project_dir), 'total_files': len(all_files), 'files': all_files})}\n\n"
+
+        # Экспорт markdown
         try:
             from core.export_lesson import ExportLesson
             exporter = ExportLesson()
             exporter.generate([{"type": "project", "data": results}], req.project_name)
         except Exception:
             pass
-    
+
     return StreamingResponse(
         event_stream(),
         media_type="text/event-stream",

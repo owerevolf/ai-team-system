@@ -373,7 +373,11 @@ class ModelRouter:
             "model": model_name,
             "prompt": prompt,
             "stream": False,
-            "options": {"num_ctx": 8192, "temperature": 0.7},
+            "options": {
+                "num_ctx": 8192,       # контекст входа
+                "num_predict": 4096,   # лимит выходных токенов — без этого модель обрезает ответ
+                "temperature": 0.7,
+            },
         }
 
         data = json.dumps(payload).encode("utf-8")
