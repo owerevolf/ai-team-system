@@ -255,8 +255,9 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
             result = {
                 "agent": agent_name,
                 "status": "success",
-                "response": response[:500],
+                "response": response,  # полный ответ — не обрезаем
                 "files_created": created_files,
+                "summary": f"Создано файлов: {len(created_files)}. " + (", ".join(created_files) if created_files else "Нет файлов."),
                 "timestamp": datetime.now().isoformat()
             }
             

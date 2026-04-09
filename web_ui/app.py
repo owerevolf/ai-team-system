@@ -311,46 +311,77 @@ def _parse_and_write_files(response: str, project_dir: Path) -> list:
     """
     Парсим ответ агента, находим tool_call с create_file
     и реально пишем файлы на диск.
-    Возвращает список созданных файлов.
+
+    Устойчив к обрезанному JSON — модель часто не успевает
+    закрыть все скобки из-за лимита токенов.
     """
     import re
     created = []
 
-    # Ищем все JSON-блоки с "tool": "create_file"
-    # Модель может выдать как <tool_call>{...}</tool_call> так и голый JSON
-    patterns = [
-        r'<tool_call>\s*(\{[\s\S]*?\})\s*</tool_call>',  # обёрнутый
-        r'(\{"tool"\s*:\s*"create_file"[\s\S]*?\})(?=\s*\{|\s*$)',  # голый JSON
-    ]
+    def try_write(path_str: str, content: str) -> bool:
+        """Записываем файл на диск. Возвращает True если успешно."""
+        if not path_str or not content:
+            return False
+        rel_path = path_str.lstrip('/')
+        # Защита от path traversal
+        target = (project_dir / rel_path).resolve()
+        if not str(target).startswith(str(project_dir.resolve())):
+            logger.warning(f"Path traversal попытка: {rel_path}")
+            return False
+        target.parent.mkdir(parents=True, exist_ok=True)
+        # Убираем markdown-обёртку если есть
+        content = re.sub(r'^```[\w]*\n?', '', content.strip())
+        content = re.sub(r'\n?```$', '', content)
+        target.write_text(content, encoding='utf-8')
+        created.append(rel_path)
+        logger.info(f"Файл создан: {rel_path}")
+        return True
 
-    candidates = []
-    for pattern in patterns:
-        candidates.extend(re.findall(pattern, response))
+    # ── Метод 1: ищем полные JSON-блоки (обёрнутые в <tool_call> или голые)
+    # Сначала разворачиваем <tool_call>...</tool_call>
+    unwrapped = re.sub(r'<tool_call>\s*', '', response)
+    unwrapped = re.sub(r'\s*</tool_call>', '\n', unwrapped)
 
-    for raw in candidates:
-        # Пробуем распарсить — JSON может быть обрезан
-        # Добиваем закрывающие скобки если не хватает
-        for suffix in ['', '}', '}}', '}}}']:
-            try:
-                data = json.loads(raw + suffix)
-                if data.get('tool') == 'create_file' and 'path' in data and 'content' in data:
-                    rel_path = data['path'].lstrip('/')
-                    # Защита от path traversal
-                    target = (project_dir / rel_path).resolve()
-                    if not str(target).startswith(str(project_dir)):
-                        logger.warning(f"Path traversal попытка: {rel_path}")
+    # Находим все начала JSON с "tool": "create_file"
+    starts = [m.start() for m in re.finditer(r'\{"tool"\s*:\s*"create_file"', unwrapped)]
+
+    for start in starts:
+        chunk = unwrapped[start:]
+
+        # Пробуем распарсить с нарастающим количеством закрывающих скобок
+        parsed = None
+        for end_offset in range(len(chunk), max(len(chunk)-50, 0), -1):
+            candidate = chunk[:end_offset]
+            for suffix in ['', '}', '}}']:
+                try:
+                    obj = json.loads(candidate + suffix)
+                    if isinstance(obj, dict) and obj.get('tool') == 'create_file':
+                        parsed = obj
                         break
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                    content = data['content']
-                    # Убираем markdown-обёртку если есть (```python ... ```)
-                    content = re.sub(r'^```\w*\n', '', content)
-                    content = re.sub(r'\n```$', '', content)
-                    target.write_text(content, encoding='utf-8')
-                    created.append(str(rel_path))
-                    logger.info(f"Файл создан: {rel_path}")
-                    break
-            except (json.JSONDecodeError, KeyError):
-                continue
+                except json.JSONDecodeError:
+                    continue
+            if parsed:
+                break
+
+        if parsed and 'path' in parsed and 'content' in parsed:
+            try_write(parsed['path'], parsed['content'])
+            continue
+
+        # ── Метод 2: если JSON обрезан — вытаскиваем path и content регулярками
+        path_match = re.search(r'"path"\s*:\s*"([^"]+)"', chunk[:500])
+        # content может быть очень длинным — берём всё до конца чанка
+        content_match = re.search(r'"content"\s*:\s*"([\s\S]*)', chunk)
+
+        if path_match and content_match:
+            raw_content = content_match.group(1)
+            # Убираем хвост — незакрытые escape-последовательности
+            raw_content = raw_content.rstrip('\\').rstrip('"').rstrip(',')
+            # Декодируем \n \t и т.д.
+            try:
+                raw_content = raw_content.encode().decode('unicode_escape')
+            except Exception:
+                raw_content = raw_content.replace('\\n', '\n').replace('\\t', '\t')
+            try_write(path_match.group(1), raw_content)
 
     return created
 
@@ -397,6 +428,8 @@ async def create_project_stream(req: CreateProjectRequest):
         from core.model_router import ModelRouter
         router = ModelRouter(profile=os.getenv("HARDWARE_PROFILE", "medium"))
         manager = AgentManager(model_router=router)
+        # Передаём папку проекта — теперь агенты сами пишут файлы
+        manager.set_project_path(project_dir)
 
         for agent in agents:
             yield f"data: {json.dumps({'type': 'agent_start', 'agent': agent})}\n\n"
@@ -406,22 +439,19 @@ async def create_project_stream(req: CreateProjectRequest):
                 result = await asyncio.get_event_loop().run_in_executor(
                     None, lambda a=agent: manager.run_agent(a, query_with_level)
                 )
-                raw_response = result.get('response', result.get('summary', str(result)))
 
-                # Пишем файлы на диск
-                created_files = await asyncio.get_event_loop().run_in_executor(
-                    None, lambda r=raw_response: _parse_and_write_files(r, project_dir)
-                )
+                raw_response = result.get('response', '')
+                created_files = result.get('files_created', [])
+                summary = result.get('summary', '')
                 all_files.extend(created_files)
-
                 results[agent] = raw_response
 
-                yield f"data: {json.dumps({'type': 'agent_done', 'agent': agent, 'response': raw_response, 'files': created_files}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'type': 'agent_done', 'agent': agent, 'response': raw_response, 'files': created_files, 'summary': summary}, ensure_ascii=False)}\n\n"
 
             except Exception as e:
                 logger.error(f"Агент {agent} ошибка: {e}")
                 results[agent] = f"Ошибка: {str(e)}"
-                yield f"data: {json.dumps({'type': 'agent_done', 'agent': agent, 'response': str(e), 'files': []})}\n\n"
+                yield f"data: {json.dumps({'type': 'agent_done', 'agent': agent, 'response': str(e), 'files': [], 'summary': 'Ошибка'})}\n\n"
 
             await asyncio.sleep(0.1)
 
