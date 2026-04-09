@@ -492,16 +492,17 @@ function askLevel() {
 function onLevelSelect(value, label) {
   state.level = value;
   addUserMsg(label);
-  setTimeout(() => {
-    const txt = value === 'zero'
-      ? 'Понял! Буду объяснять каждый шаг простыми словами. Не торопись — задавай вопросы в любой момент.\n\nТеперь главный вопрос: что ты хочешь создать? Опиши своими словами — как другу.'
-      : value === 'beginner'
-      ? 'Отлично. Буду объяснять логику решений, не разжёвывая каждую строку.\n\nЧто хочешь создать?'
-      : 'Принял. Минимум лирики, максимум дела.\n\nЧто за проект?';
-    state.phase = 'idea';
-    addAiMsg('TeamLead', txt);
-    focusInput();
-  }, 400);
+  
+  state.phase = 'idea';
+  state.projectIdea = 'Калькулятор';
+  state.projectName = 'calculator';
+  
+  addAiMsg('system', 'Загружаю команду...', null, null, null, '<div class="typing"><span></span><span></span><span></span></div>');
+  
+  setTimeout(async () => {
+    removeTyping();
+    await startBuilding();
+  }, 500);
 }
 
 // ══════════════════════════════════════════
