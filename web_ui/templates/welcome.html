@@ -412,6 +412,7 @@
     <textarea id="user-input" placeholder="Опиши что хочешь создать..." rows="1"
       onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
     <button class="send-btn" id="send-btn" onclick="sendMessage()" title="Отправить">➤</button>
+    <button class="stop-btn" id="stop-btn" onclick="stopBuild()" title="Остановить">⏹</button>
   </div>
   <div class="input-hint">Enter — отправить · Shift+Enter — новая строка</div>
 </div>
@@ -428,6 +429,7 @@ const state = {
   clarifications: {},
   currentAgent: null,
   building: false,
+  abortController: null,
 };
 
 const AGENTS = ['teamlead','architect','backend','frontend','devops','tester','documentalist'];
@@ -577,6 +579,7 @@ async function startBuilding() {
   state.phase = 'building';
   state.building = true;
   document.getElementById('send-btn').disabled = true;
+  document.getElementById('stop-btn').classList.add('visible');
 
   addAiMsg('TeamLead',
     `Отлично, всё понял. Передаю задачу команде.\n\nБудем создавать: **${state.projectIdea}**`,
@@ -622,26 +625,40 @@ async function streamAgents() {
   const decoder = new TextDecoder();
   let buffer = '';
 
+  state.abortController = new AbortController();
   let buildDoneCalled = false; // защита от двойного вызова
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop();
-    for (const line of lines) {
-      if (line.startsWith('data: ')) {
-        try {
-          const data = JSON.parse(line.slice(6));
-          handleStreamEvent(data, () => { buildDoneCalled = true; });
-        } catch {}
+  try {
+    while (true) {
+      if (!state.building) {
+        state.abortController.abort();
+        break;
+      }
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            handleStreamEvent(data, () => { buildDoneCalled = true; });
+          } catch {}
+        }
       }
     }
+  } catch (e) {
+    if (e.name === 'AbortError') {
+      return; // stream cancelled
+    }
+    throw e;
+  } finally {
+    state.abortController = null;
   }
 
   // Вызываем только если сервер не прислал событие 'done'
-  if (!buildDoneCalled) onBuildDone();
+  if (!buildDoneCalled && state.building) onBuildDone();
 }
 
 function handleStreamEvent(data, markDone) {
@@ -724,6 +741,7 @@ function onBuildDone(data) {
   state.phase = 'done';
   state.building = false;
   document.getElementById('send-btn').disabled = false;
+  document.getElementById('stop-btn').classList.remove('visible');
 
   const totalFiles = data && data.total_files ? data.total_files : 0;
   const projectDir = data && data.project_dir ? data.project_dir : (state.projectDir || '~/ai-team-projects');
@@ -904,6 +922,33 @@ function scrollDown() {
 
 function focusInput() {
   document.getElementById('user-input').focus();
+}
+
+function stopBuild() {
+  state.building = false;
+  document.getElementById('send-btn').disabled = false;
+  document.getElementById('stop-btn').classList.remove('visible');
+  addAiMsg('system', '⏹ Сборка остановлена пользователем.\n\nХочешь начать заново или продолжить с того места где остановился?',
+    null,
+    [
+      { label: '🔄 Начать заново', value: 'restart' },
+      { label: '⏩ Продолжить',   value: 'continue' },
+    ],
+    (value) => {
+      if (value === 'restart') {
+        addUserMsg('Начать заново');
+        state.phase = 'idea';
+        state.projectIdea = '';
+        AGENTS.forEach(resetAgent);
+        addAiMsg('TeamLead', 'Ок! Какой проект хочешь создать?');
+        focusInput();
+      } else if (value === 'continue') {
+        addUserMsg('Продолжить');
+        addAiMsg('TeamLead', 'Продолжаем работу над текущим проектом...');
+        startBuilding();
+      }
+    }
+  );
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }

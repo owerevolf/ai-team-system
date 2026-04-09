@@ -253,6 +253,22 @@ textarea::placeholder { color: var(--muted); }
 .send-btn:hover { background: #6a5ee0; transform: scale(1.04); }
 .send-btn:disabled { background: var(--border); cursor: not-allowed; transform: none; }
 
+.stop-btn {
+  width: 46px; height: 46px;
+  background: #ef4444;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all .2s;
+  font-size: 18px;
+}
+.stop-btn:hover { background: #dc2626; transform: scale(1.04); }
+.stop-btn.visible { display: flex; }
+
 .input-hint {
   font-size: 10px;
   color: var(--muted);

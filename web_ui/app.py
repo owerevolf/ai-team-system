@@ -498,6 +498,12 @@ async def open_folder(request: Request):
     return JSONResponse({"status": "ok"})
 
 
+@app.post("/api/stop_build")
+async def stop_build():
+    """Остановить текущую сборку"""
+    return JSONResponse({"status": "stopped"})
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("web_ui.app:app", host="0.0.0.0", port=8000, reload=False)
