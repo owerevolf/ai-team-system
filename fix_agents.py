@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
 """
-FIX_AGENTS — Автоматическое исправление промптов на основе отчёта тестов
+FIX_AGENTS v2.0 — Автоматическое исправление промптов на основе отчёта тестов
+Исправляет промпты чтобы агенты РЕАГИРОВАЛИ на содержание ответа пользователя
 """
 import json
 import re
 import sys
+import logging
 from pathlib import Path
 from datetime import datetime
-import logging
 
+# Логирование в отдельный файл
+LOG_FILE = Path(__file__).parent / 'fix_agents.log'
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s | %(levelname)s | %(message)s',
     handlers=[
+        logging.FileHandler(LOG_FILE, mode='w', encoding='utf-8'),
         logging.StreamHandler()
     ]
 )
@@ -28,250 +32,174 @@ def load_report():
     if not REPORT_PATH.exists():
         logger.error('❌ TEST_REPORT.json не найден — запусти сначала auto_tester.py')
         return None
-    
     with open(REPORT_PATH, 'r', encoding='utf-8') as f:
         return json.load(f)
 
 
-def fix_prompt(filepath, fixes):
-    """Применить исправления к файлу промпта"""
+def get_agent_files(agent_name):
+    """Найти все файлы промптов для агента"""
+    patterns = [
+        PROMPTS_DIR / f'{agent_name}_zero.md',
+        PROMPTS_DIR / f'{agent_name}_beginner.md',
+        PROMPTS_DIR / f'{agent_name}.md',
+        PROMPTS_DIR / f'{agent_name}_advanced.md',
+    ]
+    return [p for p in patterns if p.exists()]
+
+
+def fix_hearing_issue(agent_name, filepath):
+    """
+    Исправить промпт чтобы агент СЛЫШАЛ пользователя.
+    Возвращает True если изменения применлены.
+    """
     content = filepath.read_text(encoding='utf-8')
     original = content
+    changes_made = []
+
+    # 1. Проверяем что есть инструкция реагировать на содержание
+    if not any(phrase in content.lower() for phrase in [
+        'реагируй на содержание', 'анализируй ответ', 'конкретно по теме',
+        'не используй шаблон', 'не общий скрипт'
+    ]):
+        content += '\n\n'
+        content += '## ═══════════════════════════════════════\n'
+        content += '## ВАЖНО: СЛЫШЬ ПОЛЬЗОВАТЕЛЯ\n'
+        content += '## ═══════════════════════════════════════\n'
+        content += 'Ты ДОЛЖЕН реагировать конкретно на то что написал пользователь.\n'
+        content += 'НЕ отвечай общим скриптом приветствия.\n'
+        content += 'НЕ повторяй одну и ту же фразу.\n'
+        content += 'Проанализируй СОДЕРЖАНИЕ ответа и отвечай по теме.\n'
+        content += 'Если пользователь написал "калькулятор" — говори о калькуляторе.\n'
+        content += 'Если написал "тренажёр печати" — говори о тренажёре печати.\n'
+        changes_made.append('Добавлена инструкция "слышь пользователя"')
+
+    # 2. Убираем запрет на tool_call если он мешает (для zero режима)
+    # Оставляем но делаем мягче
     
-    for fix_name, fix_data in fixes.items():
-        if fix_data.get('apply', False):
-            old_text = fix_data.get('find', '')
-            new_text = fix_data.get('replace', '')
-            
-            if old_text in content:
-                content = content.replace(old_text, new_text, 1)
-                FIXES_LOG.append(f'  ✅ {filepath.name}: {fix_name}')
-            else:
-                FIXES_LOG.append(f'  ⚠️ {filepath.name}: {fix_name} (не найдено для замены)')
-    
+    # 3. Добавляем персональный стиль для каждого агента
+    style_additions = {
+        'teamlead': (
+            '\n## СТИЛЬ: Ты TeamLead — сначала пойми что хочет пользователь, '
+            'потом дай чёткий план. Говори конкретно по теме.\n'
+        ),
+        'architect': (
+            '\n## СТИЛЬ: Ты Architect — анализируй запрос и предлагай '
+            'структуру КОНКРЕТНО под то что просит пользователь.\n'
+        ),
+        'backend': (
+            '\n## СТИЛЬ: Ты Backend Dev — пиши код КОНКРЕТНО под задачу '
+            'пользователя, не абстрактные примеры.\n'
+        ),
+        'frontend': (
+            '\n## СТИЛЬ: Ты Frontend Dev — делай UI КОНКРЕТНО под то что '
+            'просит пользователь, не шаблонные страницы.\n'
+        ),
+        'devops': (
+            '\n## СТИЛЬ: Ты DevOps — настраивай инфраструктуру КОНКРЕТНО '
+            'под проект пользователя.\n'
+        ),
+        'tester': (
+            '\n## СТИЛЬ: Ты Tester — тестируй КОНКРЕТНО то что написал '
+            'пользователь, не абстрактные сценарии.\n'
+        ),
+        'documentalist': (
+            '\n## СТИЛЬ: Ты Documentalist — документируй КОНКРЕТНО проект '
+            'пользователя, не общую теорию.\n'
+        ),
+    }
+
+    for agent, style_text in style_additions.items():
+        if agent in agent_name.lower():
+            if style_text.strip() not in content:
+                content += style_text
+                changes_made.append(f'Добавлен стиль агента {agent}')
+            break
+
     if content != original:
         filepath.write_text(content, encoding='utf-8')
+        FIXES_LOG.extend(changes_made)
+        logger.info(f'  ✅ {filepath.name}: {", ".join(changes_made)}')
         return True
+    
+    logger.info(f'  ⏭️ {filepath.name}: без изменений')
     return False
 
 
-def analyze_and_fix(report):
+def analyze_and_fix(report, iteration=1):
     """Анализировать отчёт и применить исправления"""
     logger.info('=' * 60)
-    logger.info('АНАЛИЗ ОТЧЁТА И ИСПРАВЛЕНИЕ')
+    logger.info(f'АНАЛИЗ ОТЧЁТА И ИСПРАВЛЕНИЕ — Итерация #{iteration}')
     logger.info('=' * 60)
-    
+
+    hearing = report.get('agent_hearing', {})
     fixes_applied = 0
-    
-    # ===== ПРОВЕРКА 1: teamlead_query эндпоинт =====
-    api_tests = {}
-    for test in report.get('tests', []):
-        if test['name'] == 'API эндпоинты':
-            api_tests = test.get('checks', {})
-            break
-    
-    if not api_tests.get('teamlead_query', True):
-        logger.warning('⚠️ teamlead_query не работает')
-        # Проверяем app.py
-        app_file = Path(__file__).parent / 'web_ui' / 'app.py'
-        if app_file.exists():
-            content = app_file.read_text()
-            if 'teamlead_query' not in content:
-                logger.info('  Добавляю эндпоинт teamlead_query...')
-                # Добавляем перед create_project_stream
-                endpoint_code = '''
-@app.post("/api/teamlead_query")
-async def teamlead_query(req: CreateProjectRequest):
-    """TeamLead задаёт вопрос и ждёт ответа"""
-    async def event_stream():
-        full_query = req.query
-        level_hint = _level_hint(req.level)
-        query_with_level = f"{level_hint}\\n\\n{full_query}"
-        
-        from core.agent_manager import AgentManager
-        from core.model_router import ModelRouter
-        router = ModelRouter(profile=os.getenv("HARDWARE_PROFILE", "medium"))
-        manager = AgentManager(model_router=router)
-        
-        yield f"data: {json.dumps({'type': 'agent_start', 'agent': 'teamlead'})}\\n\\n"
-        await asyncio.sleep(0)
-        
-        try:
-            result = await asyncio.get_event_loop().run_in_executor(
-                None, lambda: manager.run_agent("teamlead", query_with_level, level=req.level)
-            )
-            raw_response = result.get('response', '')
-            yield f"data: {json.dumps({'type': 'agent_done', 'agent': 'teamlead', 'response': raw_response, 'files': [], 'summary': ''}, ensure_ascii=False)}\\n\\n"
-            yield f"data: {json.dumps({'type': 'waiting_for_user', 'message': 'TeamLead ждёт вашего ответа'})}\\n\\n"
-        except Exception as e:
-            yield f"data: {json.dumps({'type': 'agent_done', 'agent': 'teamlead', 'response': str(e), 'files': [], 'summary': 'Ошибка'})}\\n\\n"
-    
-    return StreamingResponse(event_stream(), media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
-'''
-                if '@app.post("/api/create_project_stream")' in content:
-                    content = content.replace(
-                        '@app.post("/api/create_project_stream")',
-                        endpoint_code + '\n@app.post("/api/create_project_stream")'
-                    )
-                    app_file.write_text(content)
-                    FIXES_LOG.append('  ✅ app.py: добавлен teamlead_query эндпоинт')
+    # Проверяем какие сценарии НЕ СЛЫШАТ
+    not_hearing = [k for k, v in hearing.items() if v == 'НЕ СЛЫШИТ']
+    
+    if not not_hearing:
+        logger.info('✅ Агент СЛЫШИТ пользователя во всех сценариях!')
+        return False
+
+    logger.warning(f'⚠️ НЕ СЛЫШИТ в сценариях: {not_hearing}')
+
+    # Исправляем ВСЕ agent промпты (teamlead, architect, backend, frontend и т.д.)
+    agents = ['teamlead', 'architect', 'backend', 'frontend', 'devops', 'tester', 'documentalist']
+    
+    for agent in agents:
+        files = get_agent_files(agent)
+        for filepath in files:
+            # Для zero режима — максимальные исправления
+            if 'zero' in filepath.name or 'beginner' in filepath.name:
+                if fix_hearing_issue(agent, filepath):
                     fixes_applied += 1
-    
-    # ===== ПРОВЕРКА 2: JS функции =====
-    for test in report.get('tests', []):
-        if 'JS' in test.get('name', ''):
-            js = test.get('checks', {}).get('js_functions', {})
-            missing = [fn for fn, exists in js.items() if not exists]
-            
-            if missing:
-                logger.warning(f'⚠️ Не найдены JS функции: {missing}')
-                
-                welcome_file = Path(__file__).parent / 'web_ui' / 'templates' / 'welcome.html'
-                if welcome_file.exists():
-                    content = welcome_file.read_text()
-                    
-                    # Проверяем callTeamLead
-                    if 'callTeamLead' in missing and 'function callTeamLead' not in content:
-                        logger.info('  Добавляю функцию callTeamLead...')
-                        # Добавляем перед askClarification
-                        func_code = '''
-async function callTeamLead() {
-  state.phase = 'teamlead_wait';
-  showTyping();
-  
-  const isFirst = (state.phase === 'teamlead_wait');
-  const prompt = isFirst
-    ? `Ты впервые общаешься с пользователем. Идея проекта: ${state.projectIdea}`
-    : `Пользователь задал вопрос. Идея проекта: ${state.projectIdea}`;
+            else:
+                # Для основных — только стиль
+                content = filepath.read_text(encoding='utf-8')
+                if 'реагируй на содержание' not in content.lower():
+                    content += (
+                        f'\n\n## ВАЖНО: Реагируй конкретно на запрос пользователя. '
+                        f'Не используй шаблонные ответы.\n'
+                    )
+                    filepath.write_text(content, encoding='utf-8')
+                    fixes_applied += 1
+                    FIXES_LOG.append(f'{filepath.name}: добавлена конкретика')
+                    logger.info(f'  ✅ {filepath.name}: конкретика')
 
-  try {
-    const response = await fetch('/api/teamlead_query', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        project_name: state.projectName,
-        query: prompt,
-        level: state.level
-      })
-    });
-    
-    // ... SSE handling
-  } catch (e) {
-    removeTyping();
-    addAiMsg('system', '⚠️ Ошибка: ' + e.message);
-  }
-}
-'''
-                        if 'async function askClarification' in content:
-                            content = content.replace(
-                                'async function askClarification',
-                                func_code + '\n// ══════════════════════════════════════════\n//  CLARIFICATION\n// ══════════════════════════════════════════\nasync function askClarification'
-                            )
-                            welcome_file.write_text(content)
-                            FIXES_LOG.append('  ✅ welcome.html: добавлена callTeamLead')
-                            fixes_applied += 1
-    
-    # ===== ПРОВЕРКА 3: Промпты агентов =====
-    for test in report.get('tests', []):
-        if 'Промпт' in test.get('name', ''):
-            checks = test.get('checks', {})
-            for fname, info in checks.items():
-                if not info.get('has_wait_instruction', True):
-                    logger.warning(f'⚠️ {fname}: нет инструкции "жди ответа"')
-                    fpath = PROMPTS_DIR / fname
-                    if fpath.exists():
-                        content = fpath.read_text()
-                        if 'жди' not in content.lower() and 'жди ответа' not in content.lower():
-                            # Добавляем инструкцию
-                            content += '\n\n## ВАЖНО: ЖДИ ОТВЕТА ПОЛЬЗОВАТЕЛЯ ПРЕЖДЕ ЧЕМ ПРОДОЛЖИТЬ\n'
-                            fpath.write_text(content)
-                            FIXES_LOG.append(f'  ✅ {fname}: добавлена инструкция ждать')
-                            fixes_applied += 1
-    
-    # Итог
+    # Дополнительно: проверяем welcome.html на проблемы с отправкой сообщений
+    welcome_file = Path(__file__).parent / 'web_ui' / 'templates' / 'welcome.html'
+    if welcome_file.exists():
+        content = welcome_file.read_text()
+        # Проверяем что отправка сообщений работает корректно
+        if 'sendMessage' in content or 'send_msg' in content:
+            # Проверяем что текст сообщения передаётся в API
+            if 'state.projectIdea' in content or 'state.userMessage' in content:
+                logger.info('  ✅ welcome.html: отправка сообщений корректна')
+            else:
+                logger.warning('  ⚠️ welcome.html: возможно проблема с передачей сообщения')
+
     logger.info('\n' + '=' * 60)
     logger.info(f'ИСПРАВЛЕНИЙ ПРИМЕНЕНО: {fixes_applied}')
     for fix in FIXES_LOG:
-        logger.info(fix)
+        logger.info(f'  → {fix}')
     logger.info('=' * 60)
-    
+
     return fixes_applied > 0
 
 
-def generate_result_md(report):
-    """Создать RESULT.md"""
-    summary = report.get('summary', {})
-    tests = report.get('tests', [])
-    screenshots = report.get('screenshots', [])
-    
-    md = f"""# 📊 РЕЗУЛЬТАТ АВТОМАТИЧЕСКОГО ТЕСТИРОВАНИЯ
-**Дата:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-
-## 📈 ОБЩАЯ СТАТИСТИКА
-| Метрика | Значение |
-|---------|----------|
-| Всего тестов | {summary.get('total_tests', 0)} |
-| Пройдено | {summary.get('passed', 0)} ✅ |
-| Провалено | {summary.get('failed', 0)} ❌ |
-| Ошибок консоли | {summary.get('console_errors', 0)} |
-| Скриншотов | {summary.get('screenshots_taken', 0)} |
-| **Статус** | **{summary.get('status', 'НЕИЗВЕСТНО')}** |
-
-## 🧪 ДЕТАЛИ ТЕСТОВ
-"""
-    
-    for test in tests:
-        icon = '✅' if test.get('passed') else '❌'
-        md += f"\n### {icon} {test['name']}\n"
-        md += f"- **Статус:** {'Пройден' if test.get('passed') else 'Провален'}\n"
-        
-        if 'checks' in test:
-            if isinstance(test['checks'], dict):
-                for name, val in test['checks'].items():
-                    if isinstance(val, dict):
-                        md += f"  - {name}: {json.dumps(val, ensure_ascii=False)}\n"
-                    else:
-                        icon2 = '✅' if val else '❌'
-                        md += f"  - {icon2} {name}\n"
-    
-    md += f"\n## 📸 СКРИНШОТЫ\n"
-    for ss in screenshots:
-        md += f"- `{ss}`\n"
-    
-    md += f"""
-## 🔧 ИСПРАВЛЕНИЯ
-"""
-    if FIXES_LOG:
-        for fix in FIXES_LOG:
-            md += f"- {fix}\n"
-    else:
-        md += "- Исправлений не потребовалось\n"
-    
-    md += f"""
-## 📝 ЧТО ОСТАЛОСЬ СДЕЛАТЬ
-"""
-    failed_tests = [t for t in tests if not t.get('passed')]
-    if failed_tests:
-        for t in failed_tests:
-            md += f"- ❌ {t['name']}: {t.get('error', 'требуется исправление')}\n"
-    else:
-        md += "- Всё работает! 🎉\n"
-    
-    result_path = Path(__file__).parent / 'RESULT.md'
-    result_path.write_text(md, encoding='utf-8')
-    logger.info(f'\n📄 RESULT.md сохранён: {result_path}')
-
-
 if __name__ == '__main__':
-    logger.info('🔧 Fix Agents v1.0')
+    logger.info('🔧 Fix Agents v2.0')
     
+    iteration = int(sys.argv[1]) if len(sys.argv) > 1 else 1
     report = load_report()
     if not report:
         sys.exit(1)
+
+    fixed = analyze_and_fix(report, iteration)
     
-    fixed = analyze_and_fix(report)
-    generate_result_md(report)
+    if fixed:
+        logger.info('\n✅ Промпты исправлены! Перезапусти сервер и проверь снова.')
+    else:
+        logger.info('\n✅ Исправлений не потребовалось!')
     
-    logger.info('\n✅ Готово!')
+    sys.exit(0 if not fixed else 0)

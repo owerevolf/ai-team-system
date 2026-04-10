@@ -32,3 +32,7 @@ alembic==1.14.0
 # 🧪 Тесты
 pytest==8.3.4
 pytest-asyncio==0.24.0
+
+# 🤖 Vision анализ (GitHub Models GPT-4o)
+# playwright уже установлен через browser-use
+pillow==11.1.0
