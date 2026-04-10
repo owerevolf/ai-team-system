@@ -230,6 +230,73 @@ async def hardware_info() -> JSONResponse:
     return JSONResponse(info)
 
 
+@app.post("/api/generate_clarify_questions")
+async def generate_clarify_questions(request: Request) -> JSONResponse:
+    """Генерирует уточняющие вопросы через LLM на основе идеи проекта и уровня"""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Невалидный JSON")
+    
+    project_idea = body.get("project_idea", "")
+    level = body.get("level", "beginner")
+    
+    if not project_idea:
+        raise HTTPException(status_code=400, detail="Нет идеи проекта")
+    
+    # Промт для генерации вопросов
+    level_prompts = {
+        "zero": (
+            "Ты — TeamLead в команде разработки. Пользователь — абсолютный новичок.\n"
+            "Сгенерируй 3 простых уточняющих вопроса для проекта. Вопросы должны быть ОЧЕНЬ простыми, "
+            "без технических терминов. Используй аналогии.\n\n"
+            "Пример стиля: 'Это только для тебя или другие тоже будут пользоваться?'\n\n"
+            f"Идея проекта: {project_idea}\n\n"
+            "Ответь в формате JSON массива: [\"вопрос 1\", \"вопрос 2\", \"вопрос 3\"]"
+        ),
+        "beginner": (
+            "Ты — TeamLead. Пользователь начинающий, знает основы.\n"
+            "Сгенерируй 3-4 уточняющих вопроса. Можно использовать технические термицы, "
+            "но кратко объясняй если нужно.\n\n"
+            f"Идея проекта: {project_idea}\n\n"
+            "Ответь в формате JSON массива: [\"вопрос 1\", \"вопрос 2\", \"вопрос 3\"]"
+        ),
+        "advanced": (
+            "Ты — TeamLead. Пользователь продвинутый.\n"
+            "Сгенерируй 3-4 технических уточняющих вопроса: стек, архитектура, БД, авторизация, деплой.\n\n"
+            f"Идея проекта: {project_idea}\n\n"
+            "Ответь в формате JSON массива: [\"вопрос 1\", \"вопрос 2\", \"вопрос 3\"]"
+        ),
+    }
+    
+    prompt = level_prompts.get(level, level_prompts["beginner"])
+    
+    from core.model_router import ModelRouter
+    router = ModelRouter(profile=os.getenv("HARDWARE_PROFILE", "medium"))
+    
+    try:
+        response = router.generate(prompt=prompt, agent="teamlead")
+        
+        # Парсим JSON из ответа
+        import re
+        json_match = re.search(r'\[.*\]', response, re.DOTALL)
+        if json_match:
+            questions = json.loads(json_match.group())
+        else:
+            # Fallback на хардкод
+            questions = [
+                "Нужна ли авторизация?",
+                "Где будет работать — локально или в интернете?",
+                "Есть предпочтения по стеку?"
+            ]
+        
+        return JSONResponse({"questions": questions, "status": "success"})
+    except Exception as e:
+        logger.error(f"Ошибка генерации вопросов: {e}")
+        # Fallback
+        raise HTTPException(status_code=503, detail=f"LLM недоступен: {str(e)}")
+
+
 @app.get("/api/progress")
 async def get_progress(session_id: str) -> JSONResponse:
     sess = session_manager.get(session_id)
@@ -396,13 +463,55 @@ def _level_hint(level: str) -> str:
     return hints.get(level, hints["beginner"])
 
 
+@app.post("/api/teamlead_query")
+async def teamlead_query(req: CreateProjectRequest):
+    """TeamLead задаёт вопрос и ждёт ответа — НЕ запускает других агентов"""
+    
+    async def event_stream():
+        # UI уже шлёт правильный prompt (первый раз или повторный)
+        full_query = req.query
+        if req.clarifications:
+            full_query += f"\nДополнения: {json.dumps(req.clarifications, ensure_ascii=False)}"
+
+        level_hint = _level_hint(req.level)
+        query_with_level = f"{level_hint}\n\n{full_query}"
+
+        from core.agent_manager import AgentManager
+        from core.model_router import ModelRouter
+        router = ModelRouter(profile=os.getenv("HARDWARE_PROFILE", "medium"))
+        manager = AgentManager(model_router=router)
+
+        yield f"data: {json.dumps({'type': 'agent_start', 'agent': 'teamlead'})}\n\n"
+        await asyncio.sleep(0)
+
+        try:
+            result = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: manager.run_agent("teamlead", query_with_level, level=req.level)
+            )
+
+            raw_response = result.get('response', '')
+            yield f"data: {json.dumps({'type': 'agent_done', 'agent': 'teamlead', 'response': raw_response, 'files': [], 'summary': ''}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'type': 'waiting_for_user', 'message': 'TeamLead ждёт вашего ответа'})}\n\n"
+
+        except Exception as e:
+            logger.error(f"TeamLead ошибка: {e}")
+            yield f"data: {json.dumps({'type': 'agent_done', 'agent': 'teamlead', 'response': str(e), 'files': [], 'summary': 'Ошибка'})}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+    )
+
+
 @app.post("/api/create_project_stream")
 async def create_project_stream(req: CreateProjectRequest):
-    """SSE-стриминг работы агентов с реальной записью файлов на диск"""
+    """SSE-стриминг работы агентов (БЕЗ TeamLead — он уже был)"""
 
     async def event_stream():
-        agents = ["teamlead", "architect", "backend", "frontend", "devops", "tester", "documentalist"]
-        full_query = f"Создай проект '{req.project_name}': {req.query}"
+        # TeamLead уже был, запускаем остальных
+        agents = ["architect", "backend", "frontend", "devops", "tester", "documentalist"]
+        full_query = f"Продолжаем проект '{req.project_name}': {req.query}"
         if req.clarifications:
             full_query += f"\nДополнения: {json.dumps(req.clarifications, ensure_ascii=False)}"
 

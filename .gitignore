@@ -54,3 +54,20 @@ ai-team-lessons/
 .coverage
 htmlcov/
 .mypy_cache/
+
+# Session/AI context files
+.ai-context/
+PROJECT_STATE.md
+TODAY_SUMMARY.md
+RESULT.md
+TEST_REPORT.json
+
+# Test artifacts (logs only - screenshots are useful)
+auto_test.log
+new_cleanToolCall.js
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace

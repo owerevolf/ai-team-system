@@ -285,6 +285,22 @@
   .send-btn:hover { background: #6a5ee0; transform: scale(1.04); }
   .send-btn:disabled { background: var(--border); cursor: not-allowed; transform: none; }
 
+  .stop-btn {
+    width: 46px; height: 46px;
+    background: #ef4444;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all .2s;
+    font-size: 18px;
+  }
+  .stop-btn:hover { background: #dc2626; transform: scale(1.04); }
+  .stop-btn.visible { display: flex; }
+
   .input-hint {
     font-size: 10px;
     color: var(--muted);
@@ -303,6 +319,10 @@
     gap: 32px;
     z-index: 100;
     transition: opacity .4s;
+    pointer-events: auto;
+  }
+  #welcome-overlay.fade-out {
+    pointer-events: none;
   }
   .welcome-logo {
     font-family: 'Unbounded', sans-serif;
@@ -380,8 +400,8 @@
   </div>
   <div id="hw-info-welcome" style="font-size:11px;color:var(--muted);border:1px solid var(--border);padding:4px 14px;border-radius:20px;"></div>
   <div class="welcome-actions">
-    <button class="btn-primary" onclick="startChat('tour')">🚀 Начать тур</button>
-    <button class="btn-ghost"   onclick="startChat('skip')">Сразу к делу</button>
+    <button class="btn-primary" onclick="startChat('tour')">🎓 Как это работает (Тур)</button>
+    <button class="btn-ghost"   onclick="startChat('skip')">✨ Сразу создать проект</button>
   </div>
 </div>
 
@@ -459,15 +479,162 @@ init();
 // ══════════════════════════════════════════
 function startChat(mode) {
   const overlay = document.getElementById('welcome-overlay');
+  overlay.classList.add('fade-out');
   overlay.style.opacity = '0';
-  setTimeout(() => { overlay.style.display = 'none'; }, 400);
+  setTimeout(() => { overlay.style.display = 'none'; }, 500);
 
   if (mode === 'tour') {
-    askLevel();
+    console.log('Starting tour...');
+    startTour();
   } else {
     // skip — сразу к идее
     state.phase = 'idea';
     addAiMsg('system', 'Отлично. Опиши свою идею — что хочешь создать?');
+  }
+}
+
+// ══════════════════════════════════════════
+//  TOUR MODE
+// ══════════════════════════════════════════
+const TOUR_STEPS = [
+  {
+    title: '👋 Добро пожаловать!',
+    text: 'AI Team System — это команда из 7 AI-агентов которые создают проекты вместе.\n\n' +
+          'Ты просто говоришь что хочешь — а команда делает всё остальное.\n\n' +
+          'Давай познакомимся с каждым!',
+  },
+  {
+    agent: 'teamlead',
+    title: '👔 TeamLead — Командир',
+    text: 'TeamLead — это как **прораб** на стройке.\n\n' +
+          'Он:\n' +
+          '• Слушает что ты хочешь\n' +
+          '• Задаёт уточняющие вопросы\n' +
+          '• Составляет план работы\n' +
+          '• Раздаёт задачи команде\n\n' +
+          '💡 *TeamLead первый начинает разговор и последний заканчивает.*',
+  },
+  {
+    agent: 'architect',
+    title: '🏛 Architect — Архитектор',
+    text: 'Architect — это как **архитектор** который рисует план дома.\n\n' +
+          'Он:\n' +
+          '• Решает какие будут файлы и папки\n' +
+          '• Продумывает как части связаны друг с другом\n' +
+          '• Выбирает правильную структуру проекта\n\n' +
+          '📐 *Без архитектора получилась бы куча файлов без порядка.*',
+  },
+  {
+    agent: 'backend',
+    title: '⚙️ Backend — Мозги',
+    text: 'Backend — это **мозг** программы.\n\n' +
+          'Он пишет то что работает \"под капотом\":\n' +
+          '• Сервер который отвечает на запросы\n' +
+          '• Базу данных где хранится информация\n' +
+          '• Логику — как 2+2=4, проверка паролей и т.д.\n\n' +
+          '🔧 *Backend — это всё что НЕ видно но работает.*',
+  },
+  {
+    agent: 'frontend',
+    title: '🎨 Frontend — Красота',
+    text: 'Frontend — это **лицо** программы.\n\n' +
+          'Он делает то что ты видишь:\n' +
+          '• Кнопки которые нажимаешь\n' +
+          '• Цвета и шрифты на экране\n' +
+          '• Анимации когда всё двигается красиво\n\n' +
+          '🎨 *Frontend = то что делает программу красивой и удобной.*',
+  },
+  {
+    agent: 'devops',
+    title: '🚀 DevOps — Инженер',
+    text: 'DevOps — это **инженер** который делает так чтобы всё работало.\n\n' +
+          'Он:\n' +
+          '• Упаковывает проект в Docker (чтобы работал везде)\n' +
+          '• Настраивает чтобы запускалось одной командой\n' +
+          '• Делает инструкции по установке\n\n' +
+          '📦 *DevOps = чтобы \"у меня работает\" стало \"у всех работает\".*',
+  },
+  {
+    agent: 'tester',
+    title: '🧪 Tester — Проверяльщик',
+    text: 'Tester — это **контролёр качества**.\n\n' +
+          'Он:\n' +
+          '• Пишет тесты которые проверяют код\n' +
+          '• Ищет ошибки пока ты их не нашёл\n' +
+          '• Гарантирует что всё работает как надо\n\n' +
+          '✅ *Tester = чтобы ты не получил баги и разочарование.*',
+  },
+  {
+    agent: 'documentalist',
+    title: '📝 Docs — Писатель',
+    text: 'Documentalist — это **писатель инструкций**.\n\n' +
+          'Он:\n' +
+          '• Пишет README.md — как пользоваться проектом\n' +
+          '• Объясняет что делает каждая часть\n' +
+          '• Оставляет заметки для будущего\n\n' +
+          '📖 *Docs = чтобы через месяц ты понял как всё работает.*',
+  },
+  {
+    title: '🎉 Готово!',
+    text: 'Теперь ты знаешь всю команду! 🎊\n\n' +
+          'Все 7 агентов работают вместе чтобы создать твой проект.\n\n' +
+          '**Что дальше?**\n' +
+          '• Выбери свой уровень (объяснять много или мало)\n' +
+          '• Расскажи свою идею\n' +
+          '• Команда сделает всё остальное!\n\n' +
+          'Готов начать?',
+  },
+];
+
+function startTour() {
+  state.phase = 'tour';
+  state.tourStep = 0;
+  showTourStep();
+}
+
+function showTourStep() {
+  const step = TOUR_STEPS[state.tourStep];
+  const isLast = state.tourStep === TOUR_STEPS.length - 1;
+  const isFirst = state.tourStep === 0;
+
+  const choices = [];
+  if (!isLast) {
+    choices.push({ label: '➡️ Дальше', value: 'next' });
+  }
+  if (!isFirst) {
+    choices.push({ label: '⬅️ Назад', value: 'prev' });
+  }
+  if (isLast) {
+    choices.push({ label: '🚀 Выбрать уровень', value: 'level' });
+  }
+
+  const html = `<strong>${step.title}</strong>\n\n${step.text}`;
+
+  addAiMsg('system', null, html, choices, onTourChoice);
+
+  // Подсветка текущего агента в панели
+  if (step.agent) {
+    setAgentActive(step.agent);
+  } else if (isLast) {
+    AGENTS.forEach(a => setAgentDone(a));
+  }
+}
+
+function onTourChoice(value) {
+  if (value === 'next') {
+    state.tourStep++;
+    showTourStep();
+  } else if (value === 'prev') {
+    state.tourStep--;
+    showTourStep();
+  } else if (value === 'level') {
+    // Завершаем тур — просим выбрать уровень
+    addUserMsg('Готов начать!');
+    AGENTS.forEach(a => {
+      const chip = document.getElementById(`chip-${a}`);
+      if (chip) chip.className = 'agent-chip';
+    });
+    askLevel();
   }
 }
 
@@ -491,17 +658,14 @@ function askLevel() {
 function onLevelSelect(value, label) {
   state.level = value;
   addUserMsg(label);
-  
+
+  // После выбора уровня — просим идею
   state.phase = 'idea';
-  state.projectIdea = 'Калькулятор';
-  state.projectName = 'calculator';
+  state.projectIdea = '';
+  state.projectName = '';
   
-  addAiMsg('system', 'Загружаю команду...', null, null, null, '<div class="typing"><span></span><span></span><span></span></div>');
-  
-  setTimeout(async () => {
-    removeTyping();
-    await startBuilding();
-  }, 500);
+  addAiMsg('system', 'Отлично! Расскажи свою идею — что хочешь создать?');
+  focusInput();
 }
 
 // ══════════════════════════════════════════
@@ -528,7 +692,12 @@ async function sendMessage() {
   if (state.phase === 'idea') {
     state.projectIdea = text;
     state.projectName = text.split(' ').slice(0,3).join('_').toLowerCase() || 'my_project';
-    await askClarification();
+    state.phase = 'teamlead_wait';
+    await callTeamLead();
+  } else if (state.phase === 'teamlead_questions') {
+    // Пользователь задаёт вопрос TeamLead'у
+    state.projectIdea += `\n\nВопрос пользователя: ${text}`;
+    await callTeamLead();
   } else if (state.phase === 'clarify') {
     state.clarifications['detail'] = text;
     await startBuilding();
@@ -540,18 +709,144 @@ async function sendMessage() {
 }
 
 // ══════════════════════════════════════════
+//  TEAM LEAD QUERY
+// ══════════════════════════════════════════
+async function callTeamLead() {
+  state.phase = state.phase || 'teamlead_wait';
+  showTyping();
+
+  // Если это повторный вопрос — меняем промпт
+  const isFirst = (state.phase === 'teamlead_wait');
+  const prompt = isFirst
+    ? `Ты впервые общаешься с пользователем. Идея проекта: ${state.projectIdea}\n\nПредставься кратко и предложи помощь.`
+    : `КОНТЕКСТ: Ты уже представился пользователю и задал вопросы о проекте.\nИдея проекта: ${state.projectIdea}\n\nПользователь задал вопрос выше. ОТВЕТЬ НА ВОПРОС — не представляйся снова.`;
+
+  try {
+    const response = await fetch('/api/teamlead_query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        project_name: state.projectName,
+        query: prompt,
+        level: state.level
+      })
+    });
+
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let gotResponse = false;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6));
+
+            if (data.type === 'agent_start') {
+              setAgentActive(data.agent);
+            } else if (data.type === 'agent_done') {
+              gotResponse = true;
+              removeTyping();
+              setAgentDone(data.agent);
+              const cleaned = cleanToolCall(data.response);
+              const summary = summarizeResponse(cleaned, state.level);
+
+              if (isFirst) {
+                addAiMsg('TeamLead', summary, null,
+                  [
+                    { label: '❓ Есть вопросы', value: 'questions' },
+                    { label: '✅ Делаем!', value: 'start_build' }
+                  ],
+                  onTeamleadChoice
+                );
+              } else {
+                addAiMsg('TeamLead', summary, null, null, null);
+                setTimeout(() => onTeamleadQuestionDone(), 500);
+              }
+            }
+          } catch (e) {
+            console.log('Parse error:', e);
+          }
+        }
+      }
+    }
+
+    if (!gotResponse) {
+      removeTyping();
+      addAiMsg('system', '⚠️ TeamLead не ответил. Попробуй ещё раз.');
+    }
+  } catch (e) {
+    removeTyping();
+    addAiMsg('system', '⚠️ Ошибка: ' + e.message);
+    console.error('callTeamLead error:', e);
+  }
+}
+
+function onTeamleadChoice(value) {
+  if (value === 'questions') {
+    addAiMsg('system', 'Задавай вопрос — что непонятно? Я объясню.');
+    state.phase = 'teamlead_questions';
+    focusInput();
+  } else if (value === 'start_build') {
+    addUserMsg('Делаем!');
+    startBuilding();
+  }
+}
+
+// После вопросов — тоже можно начать билд
+function onTeamleadQuestionDone() {
+  addAiMsg('system', 'Готов продолжить? Тогда нажми "Делаем!" когда будешь готов.',
+    null,
+    [{ label: '✅ Делаем!', value: 'start_build' }],
+    onTeamleadChoice
+  );
+}
+
+// ══════════════════════════════════════════
 //  CLARIFICATION
 // ══════════════════════════════════════════
 async function askClarification() {
   state.phase = 'clarify';
   showTyping();
 
-  // Имитируем "думаем" — потом заменить на реальный LLM-запрос
-  await sleep(900);
-  removeTyping();
+  try {
+    // Генерируем вопросы через LLM
+    const r = await fetch('/api/generate_clarify_questions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        project_idea: state.projectIdea,
+        level: state.level,
+      }),
+    });
 
-  const questions = generateClarifyQuestions(state.projectIdea, state.level);
-  addAiMsg('TeamLead', questions);
+    removeTyping();
+
+    if (r.ok) {
+      const d = await r.json();
+      const questions = d.questions || [];
+      const questionsText = questions.map((q, i) => `${i + 1}. ${q}`).join('\n\n');
+      addAiMsg('TeamLead', questionsText + '\n\nОтветь как тебе удобно — можно в одном сообщении.');
+    } else {
+      // Fallback на локальную генерацию
+      removeTyping();
+      const questions = generateClarifyQuestions(state.projectIdea, state.level);
+      addAiMsg('TeamLead', questions);
+    }
+  } catch(e) {
+    removeTyping();
+    const questions = generateClarifyQuestions(state.projectIdea, state.level);
+    addAiMsg('TeamLead', questions);
+  }
 }
 
 function generateClarifyQuestions(idea, level) {
@@ -665,10 +960,13 @@ function handleStreamEvent(data, markDone) {
   } else if (data.type === 'agent_done') {
     setAgentDone(data.agent);
     const files = data.files && data.files.length
-      ? `\n\n📄 Создано файлов: ${data.files.length}\n` + data.files.map(f => `• ${f}`).join('\n')
+      ? `\n\n📄 **Создано файлов: ${data.files.length}**\n` + data.files.map(f => `• \`${f}\``).join('\n')
       : '';
-    addAiMsg(AGENT_LABELS[data.agent] || data.agent,
-      summarizeResponse(data.response, state.level) + files);
+    
+    const summary = summarizeResponse(data.response, state.level);
+    const fullMsg = summary + files;
+    
+    addAiMsg(AGENT_LABELS[data.agent] || data.agent, fullMsg);
   } else if (data.type === 'done') {
     markDone && markDone();
     onBuildDone(data);
@@ -676,32 +974,86 @@ function handleStreamEvent(data, markDone) {
 }
 
 function cleanToolCall(text) {
-  // Модель иногда отвечает в формате tool_call JSON — чистим для UI
-  if (!text) return '';
-  // Убираем обёртку <tool_call>...</tool_call>
-  text = text.replace(/<tool_call>[\s\S]*?<\/tool_call>/g, '[файл создан]');
-  // Убираем голый JSON с "tool": "create_file"
-  try {
-    const parsed = JSON.parse(text.trim());
-    if (parsed.tool === 'create_file') {
-      return `📄 Создан файл: \`${parsed.path}\``;
-    }
-    if (parsed.status === 'success' && parsed.files_created) {
-      return `✅ Создано файлов: ${parsed.files_created.length}\n` +
-        parsed.files_created.map(f => `• ${f}`).join('\n');
-    }
-  } catch {}
-  return text;
-}
+  if (!text || !text.trim()) return '\u2713 Done';
 
+  // 1. Remove <tool_call> tags
+  text = text.replace(/<tool_call[^>]*>/g, '');
+  text = text.replace(/<\/tool_call>/g, '');
+
+  // 2. Parse JSON by finding { and counting braces
+  let result = '';
+  let i = 0;
+  while (i < text.length) {
+    // Check if we're at start of JSON with "tool"
+    if (text[i] === '{' && text.slice(i, i+8).includes('tool')) {
+      // Try to find matching closing brace
+      let braceCount = 0;
+      let inStr = false;
+      let esc = false;
+      let j = i;
+      while (j < text.length) {
+        const ch = text[j];
+        if (esc) { esc = false; j++; continue; }
+        if (ch === '\\') { esc = true; j++; continue; }
+        if (ch === '"') { inStr = !inStr; }
+        if (!inStr) {
+          if (ch === '{') braceCount++;
+          if (ch === '}') {
+            braceCount--;
+            if (braceCount === 0) {
+              // Found complete JSON
+              const jsonStr = text.slice(i, j+1);
+              try {
+                const obj = JSON.parse(jsonStr);
+                if (obj.content) {
+                  result += '\n' + obj.content + '\n';
+                } else if (obj.tool) {
+                  result += '\u2713 Tool: ' + obj.tool;
+                } else {
+                  result += jsonStr;
+                }
+              } catch(e) {
+                result += jsonStr;
+              }
+              i = j + 1;
+              break;
+            }
+          }
+        }
+        j++;
+      }
+      if (braceCount !== 0) {
+        result += text[i];
+        i++;
+      }
+    } else {
+      result += text[i];
+      i++;
+    }
+  }
+
+  text = result;
+  text = text.replace(/\n{3,}/g, '\n\n').trim();
+  return text || '\u2713 Done';
+}
 function summarizeResponse(text, level) {
   if (!text) return '✓ Выполнено';
   text = cleanToolCall(text);
+  
+  // Для zero уровня — краткое описание
   if (level === 'zero') {
-    const short = text.slice(0, 220).replace(/```[\s\S]*?```/g, '[код]');
-    return short + (text.length > 220 ? '...' : '');
+    const short = text.slice(0, 500).replace(/```[\s\S]*?```/g, '[код скрыт — скачай файл]');
+    return short + (text.length > 500 ? '\n\n... (ответ обрезан, скачай полный Markdown)' : '');
   }
-  return text.slice(0, 400) + (text.length > 400 ? '...' : '');
+  
+  // Для beginner — показываем больше
+  if (level === 'beginner') {
+    const medium = text.slice(0, 800);
+    return medium + (text.length > 800 ? '\n\n... (продолжение в скачанном файле)' : '');
+  }
+  
+  // Для advanced — полный ответ
+  return text;
 }
 
 async function fallbackBuild() {
@@ -899,7 +1251,15 @@ function removeTyping() {
 
 function formatText(text) {
   return text
+    // code blocks
+    .replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => 
+      `<div class="code-block"><strong>${lang || 'code'}:</strong><br><pre>${escHtml(code.trim())}</pre></div>`
+    )
+    // inline code
+    .replace(/`([^`]+)`/g, '<code style="background:#1a1a1f;padding:2px 6px;border-radius:4px;font-size:12px;">$1</code>')
+    // bold
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    // newlines
     .replace(/\n/g, '<br>');
 }
 

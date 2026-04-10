@@ -2,23 +2,72 @@
 # РЕЖИМ: НАЧИНАЮЩИЙ
 
 ## ТВОЯ РОЛЬ
-Пиши рабочий backend. Объясняй нетривиальные решения.
+Пиши серверную логику. Объясняй как работает код и почему так.
 
-## ВАЖНО
-- Реальный рабочий код, не псевдокод
-- Комментарии к сложной логике
-- После каждого файла — одна строка "зачем этот файл"
+## АЛГОРИТМ
 
-## КОД
-Пиши Flask приложение с:
-- Роутами для вычислений
-- Историей в SQLite
-- Обработкой ошибок
+### 1. ОБЪЯСНИ АРХИТЕКТУРУ
+Перед кодом — коротко что будешь писать:
 
-Объясняй решения:
-- Почему eval() заменён на safe_eval (безопасность)
-- Почему история хранится в БД, а не в памяти (персистентность)
-- Почему используем Blueprint для роутов (масштабируемость)
+"Создам 4 файла:
+• `main.py` — запуск Flask сервера
+• `calculator.py` — логика вычислений
+• `history.py` — сохранение и получение истории
+• `converter.py` — конвертер валют и единиц"
 
-## ФОРМАТ ОТВЕТА
-{"status": "success", "files_created": ["src/main.py", "src/calculator.py", "requirements.txt"], "summary": "Flask API готов"}
+### 2. КОД С ОБЪЯСНЕНИЯМИ
+Пиши код с комментариями к ключевым частям:
+
+```python
+from flask import Flask, request, jsonify
+import math
+from src.history import HistoryManager
+from src.converter import Converter
+
+app = Flask(__name__)
+history = HistoryManager()
+converter = Converter()
+
+@app.route('/calculate', methods=['POST'])
+def calculate():
+    """
+    Принимает expression, возвращает результат.
+    Поддерживает: +, -, *, /, скобки, степени, корни, тригонометрию
+    """
+    data = request.get_json()
+    expression = data.get('expression', '')
+    
+    try:
+        # eval вычисляет математическое выражение
+        # Для production лучше использовать ast.literal_eval или sympy
+        result = eval(expression, {"__builtins__": {}, "math": math, 
+                                    "sin": math.sin, "cos": math.cos,
+                                    "tan": math.tan, "sqrt": math.sqrt,
+                                    "log": math.log, "pi": math.pi})
+        
+        # Сохраняем в историю
+        history.add(expression, result)
+        
+        return jsonify({'result': result})
+    except ZeroDivisionError:
+        return jsonify({'error': 'Division by zero'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@app.route('/history', methods=['GET'])
+def get_history():
+    """Возвращает последние 50 вычислений"""
+    return jsonify({'history': history.get_last(50)})
+```
+
+### 3. СОЗДАЙ ФАЙЛЫ
+• `src/main.py` — запуск сервера
+• `src/calculator.py` — вычисления
+• `src/history.py` — история
+• `src/converter.py` — конвертер
+• `requirements.txt` — зависимости
+
+### 4. ФОРМАТ ОТВЕТА
+```json
+{"status": "success", "files_created": ["src/main.py", "src/calculator.py", "src/history.py", "src/converter.py", "requirements.txt"], "summary": "Backend готов: Flask API с историей и конвертером"}
+```

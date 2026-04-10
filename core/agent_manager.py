@@ -222,7 +222,29 @@ class AgentManager:
         if self.context:
             agent_context = self.context.get_context_for_agent(agent_name)
         
-        full_prompt = f"""{prompt_template}
+        # TeamLead - координатор, НЕ получает инструкции создавать файлы
+        is_coordinator = (agent_name == 'teamlead')
+        
+        if is_coordinator:
+            full_prompt = f"""{prompt_template}
+
+## ЗАДАНИЕ
+{task}
+
+## CONTEXT
+{json.dumps(context or agent_context, indent=2, ensure_ascii=False) if (context or agent_context) else 'Нет контекста'}
+
+## ИНСТРУКЦИИ
+1. Координируй команду
+2. Задавай вопросы пользователю
+3. Составляй план
+4. ОТВЕЧАЙ ТЕКСТОМ - НЕ создавай файлы и НЕ используй инструменты
+
+Начни работу!
+"""
+            created_files = []
+        else:
+            full_prompt = f"""{prompt_template}
 
 ## PROJECT PATH: {self.project_path or 'Не указан'}
 
@@ -259,15 +281,16 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
                 agent=agent_name
             )
             
-            created_files = self._extract_and_create_files(response)
+            if not is_coordinator:
+                created_files = self._extract_and_create_files(response)
             
             result = {
-                "agent": agent_name,
-                "status": "success",
-                "response": response,  # полный ответ — не обрезаем
-                "files_created": created_files,
-                "summary": f"Создано файлов: {len(created_files)}. " + (", ".join(created_files) if created_files else "Нет файлов."),
-                "timestamp": datetime.now().isoformat()
+            "agent": agent_name,
+            "status": "success",
+            "response": response,  # полный ответ — не обрезаем
+            "files_created": created_files,
+            "summary": f"Создано файлов: {len(created_files)}. " + (", ".join(created_files) if created_files else "Нет файлов."),
+            "timestamp": datetime.now().isoformat()
             }
             
             self.emit_event("agent_complete", {"agent": agent_name, "files": created_files})
