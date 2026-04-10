@@ -210,14 +210,20 @@ async def run_tests(iteration=1):
             overlay = page.locator('#welcome-overlay')
             if await overlay.count() > 0 and await overlay.is_visible():
                 logger.info('  Закрываю welcome overlay...')
-                # Попробуем нажать Escape
-                await page.keyboard.press('Escape')
-                await page.wait_for_timeout(1000)
-                # Если всё ещё виден — скрываем через JS
-                if await overlay.is_visible():
+                # Нажимаем кнопку "Сразу создать проект" чтобы перейти в фазу idea
+                skip_btn = page.locator('button.btn-ghost').first
+                if await skip_btn.count() > 0:
+                    await skip_btn.click()
+                    await page.wait_for_timeout(2000)
+                    logger.info('  ✅ Нажал "Сразу создать проект"')
+                else:
+                    # Фоллбэк — Escape
+                    await page.keyboard.press('Escape')
+                    await page.wait_for_timeout(1000)
                     await page.evaluate("""() => {
                         const o = document.getElementById('welcome-overlay');
                         if (o) { o.style.display = 'none'; o.style.opacity = '0'; }
+                        state.phase = 'idea';
                     }""")
                     await page.wait_for_timeout(500)
                 logger.info('  ✅ Overlay закрыт')
