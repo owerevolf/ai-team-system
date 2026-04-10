@@ -82,3 +82,6 @@
 - Frontend: Vanilla JS (простой)
 - DB: SQLite
 - Endpoints: /notes CRUD, /tags CRUD
+
+
+## ВАЖНО: Реагируй конкретно на запрос пользователя. Не используй шаблонные ответы.

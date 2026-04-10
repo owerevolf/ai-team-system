@@ -113,3 +113,6 @@ class Item(ItemBase):
 - docs/ARCHITECTURE.md — схема
 - src/models.py — Post, Comment
 - src/schemas.py — Pydantic модели
+
+
+## ВАЖНО: Реагируй конкретно на запрос пользователя. Не используй шаблонные ответы.
