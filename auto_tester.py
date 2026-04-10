@@ -205,9 +205,30 @@ async def run_tests(iteration=1):
         # ===== ТЕСТ 2: Отправка "Калькулятор" + Vision =====
         logger.info('\n[ТЕСТ 2] Отправка: Калькулятор')
         
+        # Закрываем welcome overlay если он есть
+        try:
+            overlay = page.locator('#welcome-overlay')
+            if await overlay.count() > 0 and await overlay.is_visible():
+                logger.info('  Закрываю welcome overlay...')
+                # Попробуем нажать Escape
+                await page.keyboard.press('Escape')
+                await page.wait_for_timeout(1000)
+                # Если всё ещё виден — скрываем через JS
+                if await overlay.is_visible():
+                    await page.evaluate("""() => {
+                        const o = document.getElementById('welcome-overlay');
+                        if (o) { o.style.display = 'none'; o.style.opacity = '0'; }
+                    }""")
+                    await page.wait_for_timeout(500)
+                logger.info('  ✅ Overlay закрыт')
+        except Exception as e:
+            logger.warning(f'  ⚠️ Не удалось закрыть overlay: {e}')
+        
         input_el = page.locator('textarea, input[type="text"]').first
         try:
-            await input_el.click(timeout=10000)
+            # Ждём что input будет доступен (overlay закрыт)
+            await input_el.wait_for(state='visible', timeout=10000)
+            await input_el.click()
             await input_el.fill('Калькулятор')
             await page.wait_for_timeout(1000)
         except Exception as e:
@@ -242,6 +263,15 @@ async def run_tests(iteration=1):
 
         # ===== ТЕСТ 3: Отправка "тренажёр печати" + Vision =====
         logger.info('\n[ТЕСТ 3] Отправка: тренажёр печати')
+        
+        # Убеждаемся что overlay закрыт
+        try:
+            await page.evaluate("""() => {
+                const o = document.getElementById('welcome-overlay');
+                if (o) { o.style.display = 'none'; }
+            }""")
+        except:
+            pass
         
         try:
             await input_el.click(timeout=10000)
