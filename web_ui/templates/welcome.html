@@ -734,12 +734,17 @@ async function callTeamLead() {
 
 
   try {
+    // Формируем запрос в зависимости от того, первый раз или нет
+    const query = isFirst
+      ? `Ты впервые общаешься с пользователем. Идея проекта: ${state.projectIdea}\n\nПредставься кратко и предложи помощь.`
+      : `КОНТЕКСТ: Ты уже представился пользователю.\nИдея проекта: ${state.projectIdea}\n\nПользователь написал: ${state.projectIdea.split('\n').pop()}\n\nОТВЕТЬ НА ЗАПРОС — не представляйся снова.`;
+
     const response = await fetch('/api/teamlead_query', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         project_name: state.projectName,
-        query: prompt,
+        query: query,
         level: state.level
       })
     });
