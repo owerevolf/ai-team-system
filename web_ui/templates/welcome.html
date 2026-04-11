@@ -698,9 +698,17 @@ async function sendMessage() {
     state.phase = 'teamlead_wait';
     await callTeamLead();
   } else if (state.phase === 'teamlead_wait') {
-    // Пользователь отвечает после первого ответа TeamLead — ПЕРЕДАЁМ ЕМУ
-    state.projectIdea += `\n\nУточнение: ${text}`;
-    await callTeamLead();
+    // Пользователь отвечает после первого ответа TeamLead
+    // Если это согласие на сборку — сразу начинаем
+    const lowText = text.toLowerCase().trim();
+    if (['делаем', 'погнали', 'готов', 'да', 'давай', 'ок', 'окей', 'конечно', 'yes', 'start'].some(w => lowText.includes(w))) {
+      // Пользователь хочет начать сборку
+      await startBuilding();
+    } else {
+      // Это вопрос или уточнение — передаём TeamLead'у
+      state.projectIdea += `\n\nУточнение от пользователя: ${text}`;
+      await callTeamLead();
+    }
   } else if (state.phase === 'teamlead_questions') {
     // Пользователь задаёт вопрос TeamLead'у
     state.projectIdea += `\n\nВопрос пользователя: ${text}`;
