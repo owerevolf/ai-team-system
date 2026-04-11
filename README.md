@@ -34,12 +34,14 @@ scripts\install.ps1
 |------|----------|
 | 🎓 Режим обучения | 5-шаговый тур с аналогиями из жизни |
 | 🤖 7 AI-агентов | TeamLead, Architect, Backend, Frontend, DevOps, Tester, Documentalist |
-| 🧠 Авто-детект железа | Выбор модели по VRAM/RAM |
+| 🧠 Авто-детект железа | Выбор модели по VRAM/RAM (4b/8b/14b) |
 | 💬 Оффлайн-первый | Работает через Ollama без интернета |
 | ☁️ Fallback на облако | 5+ бесплатных API (Groq, DeepSeek, Google, OpenRouter, xAI) |
 | 📥 Экспорт уроков | Markdown-гайды с примерами |
 | 🛡️ Безопасность | Песочница, whitelist команд, логирование |
 | ⚡ SSE-стриминг | Ответы в реальном времени |
+| 💬 Живой диалог | TeamLead ведёт диалог, уточняет детали, предлагает идеи |
+| 🎭 4 уровня сложности | zero / beginner / advanced / standard для каждого агента |
 
 ---
 
@@ -56,6 +58,8 @@ scripts\install.ps1
 └─────────────────────────────────────────┘
 ```
 
+Скриншоты UI: папка `screenshots/` (24 PNG)
+
 ---
 
 ## 📦 Таблица моделей по железу
@@ -71,26 +75,42 @@ scripts\install.ps1
 ## 🏗️ Архитектура
 
 ```
-User → Welcome UI → Tour (5 шагов) → Project → 7 Agents → Markdown Lesson
-                           ↓
-                    Hardware Detect → Model Selection
-                           ↓
-                    Local (Ollama) or Cloud (API)
+User → Welcome UI (чат) → TeamLead диалог → Подтверждение → 7 Агентов → Проект + Markdown Lesson
+                              ↓
+                       Hardware Detect → Model Selection
+                              ↓
+              ┌───────────────┴───────────────┐
+              ↓                               ↓
+         Local (Ollama)              Cloud (через API)
+         - qwen3:4b/8b/14b           - OmniRoute (если настроен)
+         - Работает оффлайн          - Mistral, DeepSeek, OpenRouter
+```
+
+### Поток данных:
+```
+welcome.html (JS) → POST /api/teamlead_query (SSE) → agent_manager.py
+→ model_router.py → Ollama (qwen3:8b, GPU) → SSE stream → welcome.html
 ```
 
 ---
 
 ## 👥 Агенты
 
-| Агент | Роль |
-|-------|------|
-| 👑 TeamLead | Координатор, анализ требований |
-| 🏗️ Architect | Архитектура, выбор технологий |
-| ⚙️ Backend | Серверный код, API |
-| 🎨 Frontend | Пользовательский интерфейс |
-| 🚀 DevOps | Docker, CI/CD, инфраструктура |
-| 🧪 Tester | Тесты, проверка качества |
-| 📝 Documentalist | Документация, README |
+| Агент | Роль | Температура |
+|-------|------|-------------|
+| 👑 TeamLead | Координатор, анализ требований, диалог с пользователем | 0.7 |
+| 🏗️ Architect | Архитектура, выбор технологий, структура файлов | 0.7 |
+| ⚙️ Backend | Серверный код, API, базы данных | 0.3 |
+| 🎨 Frontend | Пользовательский интерфейс, HTML/CSS/JS | 0.7 |
+| 🚀 DevOps | Docker, CI/CD, инфраструктура | 0.3 |
+| 🧪 Tester | Тесты, проверка качества | 0.3 |
+| 📝 Documentalist | Документация, README | 0.7 |
+
+### Уровни сложности:
+- **zero** — для полных новичков, с аналогиями из реальной жизни
+- **beginner** — знает основы, нужны объяснения "почему"
+- **advanced** — опытный, только суть
+- **standard** — базовый промпт
 
 ---
 
@@ -102,6 +122,9 @@ python -m uvicorn web_ui.app:app --host 0.0.0.0 --port 8000
 
 # CLI
 python -m core.cli --project myapp --desc "REST API на FastAPI"
+
+# Docker
+docker compose up --build
 ```
 
 ---
@@ -110,50 +133,80 @@ python -m core.cli --project myapp --desc "REST API на FastAPI"
 
 ```
 ai-team-system/
-├── core/                    # Ядро системы
-│   ├── hardware_detector.py  # Детект железа
-│   ├── learning_mode.py      # Режим обучения (5 шагов)
-│   ├── model_router.py       # Маршрутизация LLM + кэш
-│   ├── export_lesson.py      # Экспорт Markdown
-│   └── ...
-├── web_ui/                   # FastAPI сервер
-│   ├── app.py               # Маршруты, SSE
-│   ├── templates/welcome.html
-│   └── static/
-│       ├── style.css
-│       └── app.js
-├── scripts/                  # Установщики
-│   ├── install.sh           # Linux/macOS
-│   └── install.ps1          # Windows
-├── config/                   # Конфиги
-│   └── config.yaml
-├── tests/                    # pytest
-├── templates/                # Шаблоны проектов
+├── core/                    # ЯДРО (29 Python файлов)
+│   ├── main.py              # AITeamSystem — оркестратор
+│   ├── agent_manager.py     # AgentManager — запуск агентов
+│   ├── model_router.py      # ModelRouter — LLM + кэш
+│   ├── learning_mode.py     # Обучение (5 шагов)
+│   ├── hardware_detector.py # Авто-детект VRAM/RAM
+│   └── ...                  # +24 модуля
+├── web_ui/                  # WEB ИНТЕРФЕЙС (FastAPI)
+│   ├── app.py               # Эндпоинты, SSE
+│   └── templates/welcome.html  # Чат-UI
+├── prompts/                 # ПРОМПТЫ (36 файлов)
+│   └── roles/               # По ролям × 4 уровня
+├── docs/                    # ДОКУМЕНТАЦИЯ (7 файлов)
+├── tests/                   # ТЕСТЫ (12 файлов)
+├── scripts/                 # УСТАНОВКА
+├── templates/               # ШАБЛОНЫ
+├── config/                  # КОНФИГИ
+├── screenshots/             # СКРИНШОТЫ (24 PNG)
+├── .ai-context/             # КОНТЕКСТ ДЛЯ AI
+│   ├── PROJECT_STATE.md     # Текущее состояние
+│   └── PROJECT_OVERVIEW.md  # Полное описание
+├── docker-compose.yml
+├── Dockerfile
 ├── requirements.txt
 ├── .env.example
-└── README.md
+└── README.md                # ЭТОТ ФАЙЛ
 ```
+
+---
+
+## 🔌 Web API (FastAPI, порт 8000)
+
+### GET эндпоинты:
+| Путь | Назначение |
+|------|------------|
+| `/` | Главная страница |
+| `/api/health` | Проверка статуса |
+| `/api/hardware` | Информация о железе |
+| `/api/start` | Создание сессии |
+| `/api/stream` | SSE-стриминг |
+| `/api/progress` | Прогресс обучения |
+| `/api/download/{filename}` | Скачать Markdown |
+
+### POST эндпоинты:
+| Путь | Назначение |
+|------|------------|
+| `/api/teamlead_query` | SSE: диалог с TeamLead |
+| `/api/create_project_stream` | SSE: запуск 7 агентов |
+| `/api/agent/query` | Запрос к агенту |
+| `/api/generate_clarify_questions` | Уточняющие вопросы |
+| `/api/export` | Экспорт урока |
+| `/api/lesson/step` | Шаг обучения |
+| `/api/stop_build` | Остановить сборку |
 
 ---
 
 ## ❓ FAQ для новичков
 
-**Q: Нужен ли опыт программирования?**
+**Q: Нужен ли опыт программирования?**  
 A: Нет! Режим обучения объясняет всё простыми словами с аналогиями.
 
-**Q: Нужен ли интернет?**
+**Q: Нужен ли интернет?**  
 A: Нет, с Ollama всё работает локально. Интернет нужен только для облачных API.
 
-**Q: Какое железо нужно?**
+**Q: Какое железо нужно?**  
 A: Минимум 4 ГБ RAM. Для локальных моделей — видеокарта с 6+ ГБ VRAM.
 
-**Q: Это бесплатно?**
+**Q: Это бесплатно?**  
 A: Да! Ollama + qwen3 модели полностью бесплатны. Облачные API тоже имеют бесплатные тарифы.
 
-**Q: Где сохраняются уроки?**
+**Q: Где сохраняются уроки?**  
 A: В `~/ai-team-lessons/` в формате Markdown.
 
-**Q: Можно ли переключить модель?**
+**Q: Можно ли переключить модель?**  
 A: Да, через `.env` → `OLLAMA_MODEL=qwen3:14b` или `AI_MODE=cloud`.
 
 ---
@@ -181,18 +234,24 @@ pytest tests/ -v
 
 ## 🗺️ Roadmap
 
-### v2.0 (сейчас)
+### v2.0 (реализовано ✅)
 - ✅ Обучающий режим для новичков
 - ✅ Авто-детект железа
 - ✅ FastAPI + SSE
 - ✅ Экспорт Markdown-уроков
 - ✅ Rate limiter + кэш ответов
 - ✅ Exponential backoff fallback
+- ✅ 7 агентов с 4 уровнями сложности
+- ✅ Живой диалог с TeamLead
+- ✅ Режим "Тур" для новичков
 
 ### v2.1 (планируется)
+- [ ] OmniRoute интеграция (облачные модели)
+- [ ] LOCAL ↔ CLOUD переключатель в UI
 - [ ] Kanban dashboard
 - [ ] MCP server support
 - [ ] Self-improving agents
+- [ ] Fallback цепочки (Ollama → Cloud)
 
 ---
 
