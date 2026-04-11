@@ -694,6 +694,10 @@ async function sendMessage() {
     state.projectName = text.split(' ').slice(0,3).join('_').toLowerCase() || 'my_project';
     state.phase = 'teamlead_wait';
     await callTeamLead();
+  } else if (state.phase === 'teamlead_wait') {
+    // Пользователь отвечает после первого ответа TeamLead — ПЕРЕДАЁМ ЕМУ
+    state.projectIdea += `\n\nУточнение: ${text}`;
+    await callTeamLead();
   } else if (state.phase === 'teamlead_questions') {
     // Пользователь задаёт вопрос TeamLead'у
     state.projectIdea += `\n\nВопрос пользователя: ${text}`;
@@ -705,6 +709,10 @@ async function sendMessage() {
     // новый проект
     addAiMsg('system', 'Хочешь создать ещё один проект? Опиши идею!');
     state.phase = 'idea';
+  } else {
+    // Фоллбэк — отправляем как уточнение
+    state.projectIdea += `\n\n${text}`;
+    await callTeamLead();
   }
 }
 

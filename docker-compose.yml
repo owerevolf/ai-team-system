@@ -5,6 +5,7 @@ services:
     volumes:
       - ./projects:/app/projects
       - ~/.ai_team:/home/appuser/.ai_team
+      - ./.env:/app/.env:ro
     environment:
       - OLLAMA_BASE_URL=http://127.0.0.1:11434
       - NVIDIA_VISIBLE_DEVICES=all
@@ -12,6 +13,7 @@ services:
       - GROQ_API_KEY=${GROQ_API_KEY}
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
       - GOOGLE_AI_STUDIO_KEY=${GOOGLE_AI_STUDIO_KEY}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
     deploy:
       resources:
         reservations:
