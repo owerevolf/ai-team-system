@@ -789,6 +789,8 @@ async function callTeamLead() {
                 addAiMsg('TeamLead', summary, null, null, null);
                 setTimeout(() => onTeamleadQuestionDone(), 500);
               }
+              // Разблокируем input после ответа
+              unlockInput();
             }
           } catch (e) {
             console.log('Parse error:', e);
