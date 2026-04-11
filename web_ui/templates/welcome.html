@@ -720,14 +720,18 @@ async function sendMessage() {
 //  TEAM LEAD QUERY
 // ══════════════════════════════════════════
 async function callTeamLead() {
-  state.phase = state.phase || 'teamlead_wait';
-  showTyping();
+  // isFirst = TeamLead ещё не отвечал в этой сессии
+  const isFirst = !state.teamleadAnswered;
+  state.teamleadAnswered = true;
+  state.phase = 'teamlead_wait';
 
-  // Если это повторный вопрос — меняем промпт
-  const isFirst = (state.phase === 'teamlead_wait');
-  const prompt = isFirst
-    ? `Ты впервые общаешься с пользователем. Идея проекта: ${state.projectIdea}\n\nПредставься кратко и предложи помощь.`
-    : `КОНТЕКСТ: Ты уже представился пользователю и задал вопросы о проекте.\nИдея проекта: ${state.projectIdea}\n\nПользователь задал вопрос выше. ОТВЕТЬ НА ВОПРОС — не представляйся снова.`;
+  showTyping();
+  // Блокируем input пока Ollama думает
+  const sendBtn = document.getElementById('send-btn');
+  const inputEl = document.getElementById('user-input');
+  if (sendBtn) sendBtn.disabled = true;
+  if (inputEl) inputEl.disabled = true;
+
 
   try {
     const response = await fetch('/api/teamlead_query', {
@@ -791,10 +795,12 @@ async function callTeamLead() {
     if (!gotResponse) {
       removeTyping();
       addAiMsg('system', '⚠️ TeamLead не ответил. Попробуй ещё раз.');
+      unlockInput();
     }
   } catch (e) {
     removeTyping();
     addAiMsg('system', '⚠️ Ошибка: ' + e.message);
+    unlockInput();
     console.error('callTeamLead error:', e);
   }
 }
@@ -1141,6 +1147,7 @@ function onBuildDone(data) {
         addUserMsg('Новый проект');
         state.phase = 'idea';
         state.projectIdea = '';
+        state.teamleadAnswered = false;
         AGENTS.forEach(resetAgent);
         addAiMsg('TeamLead', 'Отлично! Какой следующий проект?');
         focusInput();
@@ -1255,6 +1262,15 @@ function showTyping() {
 function removeTyping() {
   const el = document.getElementById('typing-indicator');
   if (el) el.remove();
+
+function unlockInput() {
+  const sendBtn = document.getElementById('send-btn');
+  const inputEl = document.getElementById('user-input');
+  if (sendBtn && !state.building) sendBtn.disabled = false;
+  if (inputEl) inputEl.disabled = false;
+  if (inputEl) inputEl.focus();
+}
+
 }
 
 function formatText(text) {
@@ -1306,6 +1322,8 @@ function stopBuild() {
         addUserMsg('Начать заново');
         state.phase = 'idea';
         state.projectIdea = '';
+        state.teamleadAnswered = false;
+        state.teamleadAnswered = false;
         state.projectName = '';
         AGENTS.forEach(resetAgent);
         addAiMsg('TeamLead', 'Ок! Какой проект хочешь создать?');
