@@ -446,6 +446,7 @@ const state = {
   level: null,        // 'zero' | 'beginner' | 'advanced'
   projectName: '',
   projectIdea: '',
+  lastUserMsg: '',    // последнее сообщение пользователя (для повторных запросов)
   clarifications: {},
   currentAgent: null,
   building: false,
@@ -691,6 +692,7 @@ async function sendMessage() {
   input.value = '';
   input.style.height = 'auto';
   addUserMsg(text);
+  state.lastUserMsg = text;
 
   if (state.phase === 'idea') {
     state.projectIdea = text;
@@ -706,12 +708,12 @@ async function sendMessage() {
       await startBuilding();
     } else {
       // Это вопрос или уточнение — передаём TeamLead'у
-      state.projectIdea += `\n\nУточнение от пользователя: ${text}`;
+      appendClarification(text);
       await callTeamLead();
     }
   } else if (state.phase === 'teamlead_questions') {
     // Пользователь задаёт вопрос TeamLead'у
-    state.projectIdea += `\n\nВопрос пользователя: ${text}`;
+    appendClarification(text);
     await callTeamLead();
   } else if (state.phase === 'clarify') {
     state.clarifications['detail'] = text;
@@ -722,8 +724,21 @@ async function sendMessage() {
     state.phase = 'idea';
   } else {
     // Фоллбэк — отправляем как уточнение
-    state.projectIdea += `\n\n${text}`;
+    appendClarification(text);
     await callTeamLead();
+  }
+}
+
+// Добавляет уточнение к projectIdea, храня только последние 500 символов уточнений
+function appendClarification(text) {
+  const prefix = state.projectIdea.split('\n\n')[0]; // оригинальная идея
+  const existing = state.projectIdea.substring(prefix.length);
+  const updated = existing + '\n\n' + text;
+  // Храним оригинальную идею + последние 500 символов уточнений
+  if (updated.length > 500) {
+    state.projectIdea = prefix + '\n\n[...]' + updated.slice(-500);
+  } else {
+    state.projectIdea = prefix + updated;
   }
 }
 
@@ -748,7 +763,7 @@ async function callTeamLead() {
     // Формируем запрос в зависимости от того, первый раз или нет
     const query = isFirst
       ? `Ты впервые общаешься с пользователем. Идея проекта: ${state.projectIdea}\n\nПредставься кратко и предложи помощь.`
-      : `КОНТЕКСТ: Ты уже представился пользователю.\nИдея проекта: ${state.projectIdea}\n\nПользователь написал: ${state.projectIdea.split('\n').pop()}\n\nОТВЕТЬ НА ЗАПРОС — не представляйся снова.`;
+      : `КОНТЕКСТ: Ты уже представился пользователю.\nИдея проекта: ${state.projectIdea}\n\nПользователь написал: ${state.lastUserMsg}\n\nОТВЕТЬ НА ЗАПРОС — не представляйся снова.`;
 
     const response = await fetch('/api/teamlead_query', {
       method: 'POST',
@@ -789,13 +804,24 @@ async function callTeamLead() {
               const summary = summarizeResponse(cleaned, state.level);
 
               if (isFirst) {
-                addAiMsg('TeamLead', summary, null,
-                  [
-                    { label: '❓ Есть вопросы', value: 'questions' },
-                    { label: '✅ Делаем!', value: 'start_build' }
-                  ],
-                  onTeamleadChoice
-                );
+                if (state.level === 'zero') {
+                  // Zero-level: предлагаем демо или свою идею
+                  addAiMsg('TeamLead', summary, null,
+                    [
+                      { label: '🎮 Да, давай пример!', value: 'demo' },
+                      { label: '💡 У меня своя идея', value: 'questions' }
+                    ],
+                    onTeamleadChoice
+                  );
+                } else {
+                  addAiMsg('TeamLead', summary, null,
+                    [
+                      { label: '❓ Есть вопросы', value: 'questions' },
+                      { label: '✅ Делаем!', value: 'start_build' }
+                    ],
+                    onTeamleadChoice
+                  );
+                }
               } else {
                 addAiMsg('TeamLead', summary, null, null, null);
                 setTimeout(() => onTeamleadQuestionDone(), 500);
@@ -824,9 +850,20 @@ async function callTeamLead() {
 }
 
 function onTeamleadChoice(value) {
-  if (value === 'questions') {
-    addAiMsg('system', 'Задавай вопрос — что непонятно? Я объясню.');
-    state.phase = 'teamlead_questions';
+  if (value === 'demo') {
+    // Zero-level: подставляем демо-проект "Супер Калькулятор"
+    state.projectIdea = 'Супер Калькулятор — многофункциональный калькулятор с историей вычислений, конвертером валют и научными функциями';
+    state.projectName = 'super_calculator';
+    addUserMsg('Да, давай пример! Хочу Супер Калькулятор.');
+    startBuilding();
+  } else if (value === 'questions') {
+    if (state.level === 'zero') {
+      addAiMsg('TeamLead', 'Окей! Расскажи что хочешь создать — своими словами, не старайся говорить "правильно". Я пойму.');
+      state.phase = 'idea';
+    } else {
+      addAiMsg('system', 'Задавай вопрос — что непонятно? Я объясню.');
+      state.phase = 'teamlead_questions';
+    }
     focusInput();
   } else if (value === 'start_build') {
     addUserMsg('Делаем!');
@@ -985,10 +1022,13 @@ async function streamAgents() {
   } catch (e) {
     if (e.name === 'AbortError') {
       console.log('Stream aborted by user');
+      // User pressed stop — stopBuild() is handling UI cleanup
+      // Just make sure we're in a clean state
+      state.building = false;
     } else {
       console.log('Stream error:', e.message);
+      if (state.building) onBuildDone();
     }
-    if (state.building) onBuildDone();
   } finally {
     buildAbortController = null;
   }
@@ -1020,60 +1060,80 @@ function handleStreamEvent(data, markDone) {
 function cleanToolCall(text) {
   if (!text || !text.trim()) return '\u2713 Done';
 
-  // 1. Remove <tool_call> tags
+  // 1. Remove <tool_call> XML tags
   text = text.replace(/<tool_call[^>]*>/g, '');
   text = text.replace(/<\/tool_call>/g, '');
 
-  // 2. Parse JSON by finding { and counting braces
+  // 2. Replace JSON tool_call blocks with their content
+  //    Strategy: find all {"tool":"..."} blocks using regex + brace counting
+  //    and replace each with the value of its "content" field.
   let result = '';
   let i = 0;
   while (i < text.length) {
-    // Check if we're at start of JSON with "tool"
-    if (text[i] === '{' && text.slice(i, i+8).includes('tool')) {
-      // Try to find matching closing brace
-      let braceCount = 0;
-      let inStr = false;
-      let esc = false;
-      let j = i;
-      while (j < text.length) {
-        const ch = text[j];
-        if (esc) { esc = false; j++; continue; }
-        if (ch === '\\') { esc = true; j++; continue; }
-        if (ch === '"') { inStr = !inStr; }
-        if (!inStr) {
-          if (ch === '{') braceCount++;
-          if (ch === '}') {
-            braceCount--;
-            if (braceCount === 0) {
-              // Found complete JSON
-              const jsonStr = text.slice(i, j+1);
-              try {
-                const obj = JSON.parse(jsonStr);
-                if (obj.content) {
-                  result += '\n' + obj.content + '\n';
-                } else if (obj.tool) {
-                  result += '\u2713 Tool: ' + obj.tool;
-                } else {
-                  result += jsonStr;
-                }
-              } catch(e) {
-                result += jsonStr;
-              }
-              i = j + 1;
-              break;
-            }
-          }
-        }
-        j++;
-      }
-      if (braceCount !== 0) {
-        result += text[i];
-        i++;
-      }
-    } else {
+    // Look for start of a JSON object containing "tool"
+    const remaining = text.slice(i);
+    const m = remaining.match(/^\s*\{\s*"tool"\s*:/);
+    if (!m) {
       result += text[i];
       i++;
+      continue;
     }
+
+    // Found a potential JSON tool block — extract the full object
+    let start = i;
+    let braceCount = 0;
+    let inStr = false;
+    let esc = false;
+    let found = false;
+    let j = i;
+
+    while (j < text.length) {
+      const ch = text[j];
+      if (esc) { esc = false; j++; continue; }
+      if (ch === '\\' && inStr) { esc = true; j++; continue; }
+      if (ch === '"') { inStr = !inStr; j++; continue; }
+      if (inStr) { j++; continue; }
+      if (ch === '{') braceCount++;
+      if (ch === '}') {
+        braceCount--;
+        if (braceCount === 0) {
+          found = true;
+          break;
+        }
+      }
+      j++;
+    }
+
+    if (!found) {
+      // Unclosed brace — skip this char
+      result += text[i];
+      i++;
+      continue;
+    }
+
+    const jsonStr = text.slice(start, j + 1);
+    try {
+      const obj = JSON.parse(jsonStr);
+      if (obj.content != null) {
+        result += '\n' + String(obj.content) + '\n';
+      } else if (obj.path && obj.content == null) {
+        // create_file with only path — show path
+        result += '\u2713 Created: ' + obj.path;
+      } else if (obj.tool) {
+        result += '\u2713 Tool: ' + obj.tool;
+      } else {
+        // Unknown JSON — skip it silently
+      }
+    } catch(e) {
+      // JSON parse failed — try to extract "content" field via regex
+      const contentMatch = jsonStr.match(/"content"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+      if (contentMatch) {
+        result += '\n' + contentMatch[1].replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"') + '\n';
+      }
+      // else: skip unparseable JSON silently
+    }
+
+    i = j + 1;
   }
 
   text = result;
@@ -1101,6 +1161,8 @@ async function fallbackBuild() {
     setAgentActive(agent);
     await sleep(800 + Math.random() * 600);
 
+    if (!state.building) break; // Проверка после await
+
     try {
       const r = await fetch('/api/agent_response', {
         method: 'POST',
@@ -1118,7 +1180,7 @@ async function fallbackBuild() {
       addAiMsg(AGENT_LABELS[agent], '✓ Завершено');
     }
   }
-  onBuildDone();
+  if (state.building) onBuildDone();
 }
 
 function onBuildDone(data) {
