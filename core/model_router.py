@@ -16,12 +16,15 @@ import time
 import hashlib
 import urllib.request
 import urllib.error
+from pathlib import Path
 from typing import Optional, Dict, Any, List
 from collections import OrderedDict
 from dotenv import load_dotenv
 from loguru import logger
 
 load_dotenv()
+
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 MAX_REQUESTS_PER_MIN = 10
 CACHE_MAX_SIZE = 100
@@ -288,7 +291,16 @@ class ModelRouter:
         raise RuntimeError(error_msg)
 
     def _get_agent_model(self, agent: str) -> Optional[str]:
-        """Получает модель для агента из model_registry."""
+        """Получает модель для агента: сначала из agent_models.json, потом из model_registry."""
+        # 1. Пробуем загрузить из agent_models.json (пользовательские настройки)
+        agent_config = self._load_agent_config()
+        if agent in agent_config:
+            model_id = agent_config[agent].get("model")
+            if model_id:
+                logger.info(f"Agent {agent}: using configured model {model_id}")
+                return model_id
+
+        # 2. Fallback на model_registry
         try:
             from .model_registry import get_best_model_for_agent
             best = get_best_model_for_agent(agent)
@@ -297,6 +309,24 @@ class ModelRouter:
         except Exception as e:
             logger.warning(f"Не удалось получить модель для {agent}: {e}")
         return None
+
+    def _load_agent_config(self) -> Dict[str, Dict[str, str]]:
+        """Загружает конфигурацию агентов из config/agent_models.json."""
+        try:
+            config_path = BASE_DIR / "config" / "agent_models.json"
+            if config_path.exists():
+                data = json.loads(config_path.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    return data
+        except Exception as e:
+            logger.debug(f"agent_models.json not loaded: {e}")
+        return {}
+
+    @staticmethod
+    def reload_config():
+        """Принудительная перезагрузка конфигурации (для использования из API)."""
+        # Сбрасываем кэш, чтобы следующий запрос перечитал файл
+        pass  # Config is read from disk each time in _load_agent_config
 
     def _resolve_provider_for_model(self, model_id: str) -> Optional[str]:
         """Определяет провайдер по ID модели."""

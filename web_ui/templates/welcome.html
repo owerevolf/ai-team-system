@@ -1936,7 +1936,13 @@ function saveConfig() {
   if (keyInput) apiKey = keyInput.value || '';
   fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ openrouter_api_key: apiKey, agents: agents }) })
     .then(function(r) { return r.json(); })
-    .then(function(data) { status.innerHTML = '<span style="color:var(--success);">✅ ' + data.message + '</span>'; })
+    .then(function(data) {
+      var msg = '<span style="color:var(--success);">✅ ' + data.message + '</span>';
+      if (data.applied && data.applied.length > 0) {
+        msg += '<br><span style="color:var(--muted);font-size:11px;">Применено для: ' + data.applied.join(', ') + '</span>';
+      }
+      status.innerHTML = msg;
+    })
     .catch(function(e) { status.innerHTML = '<span style="color:#ef4444;">❌ ' + e.message + '</span>'; });
 }
 

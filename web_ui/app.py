@@ -775,9 +775,20 @@ async def save_config(request: Request):
 
     logger.info(f"Config saved: {list(body.keys())}")
 
+    # Применяем конфигурацию на лету (без перезагрузки сервера)
+    # Обновляем переменные окружения в текущем процессе
+    for json_key, env_key in key_mappings.items():
+        value = body.get(json_key)
+        if value:
+            os.environ[env_key] = value
+
+    # Перечитываем .env для консистентности
+    load_dotenv(env_path, override=True)
+
     return JSONResponse({
         "status": "saved",
-        "message": "Конфигурация сохранена. Перезапустите сервер для применения.",
+        "message": "Конфигурация сохранена и применена.",
+        "applied": list(agent_config.keys()) if agent_config else [],
     })
 
 
