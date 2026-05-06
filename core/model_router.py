@@ -1,14 +1,12 @@
 """
-Model Router v4.1 — маршрутизация LLM с кэшем, rate limiter и защитой от зацикливания
-Версия: 4.1
+Model Router v5.0 — мульти-провайдер маршрутизация с поддержкой agent Skills.
 
-Изменения vs 4.0:
-- _should_fallback: время ответа больше НЕ является причиной fallback
-  (локальная модель на 8GB VRAM может думать 30-60 сек — это нормально)
-- Fallback только если ответ реально пустой или содержит явную ошибку
-- Защита от зацикливания: каждый провайдер пробуется максимум 1 раз
-- Если все провайдеры недоступны — понятное сообщение пользователю
-- Новый метод get_fallback_message() для UI
+Изменения vs 4.1:
+- Поддержка выбора конкретного провайдера и модели для каждого агента
+- Интеграция с agent_skills.py — автоматический выбор модели по роли агента
+- Интеграция с model_registry.py — парсинг бесплатных моделей
+- Параллельная работа с разных провайдеров для разных агентов
+- OpenRouter, Ollama, OmniRoute как основные провайдеры
 """
 
 import os
@@ -122,6 +120,12 @@ class ModelRouter:
                 "base_url": self.ollama_base_url,
                 "models": [self.ollama_model],
             },
+            "omniroute": {
+                "enabled": bool(os.getenv("OMNIROUTE_API_KEY")),
+                "api_key": os.getenv("OMNIROUTE_API_KEY", ""),
+                "base_url": os.getenv("OMNIROUTE_URL", "http://localhost:20128/v1"),
+                "models": ["auto"],
+            },
             "anthropic": {
                 "enabled": bool(os.getenv("ANTHROPIC_API_KEY")),
                 "api_key": os.getenv("ANTHROPIC_API_KEY", ""),
@@ -148,13 +152,9 @@ class ModelRouter:
     def _get_priority(self) -> List[str]:
         mode = os.getenv("AI_MODE", "local")
         if mode == "cloud":
-            return ["groq", "deepseek", "google", "openrouter", "xai", "anthropic", "openai", "ollama"]
-        if self.profile == "light":
-            return ["groq", "deepseek", "google", "openrouter", "ollama"]
-        elif self.profile == "medium":
-            return ["ollama", "groq", "deepseek", "google", "openrouter", "xai"]
-        else:
-            return ["anthropic", "openai", "deepseek", "google", "xai", "ollama"]
+            return ["openrouter", "ollama", "omniroute", "google", "anthropic", "openai"]
+        # local-first: Ollama → OpenRouter (free models) → OmniRoute → облако
+        return ["ollama", "openrouter", "omniroute", "google", "anthropic", "openai"]
 
     def _get_available_provider(self) -> Optional[str]:
         for provider in self.priority:
@@ -200,10 +200,21 @@ class ModelRouter:
         agent: Optional[str] = None,
         model: Optional[str] = None,
         beginner_mode: Optional[bool] = None,
+        provider: Optional[str] = None,
     ) -> str:
+        """
+        Генерация ответа с поддержкой мульти-провайдера.
+        
+        Args:
+            prompt: промпт
+            agent: имя агента (teamlead, architect, backend, ...)
+            model: конкретная модель (опционально)
+            beginner_mode: режим новичка
+            provider: конкретный провайдер (опционально)
+        """
         bm = beginner_mode if beginner_mode is not None else self.beginner_mode
 
-        prompt_hash = self._hash_prompt(f"{prompt}:{bm}")
+        prompt_hash = self._hash_prompt(f"{prompt}:{bm}:{provider}:{model}")
         cached = self.cache.get(prompt_hash)
         if cached:
             logger.debug(f"Кэш-попадение: {prompt_hash}")
@@ -214,74 +225,94 @@ class ModelRouter:
 
         self.rate_limiter.record_request()
 
-        provider = self._get_available_provider()
-        if not provider:
+        # Определяем провайдера и модель
+        target_provider = provider
+        target_model = model
+
+        # Если указан агент но не указан провайдер/модель — берём из agent_skills
+        if agent and not provider:
+            from .agent_skills import AGENT_SKILL_MAP
+            skill = AGENT_SKILL_MAP.get(agent, {})
+            target_model = target_model or self._get_agent_model(agent)
+            # Определяем провайдер по модели
+            if target_model:
+                target_provider = self._resolve_provider_for_model(target_model)
+
+        # Если всё ещё нет провайдера — берём из приоритета
+        if not target_provider:
+            target_provider = self._get_available_provider()
+
+        if not target_provider:
             raise RuntimeError(self.get_fallback_message())
 
-        # Защита от зацикливания: храним уже опробованные провайдеры
+        # Пробуем целевой провайдер, потом fallback по цепочке
         tried: List[str] = []
         last_error: Optional[Exception] = None
-        fallback_triggered = False  # флаг: уже был один fallback
 
-        while provider and provider not in tried:
-            tried.append(provider)
+        # Строим цепочку: сначала целевой, потом остальные по приоритету
+        chain = [target_provider] + [p for p in self.priority if p != target_provider]
+
+        for prov in chain:
+            if prov in tried:
+                continue
+            if not self.providers.get(prov, {}).get("enabled", False):
+                continue
+
+            tried.append(prov)
 
             try:
-                if bm:
-                    from core.learning_mode import LearningMode
-                    lm = LearningMode()
-                    full_prompt = lm.generate_agent_prompt(
-                        agent or "assistant", prompt, beginner_mode=True
-                    )
-                else:
-                    full_prompt = prompt
+                # Для Ollama — модель из конфига или дефолтная
+                actual_model = target_model
+                if prov == "ollama" and not actual_model:
+                    actual_model = self.ollama_model
 
-                start_time = time.time()
-                response = self._call_provider(provider, full_prompt, model)
-                response_time = time.time() - start_time
+                response = self._call_provider(prov, prompt, actual_model)
 
-                logger.info(f"Ответ от {provider} за {response_time:.1f}с")
+                if self._should_fallback(response):
+                    logger.warning(f"{prov}: слабый ответ, fallback")
+                    last_error = RuntimeError(f"Слабый ответ от {prov}")
+                    continue
 
-                # Проверяем качество ответа только для ollama
-                # и только если fallback ещё не был (защита от зацикливания)
-                if provider == "ollama" and not fallback_triggered:
-                    if self._should_fallback(response):
-                        next_provider = self._get_next_provider(provider, tried)
-                        if next_provider:
-                            logger.info(
-                                f"Ollama дала пустой/некачественный ответ → "
-                                f"пробуем {next_provider}"
-                            )
-                            fallback_triggered = True
-                            provider = next_provider
-                            continue
-                        else:
-                            logger.warning(
-                                "Ollama дала слабый ответ, облако недоступно — "
-                                "возвращаем что есть"
-                            )
-
-                # Ответ принят
                 self.cache.set(prompt_hash, response)
+                logger.info(f"Ответ от {prov}" + (f"/{actual_model}" if actual_model else ""))
                 return response
 
             except Exception as e:
                 last_error = e
-                logger.warning(f"Ошибка {provider}: {e}")
-
-                next_provider = self._get_next_provider(provider, tried)
-                if next_provider:
-                    logger.info(f"Переключаемся на {next_provider}")
-                    # Небольшая пауза перед следующей попыткой
-                    time.sleep(BASE_BACKOFF)
-                    provider = next_provider
-                else:
-                    break
+                logger.warning(f"Ошибка {prov}: {e}")
+                continue
 
         # Все провайдеры исчерпаны
         error_msg = self.get_fallback_message()
         logger.error(f"Провайдеры опробованы: {tried}. {error_msg}")
         raise RuntimeError(error_msg)
+
+    def _get_agent_model(self, agent: str) -> Optional[str]:
+        """Получает модель для агента из model_registry."""
+        try:
+            from .model_registry import get_best_model_for_agent
+            best = get_best_model_for_agent(agent)
+            if best:
+                return best["id"]
+        except Exception as e:
+            logger.warning(f"Не удалось получить модель для {agent}: {e}")
+        return None
+
+    def _resolve_provider_for_model(self, model_id: str) -> Optional[str]:
+        """Определяет провайдер по ID модели."""
+        # OpenRouter модели содержат /
+        if "/" in model_id and not model_id.startswith("ollama/"):
+            return "openrouter"
+        # Ollama модели начинаются с ollama/ или содержат :
+        if model_id.startswith("ollama/"):
+            return "ollama"
+        if ":" in model_id and "/" not in model_id:
+            return "ollama"
+        # OmniRoute
+        if model_id.startswith("omniroute/"):
+            return "omniroute"
+        # По умолчанию openrouter
+        return "openrouter"
 
     def _call_provider(self, provider: str, prompt: str, model: Optional[str]) -> str:
         """Вызов конкретного провайдера. Без retry — retry делает generate()."""
@@ -297,12 +328,39 @@ class ModelRouter:
             return self._generate_openai_compat(prompt, "xai", model)
         elif provider == "ollama":
             return self._generate_ollama(prompt, model)
+        elif provider == "omniroute":
+            return self._generate_omniroute(prompt, model)
         elif provider == "anthropic":
             return self._generate_anthropic(prompt, model)
         elif provider == "openai":
             return self._generate_openai_compat(prompt, "openai", model)
         else:
             raise ValueError(f"Неизвестный провайдер: {provider}")
+
+    def _generate_omniroute(self, prompt: str, model: Optional[str] = None) -> str:
+        """Генерация через OmniRoute (OpenAI-совместимый API)."""
+        base_url = os.getenv("OMNIROUTE_URL", "http://localhost:20128/v1")
+        api_key = os.getenv("OMNIROUTE_API_KEY", "")
+
+        try:
+            from openai import OpenAI
+        except ImportError:
+            raise RuntimeError("Установите openai: pip install openai")
+
+        client = OpenAI(
+            api_key=api_key or "sk-omniroute",
+            base_url=base_url,
+        )
+
+        model_name = model or "auto"
+
+        response = client.chat.completions.create(
+            model=model_name,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=4096,
+            temperature=0.7,
+        )
+        return response.choices[0].message.content
 
     def _should_fallback(self, response: str) -> bool:
         """

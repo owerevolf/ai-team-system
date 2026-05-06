@@ -613,6 +613,214 @@ async def stop_build():
     return JSONResponse({"status": "stopped"})
 
 
+# ══════════════════════════════════════════
+#  MODEL REGISTRY & PROVIDER CONFIG
+# ══════════════════════════════════════════
+
+@app.get("/api/providers")
+async def list_providers(force_refresh: bool = False):
+    """
+    Список всех провайдеров с бесплатными моделями.
+    Парсит OpenRouter, Ollama, OmniRoute.
+    """
+    from core.model_registry import refresh, get_free_models
+
+    registry = refresh(force=force_refresh)
+
+    result = {}
+    for pid, info in registry.items():
+        result[pid] = {
+            "id": info.id,
+            "name": info.name,
+            "url": info.url,
+            "api_base": info.api_base,
+            "requires_key": info.requires_key,
+            "is_available": info.is_available,
+            "signup_url": info.signup_url,
+            "api_key_url": info.api_key_url,
+            "description": info.description,
+            "models": [
+                {
+                    "id": m.id,
+                    "name": m.name,
+                    "context_length": m.context_length,
+                    "strength": m.strength,
+                    "description": m.description,
+                }
+                for m in info.models
+            ],
+            "free_models_count": len([m for m in info.models if m.is_free]),
+        }
+
+    return JSONResponse(result)
+
+
+@app.get("/api/models")
+async def list_models(
+    provider: Optional[str] = None,
+    strength: Optional[str] = None,
+    min_context: int = 0,
+):
+    """
+    Список бесплатных моделей с фильтрами.
+    
+    Args:
+        provider: openrouter | ollama | omniroute
+        strength: reasoning | coding | fast | strong | general
+        min_context: минимальный размер контекста
+    """
+    from core.model_registry import get_free_models
+
+    models = get_free_models(
+        provider=provider,
+        strength=strength,
+        min_context=min_context,
+    )
+
+    return JSONResponse({
+        "models": models,
+        "total": len(models),
+    })
+
+
+@app.get("/api/agents/config")
+async def get_agents_config():
+    """
+    Возвращает конфигурацию всех агентов:
+    - скиллы (system prompt addon)
+    - рекомендуемая модель
+    - доступные модели для каждой роли
+    """
+    from core.agent_skills import list_agents, AGENT_SKILL_MAP
+    from core.model_registry import get_free_models
+
+    agents = list_agents()
+
+    # Для каждого агента добавляем доступные модели
+    for agent in agents:
+        strength = agent["preferred_strength"]
+        min_ctx = agent["min_context"]
+        agent["available_models"] = get_free_models(
+            strength=strength,
+            min_context=min_ctx,
+        )[:10]  # топ-10 моделей для роли
+
+    return JSONResponse({
+        "agents": agents,
+        "default_assignments": {
+            name: {
+                "strength": cfg["preferred_strength"],
+                "temperature": cfg["temperature"],
+            }
+            for name, cfg in AGENT_SKILL_MAP.items()
+        },
+    })
+
+
+@app.post("/api/config")
+async def save_config(request: Request):
+    """
+    Сохраняет конфигурацию провайдеров/моделей.
+    Принимает JSON с настройками для каждого агента.
+    
+    Формат:
+    {
+        "openrouter_api_key": "sk-...",
+        "ollama_model": "qwen3:8b",
+        "agents": {
+            "teamlead": {"provider": "openrouter", "model": "deepseek/deepseek-r1:free"},
+            "backend": {"provider": "openrouter", "model": "qwen/qwen3-coder:free"}
+        }
+    }
+    """
+    body = await request.json()
+
+    # Сохраняем API ключи в .env
+    env_path = BASE_DIR / ".env"
+    if env_path.exists():
+        env_content = env_path.read_text(encoding="utf-8")
+    else:
+        env_content = ""
+
+    # Обновляем ключи
+    key_mappings = {
+        "openrouter_api_key": "OPENROUTER_API_KEY",
+        "ollama_base_url": "OLLAMA_BASE_URL",
+        "ollama_model": "OLLAMA_MODEL",
+        "omniroute_api_key": "OMNIROUTE_API_KEY",
+        "omniroute_url": "OMNIROUTE_URL",
+    }
+
+    for json_key, env_key in key_mappings.items():
+        value = body.get(json_key)
+        if value:
+            pattern = rf'{env_key}=.*'
+            if re.search(pattern, env_content):
+                env_content = re.sub(pattern, f'{env_key}={value}', env_content)
+            else:
+                env_content += f'\n{env_key}={value}'
+
+    env_path.write_text(env_content, encoding="utf-8")
+    load_dotenv(env_path, override=True)
+
+    # Сохраняем конфигурацию агентов в JSON
+    agent_config = body.get("agents", {})
+    if agent_config:
+        config_path = BASE_DIR / "config" / "agent_models.json"
+        config_path.parent.mkdir(exist_ok=True)
+        config_path.write_text(
+            json.dumps(agent_config, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    logger.info(f"Config saved: {list(body.keys())}")
+
+    return JSONResponse({
+        "status": "saved",
+        "message": "Конфигурация сохранена. Перезапустите сервер для применения.",
+    })
+
+
+@app.get("/api/config")
+async def get_config():
+    """Возвращает текущую конфигурацию."""
+    config_path = BASE_DIR / "config" / "agent_models.json"
+    agent_config = {}
+    if config_path.exists():
+        agent_config = json.loads(config_path.read_text(encoding="utf-8"))
+
+    return JSONResponse({
+        "openrouter_api_key_set": bool(os.getenv("OPENROUTER_API_KEY")),
+        "ollama_model": os.getenv("OLLAMA_MODEL", "qwen3:8b"),
+        "ollama_base_url": os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+        "omniroute_api_key_set": bool(os.getenv("OMNIROUTE_API_KEY")),
+        "ai_mode": os.getenv("AI_MODE", "local"),
+        "agents": agent_config,
+    })
+
+
+@app.get("/api/status")
+async def system_status():
+    """Статус системы: доступность провайдеров, модели, агенты."""
+    from core.model_registry import refresh
+
+    registry = refresh()
+
+    providers_status = {}
+    for pid, info in registry.items():
+        providers_status[pid] = {
+            "available": info.is_available,
+            "free_models": len([m for m in info.models if m.is_free]),
+        }
+
+    return JSONResponse({
+        "status": "ok",
+        "version": "2.0.0",
+        "providers": providers_status,
+        "ai_mode": os.getenv("AI_MODE", "local"),
+    })
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("web_ui.app:app", host="0.0.0.0", port=8000, reload=False)

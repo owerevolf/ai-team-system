@@ -214,19 +214,32 @@ class AgentManager:
     def run_agent(self, agent_name: str, task: str, context: Dict = None, level: str = "advanced") -> Dict[str, Any]:
         self.logger.info(f"Запуск агента: {agent_name} (level={level})")
         self.emit_event("agent_start", {"agent": agent_name})
-        
+
         prompt_template = self.get_agent_prompt(agent_name, level)
         tools_description = self.get_tools_for_prompt()
-        
+
+        # Добавляем скиллы из agent_skills
+        try:
+            from .agent_skills import get_agent_skill_addon, get_agent_config
+            skill_addon = get_agent_skill_addon(agent_name)
+            agent_cfg = get_agent_config(agent_name)
+            agent_temperature = agent_cfg.get("temperature", 0.7)
+        except Exception as e:
+            self.logger.warning(f"Не удалось загрузить скиллы для {agent_name}: {e}")
+            skill_addon = ""
+            agent_temperature = 0.7
+
         agent_context = {}
         if self.context:
             agent_context = self.context.get_context_for_agent(agent_name)
-        
+
         # TeamLead - координатор, НЕ получает инструкции создавать файлы
         is_coordinator = (agent_name == 'teamlead')
-        
+
         if is_coordinator:
             full_prompt = f"""{prompt_template}
+
+{skill_addon}
 
 ## ЗАДАНИЕ
 {task}
@@ -244,7 +257,10 @@ class AgentManager:
 """
             created_files = []
         else:
+            # Для остальных агентов тоже добавляем скиллы
             full_prompt = f"""{prompt_template}
+
+{skill_addon}
 
 ## PROJECT PATH: {self.project_path or 'Не указан'}
 
