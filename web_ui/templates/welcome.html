@@ -1575,17 +1575,18 @@ async function fallbackBuild() {
     if (!state.building) break; // Проверка после await
 
     try {
-      const r = await fetch('/api/agent_response', {
+      const r = await fetch('/api/agent/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          role: agent,
+          agent_role: agent,
           query: `Создай проект '${state.projectName}': ${state.projectIdea}`,
+          user_level: state.level || 'beginner',
         }),
       });
       const d = await r.json();
       setAgentDone(agent);
-      addAiMsg(AGENT_LABELS[agent], summarizeResponse(d.response || d.result, state.level));
+      addAiMsg(AGENT_LABELS[agent], summarizeResponse(d.response || '', state.level));
     } catch {
       setAgentDone(agent);
       addAiMsg(AGENT_LABELS[agent], '✓ Завершено');
