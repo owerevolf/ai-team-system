@@ -19,7 +19,9 @@ class TestModelRouter:
         router = ModelRouter(profile="light")
         
         assert router.profile == "light"
-        assert "groq" in router.priority
+        # Light profile uses cloud-first priority
+        assert "openrouter" in router.priority
+        assert "ollama" in router.priority
     
     def test_init_heavy_profile(self):
         router = ModelRouter(profile="heavy")
