@@ -387,6 +387,254 @@
     transition: all .2s;
   }
   .download-btn:hover { background: rgba(74,222,128,.1); }
+
+  /* ── TABS ── */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
+    margin-right: 12px;
+  }
+  .tab-btn {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .tab-btn:hover {
+    border-color: var(--accent);
+    color: var(--text);
+  }
+  .tab-btn.active {
+    background: rgba(124,110,245,.12);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* ── TAB CONTENT ── */
+  .tab-content {
+    display: none;
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+  }
+  .tab-content.active {
+    display: block;
+  }
+  .tab-content::-webkit-scrollbar { width: 4px; }
+  .tab-content::-webkit-scrollbar-track { background: transparent; }
+  .tab-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* ── SETTINGS ── */
+  .settings-section {
+    max-width: 700px;
+    margin: 0 auto;
+  }
+  .settings-section h2 {
+    font-family: 'Unbounded', sans-serif;
+    font-size: 18px;
+    font-weight: 400;
+    margin-bottom: 8px;
+    color: var(--text);
+  }
+  .settings-section p {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 24px;
+    line-height: 1.6;
+  }
+  .provider-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .provider-card {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    cursor: pointer;
+    transition: all .2s;
+    background: var(--surface);
+  }
+  .provider-card:hover {
+    border-color: var(--accent);
+  }
+  .provider-card.selected {
+    border-color: var(--accent);
+    background: rgba(124,110,245,.08);
+  }
+  .provider-card .provider-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .provider-card .provider-desc {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+  .provider-card .provider-status {
+    font-size: 10px;
+    margin-top: 8px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    display: inline-block;
+  }
+  .provider-card .provider-status.available {
+    background: rgba(74,222,128,.1);
+    color: var(--success);
+  }
+  .provider-card .provider-status.unavailable {
+    background: rgba(239,68,68,.1);
+    color: #ef4444;
+  }
+  .model-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 24px;
+  }
+  .model-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .model-item:hover {
+    border-color: var(--accent);
+  }
+  .model-item.selected {
+    border-color: var(--accent);
+    background: rgba(124,110,245,.08);
+  }
+  .model-item .model-name {
+    font-size: 12px;
+    color: var(--text);
+  }
+  .model-item .model-meta {
+    font-size: 10px;
+    color: var(--muted);
+  }
+  .settings-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+  }
+  .btn-save {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 10px 24px;
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    background: var(--accent);
+    color: white;
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .btn-save:hover {
+    opacity: .85;
+  }
+  .btn-secondary {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 10px 24px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .btn-secondary:hover {
+    border-color: var(--text);
+    color: var(--text);
+  }
+
+  /* ── INSTRUCTION ── */
+  .instruction-step {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+    background: var(--surface);
+  }
+  .instruction-step h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+  .instruction-step p {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.6;
+    margin-bottom: 12px;
+  }
+  .instruction-step a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .instruction-step a:hover {
+    text-decoration: underline;
+  }
+  .instruction-step code {
+    background: rgba(124,110,245,.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    color: var(--accent2);
+  }
+  .instruction-step .step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: white;
+    font-size: 11px;
+    font-weight: 600;
+    margin-right: 8px;
+  }
+
+  /* ── CHAT FUNCTIONS ── */
+  .chat-functions {
+    display: flex;
+    gap: 8px;
+    padding: 8px 24px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+  .chat-func-btn {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .chat-func-btn:hover {
+    border-color: var(--accent);
+    color: var(--text);
+  }
+
 </style>
 </head>
 <body>
@@ -410,6 +658,11 @@
   <div class="logo-dot"></div>
   <h1>AI TEAM SYSTEM</h1>
   <div class="hw-badge" id="hw-badge">загрузка...</div>
+  <div class="tabs">
+    <button class="tab-btn active" id="tab-btn-chat" onclick="switchTab('chat')">💬 Чат</button>
+    <button class="tab-btn" id="tab-btn-settings" onclick="switchTab('settings')">⚙️ Настройки</button>
+    <button class="tab-btn" id="tab-btn-instruction" onclick="switchTab('instruction')">📖 Инструкция</button>
+  </div>
 </header>
 
 <!-- AGENTS BAR -->
@@ -437,7 +690,74 @@
   <div class="input-hint">Enter — отправить · Shift+Enter — новая строка</div>
 </div>
 
-<script>
+<!-- CHAT FUNCTIONS BAR -->
+<div class="chat-functions" id="chat-functions">
+  <button class="chat-func-btn" onclick="clearChat()" title="Очистить чат">🗑 Очистить</button>
+  <button class="chat-func-btn" onclick="exportChat()" title="Экспорт чата">📥 Экспорт</button>
+  <button class="chat-func-btn" onclick="newProject()" title="Новый проект">✨ Новый проект</button>
+</div>
+
+<!-- TAB: SETTINGS -->
+<div class="tab-content" id="tab-settings">
+  <div class="settings-section" id="settings-content">
+    <h2>⚙️ Настройки провайдеров</h2>
+    <p>Выбери провайдера AI моделей и настрой модели для каждого агента. Каждый агент может использовать свой провайдер.</p>
+    <div id="settings-loading">Загрузка...</div>
+  </div>
+</div>
+
+<!-- TAB: INSTRUCTION -->
+<div class="tab-content" id="tab-instruction">
+  <div class="settings-section">
+    <h2>📖 Инструкция по настройке</h2>
+    <p>Пошаговый гайд как подключить бесплатные AI модели к AI Team System.</p>
+
+    <div class="instruction-step">
+      <h3><span class="step-num">1</span>Выбери провайдера</h3>
+      <p>Мы рекомендуем <strong>OpenRouter</strong> — это единый API для 100+ моделей. Многие модели бесплатные!</p>
+      <p>🔗 <a href="https://openrouter.ai/sign-up" target="_blank">Зарегистрироваться на OpenRouter</a></p>
+    </div>
+
+    <div class="instruction-step">
+      <h3><span class="step-num">2</span>Получи API ключ</h3>
+      <p>После регистрации перейди в раздел Keys и создай новый API ключ.</p>
+      <p>🔗 <a href="https://openrouter.ai/keys" target="_blank">Создать API ключ OpenRouter</a></p>
+      <p>Скопируй ключ — он начинается с <code>sk-or-v1-...</code></p>
+    </div>
+
+    <div class="instruction-step">
+      <h3><span class="step-num">3</span>Вставь ключ в настройки</h3>
+      <p>Перейди во вкладку <strong>⚙️ Настройки</strong>, выбери OpenRouter и вставь API ключ.</p>
+      <p>Нажми <strong>💾 Сохранить</strong> и подожди перезапуска сервера.</p>
+    </div>
+
+    <div class="instruction-step">
+      <h3><span class="step-num">4</span>Выбери модели для агентов</h3>
+      <p>Система автоматически подберёт лучшие бесплатные модели, но ты можешь выбрать вручную:</p>
+      <ul style="font-size:12px;color:var(--muted);margin-left:20px;line-height:2;">
+        <li><strong>TeamLead</strong> — рекомендуем <code>deepseek/deepseek-r1:free</code> (рассуждения)</li>
+        <li><strong>Architect</strong> — рекомендуем <code>openrouter/owl-alpha</code> (1M контекст)</li>
+        <li><strong>Backend</strong> — рекомендуем <code>qwen/qwen3-coder:free</code> (код)</li>
+        <li><strong>Frontend</strong> — рекомендуем <code>google/gemini-2.0-flash:free</code> (быстро)</li>
+        <li><strong>DevOps</strong> — рекомендуем <code>meta-llama/llama-3.3-70b:free</code></li>
+        <li><strong>Tester</strong> — рекомендуем <code>qwen/qwen3-coder:free</code> (код)</li>
+        <li><strong>Documentalist</strong> — рекомендуем <code>google/gemini-2.0-flash:free</code></li>
+      </ul>
+    </div>
+
+    <div class="instruction-step">
+      <h3><span class="step-num">5</span>Альтернативные провайдеры</h3>
+      <p>Если OpenRouter недоступен, можно использовать:</p>
+      <p>🔗 <a href="https://ollama.com/download" target="_blank">Ollama</a> — локальные модели (полностью бесплатно, работает оффлайн)</p>
+      <p>🔗 <a href="https://omniroute.online" target="_blank">OmniRoute</a> — российский агрегатор AI моделей</p>
+    </div>
+
+    <div class="instruction-step">
+      <h3><span class="step-num">6</span>Проверь подключение</h3>
+      <p>После сохранения настроек нажми <strong>🔄 Проверить подключение</strong> в настройках.</p>
+      <p>Если всё работает — статус провайдера станет зелёным ✅</p>
+    </div>
+  </div>
 // ══════════════════════════════════════════
 //  STATE
 // ══════════════════════════════════════════
@@ -475,9 +795,16 @@ async function init() {
     document.getElementById('hw-badge').textContent = 'локальный режим';
     document.getElementById('hw-info-welcome').textContent = 'локальный режим';
   }
-}
-init();
 
+  // Load saved config
+  try {
+    const cfg = await (await fetch('/api/config')).json();
+    if (cfg.openrouter_api_key_set) {
+      document.getElementById('tab-btn-settings').innerHTML = '⚙️ Настройки ✅';
+    }
+  } catch(e) {}
+}
+<script>
 // ══════════════════════════════════════════
 //  WELCOME
 // ══════════════════════════════════════════
@@ -1456,6 +1783,142 @@ function stopBuild() {
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ══════════════════════════════════════════
+//  TABS & SETTINGS & CHAT FUNCTIONS
+// ══════════════════════════════════════════
+function switchTab(tabName) {
+  document.querySelectorAll('.tab-content').forEach(function(el) { el.classList.remove('active'); });
+  document.querySelectorAll('.tab-btn').forEach(function(el) { el.classList.remove('active'); });
+  document.getElementById('tab-' + tabName).classList.add('active');
+  document.getElementById('tab-btn-' + tabName).classList.add('active');
+  var isChat = tabName === 'chat';
+  document.getElementById('agents-bar').style.display = isChat ? 'flex' : 'none';
+  document.getElementById('chat').style.display = isChat ? 'flex' : 'none';
+  document.querySelector('.input-area').style.display = isChat ? 'flex' : 'none';
+  document.getElementById('chat-functions').style.display = isChat ? 'flex' : 'none';
+  if (tabName === 'settings') loadSettings();
+}
+
+var settingsData = null;
+
+function loadSettings() {
+  var container = document.getElementById('settings-content');
+  container.innerHTML = '<p style="color:var(--muted)">Загрузка...</p>';
+  Promise.all([
+    fetch('/api/providers?force_refresh=true').then(function(r) { return r.json(); }),
+    fetch('/api/agents/config').then(function(r) { return r.json(); }),
+    fetch('/api/config').then(function(r) { return r.json(); })
+  ]).then(function(results) {
+    settingsData = { providers: results[0], agents: results[1], config: results[2] };
+    renderSettings();
+  }).catch(function(e) {
+    container.innerHTML = '<p style="color:#ef4444">Ошибка: ' + e.message + '</p>';
+  });
+}
+
+function renderSettings() {
+  var container = document.getElementById('settings-content');
+  var providers = settingsData.providers;
+  var agents = settingsData.agents;
+  var config = settingsData.config;
+  var h = '<h2>⚙️ Настройки провайдеров</h2><p>Выбери провайдера и модели для каждого агента.</p>';
+  h += '<h3 style="font-size:14px;margin:20px 0 12px;">📡 Провайдеры</h3><div class="provider-grid">';
+  for (var pid in providers) {
+    var info = providers[pid];
+    var sc = info.is_available ? 'available' : 'unavailable';
+    var st = info.is_available ? '✅ Доступен' : '❌ Недоступен';
+    h += '<div class="provider-card" onclick="selectProvider(\'' + pid + '\')" id="provider-card-' + pid + '"><div class="provider-name">' + info.name + '</div><div class="provider-desc">' + info.description + '</div><div class="provider-status ' + sc + '">' + st + ' · ' + info.free_models_count + ' бесплатных</div></div>';
+  }
+  h += '</div>';
+  h += '<h3 style="font-size:14px;margin:20px 0 12px;">🔑 API ключ</h3><div style="margin-bottom:20px;"><input type="password" id="api-key-input" placeholder="Вставь API ключ (sk-or-v1-...)" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-family:\'JetBrains Mono\',monospace;font-size:12px;"><p style="font-size:11px;color:var(--muted);margin-top:6px;">🔗 <a href="https://openrouter.ai/keys" target="_blank">Получить ключ OpenRouter</a> · 🔗 <a href="https://ollama.com/download" target="_blank">Установить Ollama</a></p></div>';
+  h += '<h3 style="font-size:14px;margin:20px 0 12px;">🤖 Модели агентов</h3>';
+  for (var i = 0; i < agents.agents.length; i++) {
+    var agent = agents.agents[i];
+    h += '<div style="margin-bottom:16px;"><div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px;">' + agent.name.toUpperCase() + ' <span style="font-size:10px;color:var(--muted);font-weight:400;">— ' + agent.description + '</span></div><div class="model-list" id="models-' + agent.name + '">';
+    for (var j = 0; j < Math.min(agent.available_models.length, 5); j++) {
+      var model = agent.available_models[j];
+      h += '<div class="model-item" onclick="selectModel(\'' + agent.name + '\',\'' + model.id + '\')"><div><div class="model-name">' + model.id + '</div><div class="model-meta">' + model.strength + ' · ctx: ' + (model.context_length || '?') + '</div></div></div>';
+    }
+    h += '</div></div>';
+  }
+  h += '<div class="settings-actions"><button class="btn-save" onclick="saveConfig()">💾 Сохранить</button><button class="btn-secondary" onclick="testConnection()">🔄 Проверить</button><button class="btn-secondary" onclick="loadSettings()">🔄 Обновить</button></div><div id="settings-status" style="margin-top:12px;font-size:12px;"></div>';
+  container.innerHTML = h;
+}
+
+function selectProvider(pid) {
+  var cards = document.querySelectorAll('.provider-card');
+  for (var i = 0; i < cards.length; i++) { cards[i].classList.remove('selected'); }
+  document.getElementById('provider-card-' + pid).classList.add('selected');
+  settingsData.selectedProvider = pid;
+}
+
+function selectModel(agentName, modelId) {
+  var items = document.querySelectorAll('#models-' + agentName + ' .model-item');
+  for (var i = 0; i < items.length; i++) { items[i].classList.remove('selected'); }
+  event.currentTarget.classList.add('selected');
+  if (!settingsData.selectedModels) settingsData.selectedModels = {};
+  settingsData.selectedModels[agentName] = modelId;
+}
+
+function saveConfig() {
+  var status = document.getElementById('settings-status');
+  status.textContent = 'Сохранение...';
+  var agents = {};
+  if (settingsData.selectedModels) {
+    for (var a in settingsData.selectedModels) {
+      agents[a] = { provider: settingsData.selectedProvider || 'openrouter', model: settingsData.selectedModels[a] };
+    }
+  }
+  var apiKey = '';
+  var keyInput = document.getElementById('api-key-input');
+  if (keyInput) apiKey = keyInput.value || '';
+  fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ openrouter_api_key: apiKey, agents: agents }) })
+    .then(function(r) { return r.json(); })
+    .then(function(data) { status.innerHTML = '<span style="color:var(--success);">✅ ' + data.message + '</span>'; })
+    .catch(function(e) { status.innerHTML = '<span style="color:#ef4444;">❌ ' + e.message + '</span>'; });
+}
+
+function testConnection() {
+  var status = document.getElementById('settings-status');
+  status.textContent = 'Проверка...';
+  fetch('/api/status')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var r = '<strong>Статус провайдеров:</strong><br>';
+      for (var pid in data.providers) {
+        r += (data.providers[pid].available ? '✅' : '❌') + ' ' + pid + ': ' + data.providers[pid].free_models + ' моделей<br>';
+      }
+      status.innerHTML = r;
+    })
+    .catch(function(e) { status.innerHTML = '<span style="color:#ef4444;">❌ ' + e.message + '</span>'; });
+}
+
+function clearChat() {
+  if (confirm('Очистить чат?')) {
+    document.getElementById('chat').innerHTML = '';
+    state.projectIdea = ''; state.projectName = ''; state.lastUserMsg = '';
+    state.teamleadAnswered = false; state.phase = 'idea';
+    addAiMsg('system', 'Чат очищен. Опиши свою идею!');
+  }
+}
+
+function exportChat() {
+  var msgs = document.querySelectorAll('.chat-area .msg');
+  var md = '# AI Team System — Экспорт чата\n\n---\n\n';
+  for (var i = 0; i < msgs.length; i++) {
+    var m = msgs[i];
+    var text = m.querySelector('.bubble') ? m.querySelector('.bubble').innerText : '';
+    md += '**' + (m.classList.contains('user') ? '👤' : '🤖') + ':**\n' + text + '\n\n';
+  }
+  var blob = new Blob([md], { type: 'text/markdown' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a'); a.href = url; a.download = 'chat-' + Date.now() + '.md'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function newProject() { clearChat(); switchTab('chat'); }
+
 </script>
 </body>
 </html>
