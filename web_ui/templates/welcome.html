@@ -843,7 +843,8 @@ async function callTeamLead() {
     }
   } catch (e) {
     removeTyping();
-    addAiMsg('system', '⚠️ Ошибка: ' + e.message);
+    const errMsg = friendlyError(e);
+    if (errMsg) addAiMsg('system', errMsg);
     unlockInput();
     console.error('callTeamLead error:', e);
   }
@@ -936,9 +937,29 @@ function generateClarifyQuestions(idea, level) {
   }
 }
 
-// ══════════════════════════════════════════
-//  BUILDING
-// ══════════════════════════════════════════
+// Человекочитаемые сообщения об ошибках
+function friendlyError(e) {
+  const msg = (e.message || '').toLowerCase();
+  if (msg.includes('http 503') || msg.includes('unavailable') || msg.includes('ollama')) {
+    return '🔌 Ollama не отвечает. Убедись что Ollama запущена (ollama serve).';
+  }
+  if (msg.includes('http 500') || msg.includes('internal server error')) {
+    return '💥 Ошибка сервера. Попробуй перезапустить приложение.';
+  }
+  if (msg.includes('http 429') || msg.includes('rate limit') || msg.includes('too many')) {
+    return '⏳ Слишком много запросов. Подожди 30 секунд и попробуй снова.';
+  }
+  if (msg.includes('http 401') || msg.includes('unauthorized') || msg.includes('api key')) {
+    return '🔑 Проблема с API ключом. Проверь .env файл.';
+  }
+  if (msg.includes('network') || msg.includes('failed to fetch') || msg.includes('connection')) {
+    return '🌐 Проблема с сетью. Проверь подключение к интернету.';
+  }
+  if (msg.includes('abort') || msg.includes('aborted')) {
+    return ''; // Пользователь сам остановил — не показываем ошибку
+  }
+  return '⚠️ Ошибка: ' + (e.message || 'неизвестная ошибка');
+}
 async function startBuilding() {
   state.phase = 'building';
   state.building = true;
@@ -1027,7 +1048,11 @@ async function streamAgents() {
       state.building = false;
     } else {
       console.log('Stream error:', e.message);
-      if (state.building) onBuildDone();
+      if (state.building) {
+        const errMsg = friendlyError(e);
+        if (errMsg) addAiMsg('system', errMsg);
+        onBuildDone();
+      }
     }
   } finally {
     buildAbortController = null;
