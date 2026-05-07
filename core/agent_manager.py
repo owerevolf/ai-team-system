@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 
 from .model_router import ModelRouter
 from .database import Database
+from .memory import AgentMemory, MemoryEntry
 from .logger import setup_logger
 
 
@@ -70,8 +71,12 @@ class AgentManager:
         self.project_path: Optional[Path] = None
         self.context = None
         self.event_callback: Optional[Callable] = None
+        self.memory = AgentMemory()
+        self._self_improvement_enabled = True
     
-    def set_project_path(self, path: Path):
+    def set_self_improvement(self, enabled: bool):
+        """Включить/выключить self-improvement агентов"""
+        self._self_improvement_enabled = enabled
         self.project_path = path
     
     def set_context(self, context):
@@ -236,6 +241,19 @@ class AgentManager:
             self.logger.warning(f"Не удалось загрузить скиллы для {agent_name}: {e}")
             skill_addon = ""
             agent_temperature = 0.7
+        
+        # Self-improvement: загружаем уроки из памяти
+        lessons_from_memory = ""
+        if self._self_improvement_enabled:
+            try:
+                lessons = self.memory.get_lessons_for_agent(agent_name, limit=3)
+                if lessons:
+                    lessons_from_memory = "\n".join([f"- {l}" for l in lessons])
+                else:
+                    lessons_from_memory = "Нет прошлых уроков. Ты первый раз выполняешь эту задачу."
+            except Exception as e:
+                self.logger.debug(f"Memory lessons load failed: {e}")
+                lessons_from_memory = ""
 
         agent_context = {}
         if self.context:
@@ -282,6 +300,9 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
 ## ЗАДАНИЕ
 {task}
 
+## LESSONS FROM PAST PROJECTS (Self-Improvement)
+{lessons_from_memory}
+
 ## CONTEXT (от других агентов)
 {json.dumps(context or agent_context, indent=2, ensure_ascii=False) if (context or agent_context) else 'Нет контекста'}
 
@@ -320,11 +341,41 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
             
             self.emit_event("agent_complete", {"agent": agent_name, "files": created_files})
             self.logger.info(f"Агент {agent_name} завершил. Файлов: {len(created_files)}")
+            
+            # Self-improvement: сохраняем результат в память
+            if self._self_improvement_enabled:
+                try:
+                    self.memory.add(MemoryEntry(
+                        project_name=state.projectName if state else "unknown",
+                        agent=agent_name,
+                        action="build",
+                        result=response[:500],
+                        files_created=created_files,
+                        errors=[]
+                    ))
+                except Exception as e:
+                    self.logger.debug(f"Memory save failed: {e}")
+            
             return result
             
         except Exception as e:
             self.logger.error(f"Ошибка {agent_name}: {e}")
             self.emit_event("agent_error", {"agent": agent_name, "error": str(e)})
+            
+            # Self-improvement: сохраняем ошибку в память
+            if self._self_improvement_enabled:
+                try:
+                    self.memory.add(MemoryEntry(
+                        project_name=state.projectName if state else "unknown",
+                        agent=agent_name,
+                        action="build",
+                        result="",
+                        files_created=[],
+                        errors=[str(e)]
+                    ))
+                except Exception:
+                    pass
+            
             return {
                 "agent": agent_name,
                 "status": "error",

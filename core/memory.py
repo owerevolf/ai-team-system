@@ -143,6 +143,21 @@ class AgentMemory:
         
         return context
     
+    def get_lessons_for_agent(self, agent: str, limit: int = 5) -> List[str]:
+        """Получить уроки для конкретного агента"""
+        entries = [e for e in self.entries if e.agent == agent]
+        lessons = []
+        for e in entries:
+            lessons.extend(e.lessons)
+        # Уникальные уроки, последние первыми
+        seen = set()
+        unique_lessons = []
+        for l in reversed(lessons):
+            if l not in seen:
+                seen.add(l)
+                unique_lessons.append(l)
+        return unique_lessons[:limit]
+    
     def stats(self) -> Dict[str, Any]:
         """Статистика памяти"""
         agents = set(e.agent for e in self.entries)
