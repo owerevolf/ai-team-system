@@ -621,6 +621,16 @@
     transform: scale(.97);
   }
 
+  /* ── MODE TOGGLE ── */
+  .mode-btn.selected {
+    border-color: var(--accent) !important;
+    background: rgba(124,110,245,.08) !important;
+    color: var(--accent) !important;
+  }
+  .mode-btn:hover {
+    border-color: var(--accent) !important;
+  }
+
   /* ── CHAT FUNCTIONS ── */
   .chat-functions {
     display: flex;
@@ -717,6 +727,7 @@
   <div class="logo-dot"></div>
   <h1>AI TEAM SYSTEM</h1>
   <div class="hw-badge" id="hw-badge">загрузка...</div>
+  <div class="hw-badge" id="mode-badge" style="margin-left:4px;">🏠 Local</div>
   <div class="tabs">
     <button class="tab-btn active" id="tab-btn-chat" onclick="switchTab('chat')">💬 Чат</button>
     <button class="tab-btn" id="tab-btn-settings" onclick="switchTab('settings')">⚙️ Настройки</button>
@@ -862,6 +873,14 @@ async function init() {
     if (cfg.openrouter_api_key_set) {
       document.getElementById('tab-btn-settings').innerHTML = '⚙️ Настройки ✅';
     }
+    // Update mode badge
+    var mode = cfg.ai_mode || 'local';
+    var modeBadge = document.getElementById('mode-badge');
+    if (modeBadge) {
+      modeBadge.textContent = mode === 'local' ? '🏠 Local' : '☁️ Cloud';
+      modeBadge.style.borderColor = mode === 'local' ? 'var(--success)' : 'var(--accent2)';
+    }
+    if (settingsData) settingsData.aiMode = mode;
   } catch(e) {}
 }
 // ══════════════════════════════════════════
@@ -1883,6 +1902,17 @@ function renderSettings() {
   var agents = settingsData.agents;
   var config = settingsData.config;
   var h = '<h2>⚙️ Настройки провайдеров</h2><p>Выбери провайдера и модели для каждого агента.</p>';
+  
+  // AI Mode toggle
+  var currentMode = config.ai_mode || 'local';
+  var localSelected = currentMode === 'local' ? 'selected' : '';
+  var cloudSelected = currentMode === 'cloud' ? 'selected' : '';
+  h += '<h3 style="font-size:14px;margin:20px 0 12px;">🔄 Режим работы</h3>';
+  h += '<div style="display:flex;gap:8px;margin-bottom:20px;">';
+  h += '<button class="mode-btn ' + localSelected + '" onclick="setAiMode(\'local\')" id="mode-btn-local" style="flex:1;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-family:\'JetBrains Mono\',monospace;font-size:12px;cursor:pointer;transition:all .2s;">🏠 Local first<div style="font-size:10px;color:var(--muted);margin-top:4px;">Ollama → Cloud fallback</div></button>';
+  h += '<button class="mode-btn ' + cloudSelected + '" onclick="setAiMode(\'cloud\')" id="mode-btn-cloud" style="flex:1;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-family:\'JetBrains Mono\',monospace;font-size:12px;cursor:pointer;transition:all .2s;">☁️ Cloud first<div style="font-size:10px;color:var(--muted);margin-top:4px;">OpenRouter → Ollama fallback</div></button>';
+  h += '</div>';
+  
   h += '<h3 style="font-size:14px;margin:20px 0 12px;">📡 Провайдеры</h3><div class="provider-grid">';
   for (var pid in providers) {
     var info = providers[pid];
@@ -1906,6 +1936,19 @@ function renderSettings() {
   }
   h += '<div class="settings-actions"><button class="btn-save" onclick="saveConfig()">💾 Сохранить</button><button class="btn-secondary" onclick="testConnection()">🔌 Проверить</button><button class="btn-secondary" onclick="loadSettings()">🔄 Обновить</button></div><div id="settings-status" style="margin-top:12px;font-size:12px;"></div>';
   container.innerHTML = h;
+}
+
+function setAiMode(mode) {
+  settingsData.aiMode = mode;
+  var localBtn = document.getElementById('mode-btn-local');
+  var cloudBtn = document.getElementById('mode-btn-cloud');
+  if (mode === 'local') {
+    localBtn.classList.add('selected');
+    cloudBtn.classList.remove('selected');
+  } else {
+    cloudBtn.classList.add('selected');
+    localBtn.classList.remove('selected');
+  }
 }
 
 function selectProvider(pid) {
@@ -1935,7 +1978,7 @@ function saveConfig() {
   var apiKey = '';
   var keyInput = document.getElementById('api-key-input');
   if (keyInput) apiKey = keyInput.value || '';
-  fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ openrouter_api_key: apiKey, agents: agents }) })
+  fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ openrouter_api_key: apiKey, agents: agents, ai_mode: settingsData.aiMode || 'local' }) })
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var msg = '<span style="color:var(--success);">✅ ' + data.message + '</span>';

@@ -782,13 +782,24 @@ async def save_config(request: Request):
         if value:
             os.environ[env_key] = value
 
-    # Перечитываем .env для консистентности
+    # Сохраняем AI_MODE
+    ai_mode = body.get("ai_mode")
+    if ai_mode in ("local", "cloud"):
+        pattern = r'AI_MODE=.*'
+        if re.search(pattern, env_content):
+            env_content = re.sub(pattern, f'AI_MODE={ai_mode}', env_content)
+        else:
+            env_content += f'\nAI_MODE={ai_mode}'
+        os.environ["AI_MODE"] = ai_mode
+
+    env_path.write_text(env_content, encoding="utf-8")
     load_dotenv(env_path, override=True)
 
     return JSONResponse({
         "status": "saved",
         "message": "Конфигурация сохранена и применена.",
         "applied": list(agent_config.keys()) if agent_config else [],
+        "ai_mode": os.getenv("AI_MODE", "local"),
     })
 
 
