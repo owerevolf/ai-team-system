@@ -1,0 +1,28 @@
+{
+  "servers": [
+    {
+      "name": "filesystem",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/aram/ai-team-projects"],
+      "transport": "stdio",
+      "enabled": false
+    },
+    {
+      "name": "github",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "transport": "stdio",
+      "enabled": false,
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": ""
+      }
+    },
+    {
+      "name": "sqlite",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sqlite", "--db-path", "/home/aram/ai-team-projects/ai_team.db"],
+      "transport": "stdio",
+      "enabled": false
+    }
+  ]
+}

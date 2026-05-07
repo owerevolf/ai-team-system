@@ -775,6 +775,16 @@ async def save_config(request: Request):
 
     logger.info(f"Config saved: {list(body.keys())}")
 
+    # Добавляем MCP сервер если указан
+    mcp_add = body.get("mcp_add_server")
+    if mcp_add:
+        mcp_config_path = BASE_DIR / "config" / "mcp_servers.json"
+        mcp_data = {"servers": []}
+        if mcp_config_path.exists():
+            mcp_data = json.loads(mcp_config_path.read_text(encoding="utf-8"))
+        mcp_data["servers"].append(mcp_add)
+        mcp_config_path.write_text(json.dumps(mcp_data, ensure_ascii=False, indent=2), encoding="utf-8")
+
     # Применяем конфигурацию на лету (без перезагрузки сервера)
     # Обновляем переменные окружения в текущем процессе
     for json_key, env_key in key_mappings.items():
@@ -811,13 +821,22 @@ async def get_config():
     if config_path.exists():
         agent_config = json.loads(config_path.read_text(encoding="utf-8"))
 
+    # MCP servers config
+    mcp_config_path = BASE_DIR / "config" / "mcp_servers.json"
+    mcp_servers = []
+    if mcp_config_path.exists():
+        mcp_data = json.loads(mcp_config_path.read_text(encoding="utf-8"))
+        mcp_servers = mcp_data.get("servers", [])
+
     return JSONResponse({
         "openrouter_api_key_set": bool(os.getenv("OPENROUTER_API_KEY")),
         "ollama_model": os.getenv("OLLAMA_MODEL", "qwen3:8b"),
         "ollama_base_url": os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
         "omniroute_api_key_set": bool(os.getenv("OMNIROUTE_API_KEY")),
+        "omniroute_url": os.getenv("OMNIROUTE_URL", "http://localhost:21000/v1"),
         "ai_mode": os.getenv("AI_MODE", "local"),
         "agents": agent_config,
+        "mcp_servers": mcp_servers,
     })
 
 
@@ -841,6 +860,52 @@ async def system_status():
         "providers": providers_status,
         "ai_mode": os.getenv("AI_MODE", "local"),
     })
+
+
+# ══════════════════════════════════════════
+#  MCP SERVER ENDPOINTS
+# ══════════════════════════════════════════
+
+@app.get("/api/mcp/servers")
+async def get_mcp_servers():
+    """Получить список MCP серверов"""
+    config_path = BASE_DIR / "config" / "mcp_servers.json"
+    if config_path.exists():
+        data = json.loads(config_path.read_text(encoding="utf-8"))
+        return JSONResponse({"servers": data.get("servers", [])})
+    return JSONResponse({"servers": []})
+
+@app.post("/api/mcp/reload")
+async def reload_mcp_servers():
+    """Перезагрузить MCP серверы"""
+    try:
+        from core.mcp_server import mcp_manager
+        mcp_manager.disconnect_all()
+        mcp_manager._load_config()
+        await mcp_manager.connect_all()
+        tools_count = len(mcp_manager.get_all_tools())
+        return JSONResponse({
+            "status": "reloaded",
+            "servers": len(mcp_manager.servers),
+            "tools": tools_count
+        })
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+@app.post("/api/mcp/call")
+async def call_mcp_tool(request: Request):
+    """Вызвать инструмент на MCP сервере"""
+    body = await request.json()
+    server_name = body.get("server")
+    tool_name = body.get("tool")
+    arguments = body.get("arguments", {})
+    
+    try:
+        from core.mcp_server import mcp_manager
+        result = await mcp_manager.call_tool(server_name, tool_name, arguments)
+        return JSONResponse({"status": "ok", "result": result})
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
 
 if __name__ == "__main__":

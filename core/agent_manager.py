@@ -217,6 +217,14 @@ class AgentManager:
 
         prompt_template = self.get_agent_prompt(agent_name, level)
         tools_description = self.get_tools_for_prompt()
+        
+        # MCP tools description
+        mcp_tools_description = ""
+        try:
+            from .mcp_server import mcp_manager
+            mcp_tools_description = mcp_manager.get_tools_description()
+        except Exception as e:
+            self.logger.debug(f"MCP tools not available: {e}")
 
         # Добавляем скиллы из agent_skills
         try:
@@ -266,6 +274,7 @@ class AgentManager:
 
 ## AVAILABLE TOOLS
 {tools_description}
+{mcp_tools_description}
 
 ## ALLOWED COMMANDS (whitelist)
 python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose

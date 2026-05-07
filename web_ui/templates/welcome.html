@@ -1962,6 +1962,30 @@ function renderSettings() {
   var omnirouteUrl = config.omniroute_url || 'http://localhost:21000/v1';
   var omnirouteKey = config.omniroute_api_key_set ? '••••••••' : '';
   h += '<h3 style="font-size:14px;margin:20px 0 12px;">🇷🇺 OmniRoute</h3><div style="margin-bottom:20px;"><input type="text" id="omniroute-url-input" placeholder="URL (http://localhost:21000/v1)" value="' + omnirouteUrl + '" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-family:\'JetBrains Mono\',monospace;font-size:12px;margin-bottom:8px;"><input type="password" id="omniroute-key-input" placeholder="API ключ (опционально)" value="' + omnirouteKey + '" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-family:\'JetBrains Mono\',monospace;font-size:12px;"><p style="font-size:11px;color:var(--muted);margin-top:6px;">🔗 <a href="https://omniroute.online" target="_blank">OmniRoute</a> — российский агрегатор AI моделей</p></div>';
+  
+  // MCP Servers config
+  var mcpServers = config.mcp_servers || [];
+  h += '<h3 style="font-size:14px;margin:20px 0 12px;">🔌 MCP серверы</h3>';
+  h += '<p style="font-size:11px;color:var(--muted);margin-bottom:12px;">Model Context Protocol — подключение внешних инструментов (filesystem, github, sqlite и др.)</p>';
+  h += '<div id="mcp-servers-list" style="margin-bottom:16px;">';
+  if (mcpServers.length === 0) {
+    h += '<p style="font-size:11px;color:var(--muted);">Нет настроенных MCP серверов. Добавьте серверы в config/mcp_servers.json</p>';
+  } else {
+    for (var m = 0; m < mcpServers.length; m++) {
+      var srv = mcpServers[m];
+      var srvEnabled = srv.enabled ? '✅' : '❌';
+      h += '<div style="display:flex;align-items:center;gap:8px;padding:8px;background:var(--surface);border:1px solid var(--border);border-radius:6px;margin-bottom:6px;">';
+      h += '<span>' + srvEnabled + '</span>';
+      h += '<span style="font-size:12px;color:var(--text);flex:1;">' + (srv.name || 'unnamed') + '</span>';
+      h += '<span style="font-size:10px;color:var(--muted);">' + (srv.transport || 'stdio') + '</span>';
+      h += '</div>';
+    }
+  }
+  h += '</div>';
+  h += '<div style="margin-bottom:20px;"><input type="text" id="mcp-server-name" placeholder="Имя сервера" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-family:\'JetBrains Mono\',monospace;font-size:11px;margin-bottom:6px;"><input type="text" id="mcp-server-command" placeholder="Команда (npx, python, ...)" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-family:\'JetBrains Mono\',monospace;font-size:11px;margin-bottom:6px;"><input type="text" id="mcp-server-args" placeholder="Аргументы (через запятую)" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-family:\'JetBrains Mono\',monospace;font-size:11px;margin-bottom:6px;"><select id="mcp-server-transport" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-family:\'JetBrains Mono\',monospace;font-size:11px;margin-bottom:6px;"><option value="stdio">stdio</option><option value="http">http</option></select></div>';
+  h += '<button class="btn-secondary" onclick="addMcpServer()" style="margin-right:8px;">➕ Добавить</button>';
+  h += '<button class="btn-secondary" onclick="reloadMcpServers()">🔄 Перезагрузить</button>';
+  
   h += '<h3 style="font-size:14px;margin:20px 0 12px;">🤖 Модели агентов</h3>';
   for (var i = 0; i < agents.agents.length; i++) {
     var agent = agents.agents[i];
@@ -2178,6 +2202,56 @@ setAgentDone = function(agent) {
   addKanbanTask(AGENT_LABELS[agent] || agent, 'Завершено', 'done');
 };
 
+
+// ══════════════════════════════════════════
+//  MCP SERVERS
+// ══════════════════════════════════════════
+function addMcpServer() {
+  var name = document.getElementById('mcp-server-name').value.trim();
+  var command = document.getElementById('mcp-server-command').value.trim();
+  var args = document.getElementById('mcp-server-args').value.trim();
+  var transport = document.getElementById('mcp-server-transport').value;
+  
+  if (!name || !command) {
+    alert('Заполните имя и команду');
+    return;
+  }
+  
+  // Add to config and save
+  var status = document.getElementById('settings-status');
+  status.textContent = 'Сохранение...';
+  
+  fetch('/api/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      mcp_add_server: { name: name, command: command, args: args.split(','), transport: transport, enabled: true }
+    })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    status.innerHTML = '<span style="color:var(--success);">✅ MCP сервер добавлен</span>';
+    loadSettings();
+  })
+  .catch(function(e) {
+    status.innerHTML = '<span style="color:#ef4444;">❌ Ошибка: ' + e.message + '</span>';
+  });
+}
+
+function reloadMcpServers() {
+  var status = document.getElementById('settings-status');
+  status.textContent = 'Перезагрузка...';
+  
+  fetch('/api/mcp/reload', { method: 'POST' })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    status.innerHTML = '<span style="color:var(--success);">✅ MCP серверы перезагружены</span>';
+    loadSettings();
+  })
+  .catch(function(e) {
+    status.innerHTML = '<span style="color:#ef4444;">❌ Ошибка: ' + e.message + '</span>';
+  });
+}
 
 </script>
 </body>
