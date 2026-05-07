@@ -1922,6 +1922,10 @@ function renderSettings() {
   }
   h += '</div>';
   h += '<h3 style="font-size:14px;margin:20px 0 12px;">🔑 API ключ</h3><div style="margin-bottom:20px;"><input type="password" id="api-key-input" placeholder="Вставь API ключ (sk-or-v1-...)" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-family:\'JetBrains Mono\',monospace;font-size:12px;"><p style="font-size:11px;color:var(--muted);margin-top:6px;">🔗 <a href="https://openrouter.ai/keys" target="_blank">Получить ключ OpenRouter</a> · 🔗 <a href="https://ollama.com/download" target="_blank">Установить Ollama</a></p></div>';
+  // OmniRoute config
+  var omnirouteUrl = config.omniroute_url || 'http://localhost:21000/v1';
+  var omnirouteKey = config.omniroute_api_key_set ? '••••••••' : '';
+  h += '<h3 style="font-size:14px;margin:20px 0 12px;">🇷🇺 OmniRoute</h3><div style="margin-bottom:20px;"><input type="text" id="omniroute-url-input" placeholder="URL (http://localhost:21000/v1)" value="' + omnirouteUrl + '" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-family:\'JetBrains Mono\',monospace;font-size:12px;margin-bottom:8px;"><input type="password" id="omniroute-key-input" placeholder="API ключ (опционально)" value="' + omnirouteKey + '" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-family:\'JetBrains Mono\',monospace;font-size:12px;"><p style="font-size:11px;color:var(--muted);margin-top:6px;">🔗 <a href="https://omniroute.online" target="_blank">OmniRoute</a> — российский агрегатор AI моделей</p></div>';
   h += '<h3 style="font-size:14px;margin:20px 0 12px;">🤖 Модели агентов</h3>';
   for (var i = 0; i < agents.agents.length; i++) {
     var agent = agents.agents[i];
@@ -1978,7 +1982,13 @@ function saveConfig() {
   var apiKey = '';
   var keyInput = document.getElementById('api-key-input');
   if (keyInput) apiKey = keyInput.value || '';
-  fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ openrouter_api_key: apiKey, agents: agents, ai_mode: settingsData.aiMode || 'local' }) })
+  var omnirouteUrl = '';
+  var omnirouteKey = '';
+  var omnirouteUrlInput = document.getElementById('omniroute-url-input');
+  var omnirouteKeyInput = document.getElementById('omniroute-key-input');
+  if (omnirouteUrlInput) omnirouteUrl = omnirouteUrlInput.value || '';
+  if (omnirouteKeyInput) omnirouteKey = omnirouteKeyInput.value || '';
+  fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ openrouter_api_key: apiKey, agents: agents, ai_mode: settingsData.aiMode || 'local', omniroute_url: omnirouteUrl, omniroute_api_key: omnirouteKey }) })
     .then(function(r) { return r.json(); })
     .then(function(data) {
       var msg = '<span style="color:var(--success);">✅ ' + data.message + '</span>';
