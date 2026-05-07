@@ -631,6 +631,22 @@
     border-color: var(--accent) !important;
   }
 
+  /* ── KANBAN ── */
+  .kanban-column {
+    transition: all .2s;
+  }
+  .kanban-column:hover {
+    border-color: var(--accent);
+  }
+  .kanban-task {
+    transition: all .2s;
+    cursor: default;
+  }
+  .kanban-task:hover {
+    border-color: var(--accent);
+    transform: translateY(-1px);
+  }
+
   /* ── CHAT FUNCTIONS ── */
   .chat-functions {
     display: flex;
@@ -732,6 +748,7 @@
     <button class="tab-btn active" id="tab-btn-chat" onclick="switchTab('chat')">💬 Чат</button>
     <button class="tab-btn" id="tab-btn-settings" onclick="switchTab('settings')">⚙️ Настройки</button>
     <button class="tab-btn" id="tab-btn-instruction" onclick="switchTab('instruction')">📖 Инструкция</button>
+    <button class="tab-btn" id="tab-btn-kanban" onclick="switchTab('kanban')">📋 Канбан</button>
   </div>
 </header>
 
@@ -828,6 +845,25 @@
       <p>Если всё работает — статус провайдера станет зелёным ✅</p>
     </div>
   </div>
+<!-- TAB: KANBAN -->
+<div class="tab-content" id="tab-kanban">
+  <div class="settings-section">
+    <h2>📋 Канбан доска</h2>
+    <p>Отслеживай прогресс агентов в реальном времени.</p>
+    <div id="kanban-board" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin-top:20px;"></div>
+    <div id="kanban-tasks" style="margin-top:24px;">
+      <h3 style="font-size:14px;margin-bottom:12px;">📝 Задачи проекта</h3>
+      <div id="kanban-task-list" style="display:flex;flex-direction:column;gap:8px;">
+        <p style="color:var(--muted);font-size:12px;">Задачи появятся при запуске сборки проекта.</p>
+      </div>
+    </div>
+    <div style="margin-top:24px;display:flex;gap:12px;">
+      <button class="btn-secondary" onclick="clearKanban()">🗑 Очистить</button>
+      <button class="btn-secondary" onclick="exportKanban()">📥 Экспорт</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ══════════════════════════════════════════
 //  STATE
@@ -2039,6 +2075,109 @@ function exportChat() {
 }
 
 function newProject() { clearChat(); switchTab('chat'); }
+
+// ══════════════════════════════════════════
+//  KANBAN
+// ══════════════════════════════════════════
+var kanbanData = {
+  columns: [
+    { id: 'todo', title: '📋 Ожидание', color: '#6b6b7e' },
+    { id: 'in_progress', title: '🔄 В работе', color: '#7c6ef5' },
+    { id: 'done', title: '✅ Готово', color: '#4ade80' },
+    { id: 'failed', title: '❌ Ошибка', color: '#ef4444' },
+  ],
+  tasks: []
+};
+
+function renderKanban() {
+  var board = document.getElementById('kanban-board');
+  if (!board) return;
+  var h = '';
+  for (var col of kanbanData.columns) {
+    var colTasks = kanbanData.tasks.filter(t => t.status === col.id);
+    h += '<div class="kanban-column" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;min-height:200px;">';
+    h += '<div style="font-size:12px;font-weight:600;color:' + col.color + ';margin-bottom:12px;">' + col.title + ' (' + colTasks.length + ')</div>';
+    for (var task of colTasks) {
+      h += '<div class="kanban-task" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px;font-size:11px;">';
+      h += '<div style="font-weight:600;color:var(--text);">' + task.agent + '</div>';
+      h += '<div style="color:var(--muted);margin-top:4px;">' + task.title + '</div>';
+      if (task.time) h += '<div style="color:var(--muted);margin-top:4px;font-size:10px;">⏱ ' + task.time + '</div>';
+      h += '</div>';
+    }
+    h += '</div>';
+  }
+  board.innerHTML = h;
+  
+  // Update task list
+  var taskList = document.getElementById('kanban-task-list');
+  if (taskList && kanbanData.tasks.length > 0) {
+    var listHtml = '';
+    for (var task of kanbanData.tasks) {
+      var statusIcon = task.status === 'done' ? '✅' : task.status === 'in_progress' ? '🔄' : task.status === 'failed' ? '❌' : '📋';
+      listHtml += '<div style="display:flex;align-items:center;gap:8px;padding:8px;background:var(--surface);border-radius:6px;border:1px solid var(--border);">';
+      listHtml += '<span>' + statusIcon + '</span>';
+      listHtml += '<span style="font-size:12px;color:var(--text);flex:1;">' + task.agent + ': ' + task.title + '</span>';
+      if (task.time) listHtml += '<span style="font-size:10px;color:var(--muted);">' + task.time + '</span>';
+      listHtml += '</div>';
+    }
+    taskList.innerHTML = listHtml;
+  }
+}
+
+function addKanbanTask(agent, title, status) {
+  var existing = kanbanData.tasks.find(t => t.agent === agent && t.title === title);
+  if (existing) {
+    existing.status = status;
+    existing.time = new Date().toLocaleTimeString('ru-RU');
+  } else {
+    kanbanData.tasks.push({
+      agent: agent,
+      title: title,
+      status: status || 'todo',
+      time: new Date().toLocaleTimeString('ru-RU')
+    });
+  }
+  renderKanban();
+}
+
+function clearKanban() {
+  kanbanData.tasks = [];
+  renderKanban();
+  var taskList = document.getElementById('kanban-task-list');
+  if (taskList) taskList.innerHTML = '<p style="color:var(--muted);font-size:12px;">Задачи появятся при запуске сборки проекта.</p>';
+}
+
+function exportKanban() {
+  var md = '# AI Team System — Канбан доска\n\n';
+  for (var col of kanbanData.columns) {
+    var colTasks = kanbanData.tasks.filter(t => t.status === col.id);
+    md += '## ' + col.title + '\n\n';
+    for (var task of colTasks) {
+      md += '- **' + task.agent + '**: ' + task.title;
+      if (task.time) md += ' (' + task.time + ')';
+      md += '\n';
+    }
+    md += '\n';
+  }
+  var blob = new Blob([md], { type: 'text/markdown' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a'); a.href = url; a.download = 'kanban-' + Date.now() + '.md'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// Auto-update kanban during build
+var originalSetAgentActive = setAgentActive;
+setAgentActive = function(agent) {
+  originalSetAgentActive(agent);
+  addKanbanTask(AGENT_LABELS[agent] || agent, 'Работает...', 'in_progress');
+};
+
+var originalSetAgentDone = setAgentDone;
+setAgentDone = function(agent) {
+  originalSetAgentDone(agent);
+  addKanbanTask(AGENT_LABELS[agent] || agent, 'Завершено', 'done');
+};
+
 
 </script>
 </body>
