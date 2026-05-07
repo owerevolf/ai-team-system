@@ -1913,6 +1913,7 @@ function switchTab(tabName) {
   document.querySelector('.input-area').style.display = isChat ? 'flex' : 'none';
   document.getElementById('chat-functions').style.display = isChat ? 'flex' : 'none';
   if (tabName === 'settings') loadSettings();
+  if (tabName === 'kanban') renderKanban();
 }
 
 var settingsData = null;
@@ -1923,9 +1924,10 @@ function loadSettings() {
   Promise.all([
     fetch('/api/providers?force_refresh=true').then(function(r) { return r.json(); }),
     fetch('/api/agents/config').then(function(r) { return r.json(); }),
-    fetch('/api/config').then(function(r) { return r.json(); })
+    fetch('/api/config').then(function(r) { return r.json(); }),
+    fetch('/api/health/providers').then(function(r) { return r.json(); }).catch(function() { return {}; })
   ]).then(function(results) {
-    settingsData = { providers: results[0], agents: results[1], config: results[2] };
+    settingsData = { providers: results[0], agents: results[1], config: results[2], health: results[3].health || {} };
     renderSettings();
   }).catch(function(e) {
     container.innerHTML = '<p style="color:#ef4444">Ошибка: ' + e.message + '</p>';
@@ -1937,6 +1939,7 @@ function renderSettings() {
   var providers = settingsData.providers;
   var agents = settingsData.agents;
   var config = settingsData.config;
+  var health = settingsData.health || {};
   var h = '<h2>⚙️ Настройки провайдеров</h2><p>Выбери провайдера и модели для каждого агента.</p>';
   
   // AI Mode toggle
@@ -1957,6 +1960,23 @@ function renderSettings() {
     h += '<div class="provider-card" onclick="selectProvider(\'' + pid + '\')" id="provider-card-' + pid + '"><div class="provider-name">' + info.name + '</div><div class="provider-desc">' + info.description + '</div><div class="provider-status ' + sc + '">' + st + ' · ' + info.free_models_count + ' бесплатных</div></div>';
   }
   h += '</div>';
+  // Provider health status
+  var health = settingsData.health || {};
+  h += '<h3 style="font-size:14px;margin:20px 0 12px;">\U0001f7a2 Здоровье провайдеров</h3>';
+  h += '<div style="margin-bottom:20px;">';
+  for (var pid in providers) {
+    var info = providers[pid];
+    var healthInfo = health[pid] || {};
+    var statusIcon = info.is_available ? '✅' : '❌';
+    var cooldownWarning = healthInfo.in_cooldown ? ' <span style="color:#facc15;">(cooldown)</span>' : '';
+    var failuresInfo = healthInfo.recent_failures ? ' <span style="color:#ef4444;">(' + healthInfo.recent_failures + ' ошибок)</span>' : '';
+    h += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:11px;">';
+    h += '<span>' + statusIcon + '</span>';
+    h += '<span style="color:var(--text);flex:1;">' + info.name + cooldownWarning + failuresInfo + '</span>';
+    h += '</div>';
+  }
+  h += '</div>';
+  
   h += '<h3 style="font-size:14px;margin:20px 0 12px;">🔑 API ключ</h3><div style="margin-bottom:20px;"><input type="password" id="api-key-input" placeholder="Вставь API ключ (sk-or-v1-...)" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-family:\'JetBrains Mono\',monospace;font-size:12px;"><p style="font-size:11px;color:var(--muted);margin-top:6px;">🔗 <a href="https://openrouter.ai/keys" target="_blank">Получить ключ OpenRouter</a> · 🔗 <a href="https://ollama.com/download" target="_blank">Установить Ollama</a></p></div>';
   // OmniRoute config
   var omnirouteUrl = config.omniroute_url || 'http://localhost:21000/v1';

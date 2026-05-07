@@ -908,6 +908,22 @@ async def call_mcp_tool(request: Request):
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
 
+@app.get("/api/health/providers")
+async def get_providers_health():
+    """Получить статистику здоровья провайдеров"""
+    try:
+        from core.model_router import ModelRouter
+        router = ModelRouter(profile=os.getenv("HARDWARE_PROFILE", "medium"))
+        health_stats = router.health.get_stats()
+        return JSONResponse({
+            "status": "ok",
+            "health": health_stats,
+            "priority": router.priority
+        })
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("web_ui.app:app", host="0.0.0.0", port=8000, reload=False)

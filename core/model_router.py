@@ -34,6 +34,69 @@ BASE_BACKOFF = 1.0
 # Минимальная длина ответа чтобы считать его валидным
 MIN_RESPONSE_LENGTH = 20
 
+# Время блокировки провайдера при ошибке (секунды)
+PROVIDER_COOLDOWN = {
+    "openrouter": 60,    # 1 минута при rate limit
+    "ollama": 30,        # 30 секунд
+    "omniroute": 60,
+    "default": 30
+}
+
+
+class ProviderHealth:
+    """Отслеживание состояния провайдеров для умного fallback"""
+    
+    def __init__(self):
+        self._failures: Dict[str, List[float]] = {}
+        self._cooldowns: Dict[str, float] = {}
+    
+    def record_failure(self, provider: str):
+        """Записать ошибку провайдера"""
+        now = time.time()
+        if provider not in self._failures:
+            self._failures[provider] = []
+        self._failures[provider].append(now)
+        # Оставляем только последние 10 ошибок
+        self._failures[provider] = self._failures[provider][-10:]
+    
+    def record_success(self, provider: str):
+        """Записать успех — сбрасываем ошибки"""
+        if provider in self._failures:
+            self._failures[provider] = []
+    
+    def is_healthy(self, provider: str) -> bool:
+        """Проверить здоровье провайдера"""
+        now = time.time()
+        # Проверяем cooldown
+        if provider in self._cooldowns:
+            if now < self._cooldowns[provider]:
+                return False
+            else:
+                del self._cooldowns[provider]
+        
+        # Проверяем количество ошибок за последние 5 минут
+        if provider in self._failures:
+            recent = [t for t in self._failures[provider] if now - t < 300]
+            if len(recent) >= 5:
+                # 5 ошибок за 5 минут — блокируем
+                cooldown = PROVIDER_COOLDOWN.get(provider, PROVIDER_COOLDOWN["default"])
+                self._cooldowns[provider] = now + cooldown
+                return False
+        
+        return True
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """Получить статистику здоровья провайдеров"""
+        now = time.time()
+        stats = {}
+        for provider in self._failures:
+            recent = [t for t in self._failures[provider] if now - t < 300]
+            stats[provider] = {
+                "recent_failures": len(recent),
+                "in_cooldown": provider in self._cooldowns and now < self._cooldowns.get(provider, 0)
+            }
+        return stats
+
 
 class RateLimiter:
     def __init__(self, max_requests: int = MAX_REQUESTS_PER_MIN, window_seconds: int = 60) -> None:
@@ -85,6 +148,7 @@ class ModelRouter:
         self.priority = self._get_priority()
         self.rate_limiter = RateLimiter()
         self.cache = ResponseCache()
+        self.health = ProviderHealth()
 
     def _init_providers(self) -> Dict[str, Dict[str, Any]]:
         return {
@@ -260,6 +324,10 @@ class ModelRouter:
                 continue
             if not self.providers.get(prov, {}).get("enabled", False):
                 continue
+            # Проверяем здоровье провайдера (smart fallback)
+            if not self.health.is_healthy(prov):
+                logger.info(f"{prov}: в cooldown, пропускаем")
+                continue
 
             tried.append(prov)
 
@@ -273,15 +341,18 @@ class ModelRouter:
 
                 if self._should_fallback(response):
                     logger.warning(f"{prov}: слабый ответ, fallback")
+                    self.health.record_failure(prov)
                     last_error = RuntimeError(f"Слабый ответ от {prov}")
                     continue
 
                 self.cache.set(prompt_hash, response)
+                self.health.record_success(prov)
                 logger.info(f"Ответ от {prov}" + (f"/{actual_model}" if actual_model else ""))
                 return response
 
             except Exception as e:
                 last_error = e
+                self.health.record_failure(prov)
                 logger.warning(f"Ошибка {prov}: {e}")
                 continue
 
