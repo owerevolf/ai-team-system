@@ -1,19 +1,36 @@
 services:
   ai-team:
-    build: .
-    network_mode: host
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
     volumes:
       - ./projects:/app/projects
-      - ~/.ai_team:/home/appuser/.ai_team
+      - ./data:/app/data
       - ./.env:/app/.env:ro
     environment:
-      - OLLAMA_BASE_URL=http://127.0.0.1:11434
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
-      - GROQ_API_KEY=${GROQ_API_KEY}
-      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
-      - GOOGLE_AI_STUDIO_KEY=${GOOGLE_AI_STUDIO_KEY}
-      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - AI_MODE=cloud
+      - HARDWARE_PROFILE=medium
+      - LOG_LEVEL=INFO
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+
+  # Optional: Ollama sidecar for local models
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
     deploy:
       resources:
         reservations:
@@ -21,11 +38,8 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
-    runtime: nvidia
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    restart: unless-stopped
+    profiles:
+      - local
+
+volumes:
+  ollama-data:

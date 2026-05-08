@@ -5,7 +5,7 @@
 ![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688.svg)
-![Tests](https://img.shields.io/badge/Tests-108%20passed-brightgreen.svg)
+![Tests](https://img.shields.io/badge/Tests-143%20passed-brightgreen.svg)
 
 ---
 
@@ -171,7 +171,7 @@ AI_MODE=local
 # Запуск всех тестов
 OLLAMA_BASE_URL="" AI_MODE=cloud HARDWARE_PROFILE=light PYTHONPATH=. pytest tests/ -v
 
-# Результат: 108 passed ✅
+# Результат: 143 passed ✅
 ```
 
 ---
@@ -206,12 +206,10 @@ ai-team-system/
 
 ## 🚀 Планы (v2.2+)
 
-- [ ] OmniRoute интеграция (облачные модели)
-- [ ] LOCAL ↔ CLOUD переключатель в UI
-- [ ] Kanban dashboard для отслеживания задач
-- [ ] MCP server support
-- [ ] Self-improving agents
-- [ ] Fallback цепочки (Ollama → Cloud) с автоматическим переключением
+- [ ] Webhooks для интеграции с GitHub/GitLab
+- [ ] Расширенная аналитика использования агентов
+- [ ] Поддержка пользовательских плагинов через UI
+- [ ] Мульти-языковая поддержка (i18n)
 
 ---
 

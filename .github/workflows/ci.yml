@@ -7,15 +7,15 @@ on:
     branches: [main]
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true  # убирает deprecation warning
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false  # не останавливать остальные версии если одна упала
+      fail-fast: false
       matrix:
-        python-version: ['3.11', '3.12']  # убрал 3.10 — он не нужен, 3.11 минимум для проекта
+        python-version: ['3.11', '3.12']
 
     steps:
       - uses: actions/checkout@v4
@@ -41,10 +41,10 @@ jobs:
 
       - name: Run tests
         run: |
-          PYTHONPATH=. pytest tests/ -v --tb=short --ignore=tests/test_integration.py -k "not test_init_heavy_profile"
+          PYTHONPATH=. pytest tests/ -v --tb=short --ignore=tests/test_integration.py
         env:
-          OLLAMA_BASE_URL: ""        # нет Ollama в CI — не падаем
-          AI_MODE: cloud             # в CI используем cloud mode
+          OLLAMA_BASE_URL: ""
+          AI_MODE: cloud
           HARDWARE_PROFILE: light
 
       - name: Check imports
@@ -53,7 +53,9 @@ jobs:
           try:
               from core.model_router import ModelRouter
               from core.agent_manager import AgentManager
-              print('imports OK')
+              from core.fallback_manager import FallbackManager
+              from core.mcp_server import MCPManager
+              print('All imports OK')
           except Exception as e:
               print(f'import warning: {e}')
           "
@@ -72,4 +74,4 @@ jobs:
         run: pip install ruff
 
       - name: Run ruff
-        run: ruff check core/ --ignore=F401,E501 || true
+        run: ruff check core/ tests/ --ignore=F401,E501 || true
