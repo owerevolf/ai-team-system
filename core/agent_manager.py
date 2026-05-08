@@ -77,7 +77,6 @@ class AgentManager:
     def set_self_improvement(self, enabled: bool):
         """Включить/выключить self-improvement агентов"""
         self._self_improvement_enabled = enabled
-        self.project_path = path
     
     def set_context(self, context):
         self.context = context
@@ -353,7 +352,7 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
             if self._self_improvement_enabled:
                 try:
                     self.memory.add(MemoryEntry(
-                        project_name=state.projectName if state else "unknown",
+                        project_name=self.context.project_name if self.context else "unknown",
                         agent=agent_name,
                         action="build",
                         result=response[:500],
@@ -373,7 +372,7 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
             if self._self_improvement_enabled:
                 try:
                     self.memory.add(MemoryEntry(
-                        project_name=state.projectName if state else "unknown",
+                        project_name=self.context.project_name if self.context else "unknown",
                         agent=agent_name,
                         action="build",
                         result="",
