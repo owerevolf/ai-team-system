@@ -71,3 +71,6 @@ new_cleanToolCall.js
 .idea/
 *.sublime-project
 *.sublime-workspace
+
+# Claude Code skills (duplicated in core/skills/)
+skill/

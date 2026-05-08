@@ -196,21 +196,28 @@ class AgentManager:
     def get_agent_prompt(self, agent_name: str, level: str = "advanced") -> str:
         """
         Загружает промт агента с учётом уровня пользователя.
+        Приоритет: core/skills/ (LVL99) > prompts/roles/ (level-specific) > _get_default_prompt
         level: zero | beginner | advanced
         """
-        # Сначала ищем файл с уровнем
-        level_file = self.prompts_dir / f"{agent_name}_{level}.md"
-        if level_file.exists():
-            return level_file.read_text(encoding='utf-8')
-        
-        # Fallback на обычный промт
+        # Для zero и beginner уровней используем специальные промпты
+        if level in ("zero", "beginner"):
+            level_file = self.prompts_dir / f"{agent_name}_{level}.md"
+            if level_file.exists():
+                return level_file.read_text(encoding='utf-8')
+
+        # Для advanced/standard используем LVL99 skill-промпты из core/skills/
+        skills_dir = Path(__file__).parent / "skills"
+        skill_file = skills_dir / f"{agent_name.upper()}_SKILL.md"
+        if skill_file.exists():
+            return skill_file.read_text(encoding='utf-8')
+
+        # Fallback на обычный промпт из prompts/roles/
         prompt_file = self.prompts_dir / f"{agent_name}.md"
         if prompt_file.exists():
             return prompt_file.read_text(encoding='utf-8')
-        
+
         self.logger.warning(f"Промпт для {agent_name} не найден")
         return self._get_default_prompt(agent_name)
-    
     def _get_default_prompt(self, agent_name: str) -> str:
         return f"""Ты - {agent_name} agent в AI Team System.
 Создавай РЕАЛЬНЫЙ рабочий код.
