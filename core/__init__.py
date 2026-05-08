@@ -27,8 +27,10 @@ from .learning_mode import LearningMode, LearningProgress, TutorialStep
 from .mode_switcher import ModeSwitcher, ModeConfig, MODES
 from .hardware_detector import HardwareDetector
 from .export_lesson import ExportLesson
+from .webhooks import webhook_manager, WebhookManager, WebhookSubscription, WebhookEvent
+from .analytics import analytics_manager, AnalyticsManager, AgentCallMetric
 
-__version__ = "2.0.0"
+__version__ = "2.1.0"
 __all__ = [
     "AITeamSystem",
     "AgentManager",
@@ -75,4 +77,8 @@ __all__ = [
     "MODES",
     "HardwareDetector",
     "ExportLesson",
+    "webhook_manager",
+    "WebhookManager",
+    "WebhookSubscription",
+    "WebhookEvent",
 ]

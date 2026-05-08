@@ -9,12 +9,13 @@ import json
 import uuid
 import queue
 import hashlib
+import hmac
+import asyncio
 import time
 import threading
-import asyncio
 from pathlib import Path
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -51,6 +52,9 @@ logger.add(BASE_DIR / ".logs" / "web_ui.log", rotation="10 MB", level="DEBUG", e
 
 sessions: Dict[str, Dict[str, Any]] = {}
 session_lock = threading.Lock()
+
+# Import webhook manager
+from core.webhooks import webhook_manager
 
 
 class AgentQueryRequest(BaseModel):
@@ -988,6 +992,156 @@ async def delete_kanban_task(task_id: int):
     db = Database()
     db.delete_kanban_task(task_id)
     return JSONResponse({"status": "deleted"})
+
+
+# ══════════════════════════════════════════
+#  WEBHOOKS API
+# ══════════════════════════════════════════
+
+
+@app.get("/api/webhooks")
+async def get_webhook_subscriptions():
+    """Получить все подписки на webhooks"""
+    return JSONResponse({
+        "subscriptions": webhook_manager.get_subscriptions(),
+        "stats": webhook_manager.get_stats(),
+    })
+
+
+class CreateWebhookRequest(BaseModel):
+    name: str
+    url: str
+    events: List[str]
+    secret: Optional[str] = None
+
+
+@app.post("/api/webhooks")
+async def create_webhook_subscription(req: CreateWebhookRequest):
+    """Создать подписку на webhook"""
+    sub_id = webhook_manager.create_subscription(
+        name=req.name, url=req.url, events=req.events, secret=req.secret
+    )
+    return JSONResponse({"id": sub_id, "status": "created"})
+
+
+@app.delete("/api/webhooks/{sub_id}")
+async def delete_webhook_subscription(sub_id: str):
+    """Удалить подписку на webhook"""
+    success = webhook_manager.delete_subscription(sub_id)
+    return JSONResponse({"status": "deleted" if success else "not_found"})
+
+
+@app.post("/api/webhooks/{sub_id}/receive")
+async def receive_webhook_event(sub_id: str, request: Request):
+    """Принять webhook event (для GitHub/GitLab/внешних сервисов)"""
+    body = await request.json()
+    payload = json.dumps(body).encode()
+    
+    # Get signature from headers (GitHub: X-Hub-Signature-256, GitLab: X-Gitlab-Token)
+    signature = (
+        request.headers.get("X-Hub-Signature-256") or
+        request.headers.get("X-Gitlab-Token") or
+        ""
+    )
+    event_type = (
+        request.headers.get("X-GitHub-Event") or
+        request.headers.get("X-Gitlab-Event") or
+        body.get("event_type", "unknown")
+    )
+    source_ip = request.client.host if request.client else ""
+    
+    result = webhook_manager.receive_event(
+        sub_id=sub_id, event_type=event_type, payload=body,
+        signature=signature, source_ip=source_ip
+    )
+    return JSONResponse(result)
+
+
+@app.get("/api/webhooks/events")
+async def get_webhook_events(limit: int = 20):
+    """Получить последние webhook events"""
+    return JSONResponse({"events": webhook_manager.get_recent_events(limit)})
+
+
+@app.get("/api/webhooks/stats")
+async def get_webhook_stats():
+    """Статистика webhooks"""
+    return JSONResponse(webhook_manager.get_stats())
+
+
+# ══════════════════════════════════════════
+#  ANALYTICS API
+# ══════════════════════════════════════════
+
+from core.analytics import analytics_manager
+
+
+@app.get("/api/analytics")
+async def get_analytics(hours: int = 24):
+    """Получить аналитику использования"""
+    return JSONResponse(analytics_manager.get_summary(hours))
+
+
+@app.get("/api/analytics/dashboard")
+async def get_analytics_dashboard():
+    """Получить данные для дашборда аналитики"""
+    return JSONResponse(analytics_manager.get_dashboard_data())
+
+
+@app.get("/api/analytics/hourly")
+async def get_analytics_hourly(hours: int = 24):
+    """Получить почасовую разбивку"""
+    return JSONResponse({"hourly": analytics_manager.get_hourly_breakdown(hours)})
+
+
+class RecordMetricRequest(BaseModel):
+    agent: str
+    model: str = "unknown"
+    provider: str = "unknown"
+    success: bool = True
+    duration_ms: float = 0
+    tokens_input: int = 0
+    tokens_output: int = 0
+    cost: float = 0.0
+    error: Optional[str] = None
+
+
+@app.post("/api/analytics/record")
+async def record_analytics_metric(req: RecordMetricRequest):
+    """Записать метрику вызова агента"""
+    from core.analytics import AgentCallMetric
+    metric = AgentCallMetric(
+        agent=req.agent, model=req.model, provider=req.provider,
+        success=req.success, duration_ms=req.duration_ms,
+        tokens_input=req.tokens_input, tokens_output=req.tokens_output,
+        cost=req.cost, error=req.error,
+    )
+    analytics_manager.record_call(metric)
+    return JSONResponse({"status": "recorded"})
+
+
+# ══════════════════════════════════════════
+#  i18n API
+# ══════════════════════════════════════════
+
+from core.i18n import t as translate, get_available_languages, set_default_lang
+
+
+@app.get("/api/i18n")
+async def get_translations(lang: str = "ru"):
+    """Получить переводы для языка"""
+    from core.i18n import _TRANSLATIONS
+    return JSONResponse({
+        "lang": lang,
+        "translations": _TRANSLATIONS.get(lang, {}),
+        "available": get_available_languages(),
+    })
+
+
+@app.get("/api/i18n/languages")
+async def get_languages():
+    """Получить список доступных языков"""
+    return JSONResponse({"languages": get_available_languages()})
 
 
 if __name__ == "__main__":
