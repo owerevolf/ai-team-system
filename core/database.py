@@ -81,6 +81,25 @@ class Database:
                 )
             """)
             
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS kanban_tasks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    project_id INTEGER,
+                    agent TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    description TEXT,
+                    status TEXT DEFAULT 'todo',
+                    priority TEXT DEFAULT 'medium',
+                    column_id TEXT DEFAULT 'todo',
+                    position INTEGER DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT,
+                    started_at TEXT,
+                    completed_at TEXT,
+                    FOREIGN KEY (project_id) REFERENCES projects(id)
+                )
+            """)
+            
             conn.commit()
             conn.close()
     
@@ -223,6 +242,76 @@ class Database:
         """Конвертация строки в словарь"""
         columns = [desc[0] for desc in cursor.description]
         return dict(zip(columns, row))
+    
+    # ══════════════════════════════════════
+    #  KANBAN TASKS
+    # ══════════════════════════════════════
+    
+    def create_kanban_task(self, agent: str, title: str, description: str = None,
+                          priority: str = "medium", column_id: str = "todo",
+                          project_id: int = None) -> int:
+        """Создание задачи канбан"""
+        with self.lock:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO kanban_tasks (project_id, agent, title, description, status, priority, column_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (project_id, agent, title, description, column_id, priority, column_id,
+                  datetime.now().isoformat()))
+            task_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+            return task_id
+    
+    def get_kanban_tasks(self, project_id: int = None, column_id: str = None) -> List[Dict]:
+        """Получение задач канбан"""
+        with self.lock:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            query = "SELECT * FROM kanban_tasks"
+            params = []
+            if project_id:
+                query += " WHERE project_id = ?"
+                params.append(project_id)
+            if column_id:
+                query += " AND column_id = ?" if "WHERE" in query else " WHERE column_id = ?"
+                params.append(column_id)
+            query += " ORDER BY position, created_at DESC"
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            conn.close()
+            return [self._row_to_dict(cursor, row, "kanban_tasks") for row in rows]
+    
+    def update_kanban_task(self, task_id: int, **kwargs) -> bool:
+        """Обновление задачи канбан"""
+        allowed = {"title", "description", "status", "priority", "column_id", "position"}
+        updates = {k: v for k, v in kwargs.items() if k in allowed}
+        if not updates:
+            return False
+        updates["updated_at"] = datetime.now().isoformat()
+        # Synchronize status with column_id if column_id changed
+        if "column_id" in updates and "status" not in updates:
+            updates["status"] = updates["column_id"]
+        with self.lock:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            set_clause = ", ".join(f"{k} = ?" for k in updates)
+            values = list(updates.values()) + [task_id]
+            cursor.execute(f"UPDATE kanban_tasks SET {set_clause} WHERE id = ?", values)
+            conn.commit()
+            conn.close()
+            return True
+    
+    def delete_kanban_task(self, task_id: int) -> bool:
+        """Удаление задачи канбан"""
+        with self.lock:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM kanban_tasks WHERE id = ?", (task_id,))
+            conn.commit()
+            conn.close()
+            return True
     
     def close(self):
         """Закрытие соединения"""

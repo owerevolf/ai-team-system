@@ -1029,6 +1029,7 @@ function switchTab(tabName) {
   document.querySelector('.input-area').style.display = isChat ? 'flex' : 'none';
   document.getElementById('chat-functions').style.display = isChat ? 'flex' : 'none';
   if (tabName === 'settings') loadSettings();
+  if (tabName === 'kanban') loadKanbanTasks();
   if (tabName === 'kanban') renderKanban();
 }
 
@@ -1236,7 +1237,10 @@ function exportChat() {
 
 function newProject() { clearChat(); switchTab('chat'); }
 
-// ── KANBAN ──
+// ══════════════════════════════════════════
+//  KANBAN — Full Implementation
+// ══════════════════════════════════════════
+
 var kanbanData = {
   columns: [
     { id: 'todo', title: '📋 Ожидание', color: '#6b6b7e' },
@@ -1244,62 +1248,386 @@ var kanbanData = {
     { id: 'done', title: '✅ Готово', color: '#4ade80' },
     { id: 'failed', title: '❌ Ошибка', color: '#ef4444' },
   ],
-  tasks: []
+  tasks: [],
+  filter: { agent: 'all', priority: 'all' },
+  draggedTask: null,
 };
+
+// ── API Integration ──
+
+async function loadKanbanTasks() {
+  try {
+    var r = await fetch('/api/kanban/tasks');
+    var d = await r.json();
+    kanbanData.tasks = d.tasks || [];
+    renderKanban();
+  } catch(e) {
+    console.error('Failed to load kanban tasks:', e);
+  }
+}
+
+async function apiCreateTask(agent, title, description, priority, column_id) {
+  try {
+    var r = await fetch('/api/kanban/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agent, title, description, priority, column_id })
+    });
+    var d = await r.json();
+    kanbanData.tasks.push({
+      id: d.id, agent, title, description,
+      status: column_id, priority, column_id,
+      created_at: new Date().toISOString()
+    });
+    renderKanban();
+    return d.id;
+  } catch(e) {
+    console.error('Failed to create task:', e);
+  }
+}
+
+async function apiUpdateTask(task_id, updates) {
+  try {
+    await fetch('/api/kanban/tasks/' + task_id, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates)
+    });
+    var task = kanbanData.tasks.find(t => t.id === task_id);
+    if (task) {
+      Object.assign(task, updates);
+      if (updates.column_id && !updates.status) {
+        task.status = updates.column_id;
+      }
+    }
+    renderKanban();
+  } catch(e) {
+    console.error('Failed to update task:', e);
+  }
+}
+
+async function apiDeleteTask(task_id) {
+  try {
+    await fetch('/api/kanban/tasks/' + task_id, { method: 'DELETE' });
+    kanbanData.tasks = kanbanData.tasks.filter(t => t.id !== task_id);
+    renderKanban();
+  } catch(e) {
+    console.error('Failed to delete task:', e);
+  }
+}
+
+// ── Rendering ──
 
 function renderKanban() {
   var board = document.getElementById('kanban-board');
   if (!board) return;
+  
+  // Apply filters
+  var filteredTasks = kanbanData.tasks.filter(function(t) {
+    if (kanbanData.filter.agent !== 'all' && t.agent !== kanbanData.filter.agent) return false;
+    if (kanbanData.filter.priority !== 'all' && t.priority !== kanbanData.filter.priority) return false;
+    return true;
+  });
+  
   var h = '';
   for (var col of kanbanData.columns) {
-    var colTasks = kanbanData.tasks.filter(t => t.status === col.id);
-    h += '<div class="kanban-column" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;min-height:200px;">';
+    var colTasks = filteredTasks.filter(t => t.column_id === col.id);
+    h += '<div class="kanban-column" data-column="' + col.id + '" ';
+    h += 'ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event, \'' + col.id + '\')">';
     h += '<div style="font-size:12px;font-weight:600;color:' + col.color + ';margin-bottom:12px;">' + col.title + ' (' + colTasks.length + ')</div>';
     for (var task of colTasks) {
-      h += '<div class="kanban-task" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px;font-size:11px;">';
-      h += '<div style="font-weight:600;color:var(--text);">' + task.agent + '</div>';
-      h += '<div style="color:var(--muted);margin-top:4px;">' + task.title + '</div>';
-      if (task.time) h += '<div style="color:var(--muted);margin-top:4px;font-size:10px;">⏱ ' + task.time + '</div>';
-      h += '</div>';
+      h += renderTaskCard(task);
     }
     h += '</div>';
   }
   board.innerHTML = h;
   
-  // Update task list
+  // Update task list below board
   var taskList = document.getElementById('kanban-task-list');
-  if (taskList && kanbanData.tasks.length > 0) {
-    var listHtml = '';
-    for (var task of kanbanData.tasks) {
-      var statusIcon = task.status === 'done' ? '✅' : task.status === 'in_progress' ? '🔄' : task.status === 'failed' ? '❌' : '📋';
-      listHtml += '<div style="display:flex;align-items:center;gap:8px;padding:8px;background:var(--surface);border-radius:6px;border:1px solid var(--border);">';
-      listHtml += '<span>' + statusIcon + '</span>';
-      listHtml += '<span style="font-size:12px;color:var(--text);flex:1;">' + task.agent + ': ' + task.title + '</span>';
-      if (task.time) listHtml += '<span style="font-size:10px;color:var(--muted);">' + task.time + '</span>';
-      listHtml += '</div>';
+  if (taskList) {
+    if (filteredTasks.length === 0) {
+      taskList.innerHTML = '<p style="color:var(--muted);font-size:12px;">Задачи появятся при запуске сборки проекта.</p>';
+    } else {
+      var listHtml = '';
+      for (var task of filteredTasks) {
+        var statusIcon = task.status === 'done' ? '✅' : task.status === 'in_progress' ? '🔄' : task.status === 'failed' ? '❌' : '📋';
+        listHtml += '<div style="display:flex;align-items:center;gap:8px;padding:8px;background:var(--surface);border-radius:6px;border:1px solid var(--border);">';
+        listHtml += '<span>' + statusIcon + '</span>';
+        listHtml += '<span style="font-size:12px;color:var(--text);flex:1;">' + task.agent + ': ' + task.title + '</span>';
+        if (task.priority) listHtml += '<span style="font-size:10px;color:var(--muted);">' + task.priority + '</span>';
+        listHtml += '</div>';
+      }
+      taskList.innerHTML = listHtml;
     }
-    taskList.innerHTML = listHtml;
+  }
+  
+  updateFilterOptions();
+}
+
+function renderTaskCard(task) {
+  var priorityColor = { high: '#ef4444', medium: '#facc15', low: '#4ade80' }[task.priority] || '#6b6b7e';
+  var h = '<div class="kanban-task" draggable="true" data-task-id="' + task.id + '" ';
+  h += 'ondragstart="onDragStart(event, ' + task.id + ')" ondragend="onDragEnd(event)" ';
+  h += 'onclick="openTaskModal(' + task.id + ')" ';
+  h += 'style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px;font-size:11px;cursor:pointer;transition:all .2s;">';
+  h += '<div style="display:flex;justify-content:space-between;align-items:flex-start;">';
+  h += '<div style="font-weight:600;color:var(--text);flex:1;">' + escHtml(task.agent) + '</div>';
+  h += '<div style="width:8px;height:8px;border-radius:50%;background:' + priorityColor + ';flex-shrink:0;margin-left:4px;margin-top:2px;" title="Priority: ' + task.priority + '"></div>';
+  h += '</div>';
+  h += '<div style="color:var(--muted);margin-top:4px;">' + escHtml(task.title) + '</div>';
+  if (task.description) {
+    h += '<div style="color:var(--muted);margin-top:2px;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escHtml(task.description.substring(0, 60)) + '</div>';
+  }
+  if (task.created_at) {
+    var dt = new Date(task.created_at);
+    h += '<div style="color:var(--muted);margin-top:4px;font-size:9px;">' + dt.toLocaleDateString('ru-RU') + '</div>';
+  }
+  h += '</div>';
+  return h;
+}
+
+// ── Drag and Drop ──
+
+function onDragStart(e, task_id) {
+  kanbanData.draggedTask = task_id;
+  e.target.style.opacity = '0.5';
+  e.dataTransfer.effectAllowed = 'move';
+}
+
+function onDragEnd(e) {
+  e.target.style.opacity = '1';
+  kanbanData.draggedTask = null;
+}
+
+function onDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  var column = e.currentTarget;
+  column.style.borderColor = 'var(--accent)';
+  column.style.background = 'rgba(124,110,245,0.05)';
+}
+
+function onDragLeave(e) {
+  var column = e.currentTarget;
+  column.style.borderColor = 'var(--border)';
+  column.style.background = 'var(--surface)';
+}
+
+function onDrop(e, column_id) {
+  e.preventDefault();
+  var column = e.currentTarget;
+  column.style.borderColor = 'var(--border)';
+  column.style.background = 'var(--surface)';
+  
+  var task_id = kanbanData.draggedTask;
+  if (task_id) {
+    apiUpdateTask(task_id, { column_id: column_id, status: column_id });
   }
 }
 
+// ── Task Modal (Edit/Create) ──
+
+function openTaskModal(task_id) {
+  var task = kanbanData.tasks.find(t => t.id === task_id);
+  if (!task) return;
+  
+  var modal = document.createElement('div');
+  modal.id = 'task-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:200;';
+  modal.onclick = function(e) { if (e.target === modal) closeTaskModal(); };
+  
+  var content = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;">';
+  content += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">';
+  content += '<h3 style="font-size:16px;color:var(--text);">✏️ Редактировать задачу</h3>';
+  content += '<button onclick="closeTaskModal()" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;">✕</button>';
+  content += '</div>';
+  
+  content += '<div style="margin-bottom:16px;"><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;">Агент</label>';
+  content += '<select id="modal-agent" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:12px;">';
+  var agents = ['teamlead','architect','backend','frontend','devops','tester','documentalist'];
+  for (var a of agents) {
+    content += '<option value="' + a + '"' + (task.agent === a ? ' selected' : '') + '>' + (AGENT_LABELS[a] || a) + '</option>';
+  }
+  content += '</select></div>';
+  
+  content += '<div style="margin-bottom:16px;"><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;">Название</label>';
+  content += '<input type="text" id="modal-title" value="' + escHtml(task.title) + '" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:12px;"></div>';
+  
+  content += '<div style="margin-bottom:16px;"><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;">Описание</label>';
+  content += '<textarea id="modal-desc" rows="3" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:12px;resize:vertical;">' + escHtml(task.description || '') + '</textarea></div>';
+  
+  content += '<div style="display:flex;gap:12px;margin-bottom:16px;">';
+  content += '<div style="flex:1;"><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;">Статус</label>';
+  content += '<select id="modal-status" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:12px;">';
+  for (var col of kanbanData.columns) {
+    content += '<option value="' + col.id + '"' + (task.column_id === col.id ? ' selected' : '') + '>' + col.title + '</option>';
+  }
+  content += '</select></div>';
+  
+  content += '<div style="flex:1;"><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;">Приоритет</label>';
+  content += '<select id="modal-priority" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:12px;">';
+  var priorities = [['high', '🔴 Высокий'], ['medium', '🟡 Средний'], ['low', '🟢 Низкий']];
+  for (var p of priorities) {
+    content += '<option value="' + p[0] + '"' + (task.priority === p[0] ? ' selected' : '') + '>' + p[1] + '</option>';
+  }
+  content += '</select></div></div>';
+  
+  content += '<div style="display:flex;gap:12px;">';
+  content += '<button onclick="saveTaskChanges(' + task.id + ')" class="btn-save" style="flex:1;">💾 Сохранить</button>';
+  content += '<button onclick="deleteTaskAndClose(' + task.id + ')" style="padding:10px 20px;border:1px solid #ef4444;border-radius:8px;background:transparent;color:#ef4444;font-size:12px;cursor:pointer;">🗑 Удалить</button>';
+  content += '</div></div>';
+  
+  modal.innerHTML = content;
+  document.body.appendChild(modal);
+}
+
+function closeTaskModal() {
+  var modal = document.getElementById('task-modal');
+  if (modal) modal.remove();
+}
+
+function saveTaskChanges(task_id) {
+  var updates = {
+    agent: document.getElementById('modal-agent').value,
+    title: document.getElementById('modal-title').value,
+    description: document.getElementById('modal-desc').value,
+    column_id: document.getElementById('modal-status').value,
+    priority: document.getElementById('modal-priority').value,
+  };
+  apiUpdateTask(task_id, updates);
+  closeTaskModal();
+}
+
+function deleteTaskAndClose(task_id) {
+  if (confirm('Удалить задачу?')) {
+    apiDeleteTask(task_id);
+    closeTaskModal();
+  }
+}
+
+// ── Filtering ──
+
+function updateFilterOptions() {
+  var agentFilter = document.getElementById('kanban-filter-agent');
+  var priorityFilter = document.getElementById('kanban-filter-priority');
+  if (!agentFilter || !priorityFilter) return;
+  
+  // Get unique agents from tasks
+  var agents = [...new Set(kanbanData.tasks.map(t => t.agent))];
+  var currentAgent = agentFilter.value;
+  agentFilter.innerHTML = '<option value="all">Все агенты</option>';
+  for (var a of agents) {
+    agentFilter.innerHTML += '<option value="' + a + '"' + (currentAgent === a ? ' selected' : '') + '>' + a + '</option>';
+  }
+  
+  var currentPriority = priorityFilter.value;
+  var priorities = [['all', 'Все'], ['high', '🔴 Высокий'], ['medium', '🟡 Средний'], ['low', '🟢 Низкий']];
+  priorityFilter.innerHTML = '';
+  for (var p of priorities) {
+    priorityFilter.innerHTML += '<option value="' + p[0] + '"' + (currentPriority === p[0] ? ' selected' : '') + '>' + p[1] + '</option>';
+  }
+}
+
+function applyKanbanFilter() {
+  kanbanData.filter.agent = document.getElementById('kanban-filter-agent').value;
+  kanbanData.filter.priority = document.getElementById('kanban-filter-priority').value;
+  renderKanban();
+}
+
+// ── Create New Task ──
+
+function openNewTaskModal() {
+  var modal = document.createElement('div');
+  modal.id = 'task-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:200;';
+  modal.onclick = function(e) { if (e.target === modal) closeTaskModal(); };
+  
+  var content = '<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;">';
+  content += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">';
+  content += '<h3 style="font-size:16px;color:var(--text);">➕ Новая задача</h3>';
+  content += '<button onclick="closeTaskModal()" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;">✕</button>';
+  content += '</div>';
+  
+  content += '<div style="margin-bottom:16px;"><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;">Агент</label>';
+  content += '<select id="modal-agent" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:12px;">';
+  var agents = ['teamlead','architect','backend','frontend','devops','tester','documentalist'];
+  for (var a of agents) {
+    content += '<option value="' + a + '>' + (AGENT_LABELS[a] || a) + '</option>';
+  }
+  content += '</select></div>';
+  
+  content += '<div style="margin-bottom:16px;"><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;">Название</label>';
+  content += '<input type="text" id="modal-title" placeholder="Что нужно сделать?" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:12px;"></div>';
+  
+  content += '<div style="margin-bottom:16px;"><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;">Описание</label>';
+  content += '<textarea id="modal-desc" rows="3" placeholder="Детали задачи..." style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:12px;resize:vertical;"></textarea></div>';
+  
+  content += '<div style="display:flex;gap:12px;margin-bottom:16px;">';
+  content += '<div style="flex:1;"><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;">Столбец</label>';
+  content += '<select id="modal-status" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:12px;">';
+  for (var col of kanbanData.columns) {
+    content += '<option value="' + col.id + '>' + col.title + '</option>';
+  }
+  content += '</select></div>';
+  
+  content += '<div style="flex:1;"><label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px;">Приоритет</label>';
+  content += '<select id="modal-priority" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:12px;">';
+  content += '<option value="medium">🟡 Средний</option>';
+  content += '<option value="high">🔴 Высокий</option>';
+  content += '<option value="low">🟢 Низкий</option>';
+  content += '</select></div></div>';
+  
+  content += '<button onclick="createNewTask()" class="btn-save" style="width:100%;">➕ Создать задачу</button>';
+  content += '</div>';
+  
+  modal.innerHTML = content;
+  document.body.appendChild(modal);
+}
+
+function createNewTask() {
+  var agent = document.getElementById('modal-agent').value;
+  var title = document.getElementById('modal-title').value.trim();
+  var desc = document.getElementById('modal-desc').value.trim();
+  var status = document.getElementById('modal-status').value;
+  var priority = document.getElementById('modal-priority').value;
+  
+  if (!title) {
+    alert('Введите название задачи');
+    return;
+  }
+  
+  apiCreateTask(agent, title, desc || null, priority, status);
+  closeTaskModal();
+}
+
+// ── Legacy helpers (for build automation) ──
+
 function addKanbanTask(agent, title, status) {
+  // Check if task already exists
   var existing = kanbanData.tasks.find(t => t.agent === agent && t.title === title);
   if (existing) {
     existing.status = status;
+    existing.column_id = status;
     existing.time = new Date().toLocaleTimeString('ru-RU');
   } else {
-    kanbanData.tasks.push({
+    var task = {
+      id: 'local_' + Date.now(),
       agent: agent,
       title: title,
       status: status || 'todo',
-      time: new Date().toLocaleTimeString('ru-RU')
-    });
+      column_id: status || 'todo',
+      priority: 'medium',
+      time: new Date().toLocaleTimeString('ru-RU'),
+      created_at: new Date().toISOString()
+    };
+    kanbanData.tasks.push(task);
   }
   renderKanban();
 }
 
 function clearKanban() {
-  kanbanData.tasks = [];
+  // Only clear local tasks (not API tasks)
+  kanbanData.tasks = kanbanData.tasks.filter(t => !t.id || typeof t.id !== 'number');
   renderKanban();
   var taskList = document.getElementById('kanban-task-list');
   if (taskList) taskList.innerHTML = '<p style="color:var(--muted);font-size:12px;">Задачи появятся при запуске сборки проекта.</p>';

@@ -56,15 +56,6 @@
         "description": "Laguna M.1 is the flagship coding agent model from [Poolside](https://poolside.ai), optimized for complex software engineering tasks. Designed for agentic coding workflows, it supports tool calling an"
       },
       {
-        "id": "inclusionai/ling-2.6-1t:free",
-        "name": "inclusionAI: Ling-2.6-1T (free)",
-        "provider": "openrouter",
-        "context_length": 262144,
-        "is_free": true,
-        "strength": "strong",
-        "description": "Ling-2.6-1T is an instant (instruct) model from inclusionAI and the company’s trillion-parameter flagship, designed for real-world agents that require fast execution and high efficiency at scale. It u"
-      },
-      {
         "id": "tencent/hy3-preview:free",
         "name": "Tencent: Hy3 preview (free)",
         "provider": "openrouter",
@@ -334,5 +325,5 @@
     "description": "Российский агрегатор AI моделей. Объединяет провайдеров в один API.",
     "models": []
   },
-  "_cached_at": 1778110760.1939318
+  "_cached_at": 1778226578.3004184
 }

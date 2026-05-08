@@ -924,6 +924,72 @@ async def get_providers_health():
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
 
+# ══════════════════════════════════════════
+#  KANBAN API ENDPOINTS
+# ══════════════════════════════════════════
+
+@app.get("/api/kanban/tasks")
+async def get_kanban_tasks(project_id: int = None, column_id: str = None):
+    """Получить задачи канбан"""
+    from core.database import Database
+    db = Database()
+    tasks = db.get_kanban_tasks(project_id=project_id, column_id=column_id)
+    return JSONResponse({"tasks": tasks, "total": len(tasks)})
+
+
+class CreateKanbanTaskRequest(BaseModel):
+    agent: str
+    title: str
+    description: Optional[str] = None
+    priority: Optional[str] = "medium"
+    column_id: Optional[str] = "todo"
+    project_id: Optional[int] = None
+
+
+@app.post("/api/kanban/tasks")
+async def create_kanban_task(req: CreateKanbanTaskRequest):
+    """Создать задачу канбан"""
+    from core.database import Database
+    db = Database()
+    task_id = db.create_kanban_task(
+        agent=req.agent,
+        title=req.title,
+        description=req.description,
+        priority=req.priority,
+        column_id=req.column_id,
+        project_id=req.project_id,
+    )
+    return JSONResponse({"id": task_id, "status": "created"})
+
+
+class UpdateKanbanTaskRequest(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None
+    priority: Optional[str] = None
+    column_id: Optional[str] = None
+    position: Optional[int] = None
+
+
+@app.patch("/api/kanban/tasks/{task_id}")
+async def update_kanban_task(task_id: int, req: UpdateKanbanTaskRequest):
+    """Обновить задачу канбан"""
+    from core.database import Database
+    db = Database()
+    updates = {k: v for k, v in req.dict().items() if v is not None}
+    success = db.update_kanban_task(task_id, **updates)
+    return JSONResponse({"status": "updated" if success else "no_changes"})
+
+
+@app.delete("/api/kanban/tasks/{task_id}")
+async def delete_kanban_task(task_id: int):
+    """Удалить задачу канбан"""
+    from core.database import Database
+    db = Database()
+    db.delete_kanban_task(task_id)
+    return JSONResponse({"status": "deleted"})
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("web_ui.app:app", host="0.0.0.0", port=8000, reload=False)
