@@ -5,14 +5,14 @@ AI Team System Web UI — FastAPI приложение с SSE-стриминго
 
 import os
 import sys
+import time
+import threading
 import json
 import uuid
 import queue
 import hashlib
 import hmac
 import asyncio
-import time
-import threading
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Dict, Any, List
@@ -307,7 +307,6 @@ async def get_progress(session_id: str) -> JSONResponse:
     if not sess:
         raise HTTPException(status_code=404, detail="Сессия не найдена")
 
-    from core.learning_mode import LearningMode
     lm = LearningMode()
     progress = lm.get_progress_report()
     return JSONResponse(progress)
@@ -326,7 +325,6 @@ async def agent_query(req: AgentQueryRequest) -> AgentQueryResponse:
 
     prompt_hash = hashlib.sha256(f"{prompt}:{beginner}".encode()).hexdigest()[:12]
 
-    from core.model_router import ModelRouter
     router = ModelRouter(profile=profile, beginner_mode=beginner)
 
     cached = router.get_cached(prompt_hash)
@@ -386,7 +384,6 @@ def _parse_and_write_files(response: str, project_dir: Path) -> list:
     Устойчив к обрезанному JSON — модель часто не успевает
     закрыть все скобки из-за лимита токенов.
     """
-    import re
     created = []
 
     def try_write(path_str: str, content: str) -> bool:
@@ -481,7 +478,6 @@ async def teamlead_query(req: CreateProjectRequest):
         query_with_level = f"{level_hint}\n\n{full_query}"
 
         from core.agent_manager import AgentManager
-        from core.model_router import ModelRouter
         router = ModelRouter(profile=os.getenv("HARDWARE_PROFILE", "medium"))
         manager = AgentManager(model_router=router)
 
@@ -537,8 +533,6 @@ async def create_project_stream(req: CreateProjectRequest):
         all_files = []
 
         # Инициализируем AgentManager и ModelRouter один раз
-        from core.agent_manager import AgentManager
-        from core.model_router import ModelRouter
         router = ModelRouter(profile=os.getenv("HARDWARE_PROFILE", "medium"))
         manager = AgentManager(model_router=router)
         # Передаём папку проекта — теперь агенты сами пишут файлы
@@ -573,7 +567,6 @@ async def create_project_stream(req: CreateProjectRequest):
 
         # Экспорт markdown
         try:
-            from core.export_lesson import ExportLesson
             exporter = ExportLesson()
             exporter.generate([{"type": "project", "data": results}], req.project_name)
         except Exception:
@@ -589,7 +582,6 @@ async def create_project_stream(req: CreateProjectRequest):
 @app.get("/api/download/{filename}")
 async def download_file(filename: str):
     """Скачать Markdown-результат проекта"""
-    from core.export_lesson import ExportLesson
     exporter = ExportLesson()
     lessons = exporter.list_lessons()
     
@@ -696,7 +688,6 @@ async def get_agents_config():
     - доступные модели для каждой роли
     """
     from core.agent_skills import list_agents, AGENT_SKILL_MAP
-    from core.model_registry import get_free_models
 
     agents = list_agents()
 
@@ -905,7 +896,6 @@ async def call_mcp_tool(request: Request):
     arguments = body.get("arguments", {})
     
     try:
-        from core.mcp_server import mcp_manager
         result = await mcp_manager.call_tool(server_name, tool_name, arguments)
         return JSONResponse({"status": "ok", "result": result})
     except Exception as e:
@@ -916,7 +906,6 @@ async def call_mcp_tool(request: Request):
 async def get_providers_health():
     """Получить статистику здоровья провайдеров"""
     try:
-        from core.model_router import ModelRouter
         router = ModelRouter(profile=os.getenv("HARDWARE_PROFILE", "medium"))
         health_stats = router.health.get_stats()
         return JSONResponse({
@@ -953,7 +942,6 @@ class CreateKanbanTaskRequest(BaseModel):
 @app.post("/api/kanban/tasks")
 async def create_kanban_task(req: CreateKanbanTaskRequest):
     """Создать задачу канбан"""
-    from core.database import Database
     db = Database()
     task_id = db.create_kanban_task(
         agent=req.agent,
@@ -978,7 +966,6 @@ class UpdateKanbanTaskRequest(BaseModel):
 @app.patch("/api/kanban/tasks/{task_id}")
 async def update_kanban_task(task_id: int, req: UpdateKanbanTaskRequest):
     """Обновить задачу канбан"""
-    from core.database import Database
     db = Database()
     updates = {k: v for k, v in req.dict().items() if v is not None}
     success = db.update_kanban_task(task_id, **updates)
@@ -988,7 +975,6 @@ async def update_kanban_task(task_id: int, req: UpdateKanbanTaskRequest):
 @app.delete("/api/kanban/tasks/{task_id}")
 async def delete_kanban_task(task_id: int):
     """Удалить задачу канбан"""
-    from core.database import Database
     db = Database()
     db.delete_kanban_task(task_id)
     return JSONResponse({"status": "deleted"})
@@ -1142,6 +1128,124 @@ async def get_translations(lang: str = "ru"):
 async def get_languages():
     """Получить список доступных языков"""
     return JSONResponse({"languages": get_available_languages()})
+
+
+# ══════════════════════════════════════════
+#  CODERCHAT API
+# ══════════════════════════════════════════
+
+# Store active chat sessions
+chat_sessions: Dict[str, Dict[str, Any]] = {}
+
+
+class InitChatRequest(BaseModel):
+    project_path: Optional[str] = None
+    project_name: Optional[str] = None
+
+
+@app.post("/api/coderchat/init")
+async def init_coder_chat(req: InitChatRequest):
+    """Инициализировать CoderChat сессию"""
+    from core.coder_chat import CoderChatAgent
+    
+    session_id = f"chat_{int(time.time())}"
+    
+    # Default project path
+    project_path = req.project_path or str(BASE_DIR / "projects" / "coderchat_default")
+    project_name = req.project_name or "coderchat_project"
+    
+    # Create agent
+    router = ModelRouter(profile=os.getenv("HARDWARE_PROFILE", "medium"))
+    agent = CoderChatAgent(model_router=router)
+    agent.init_project(project_path, project_name)
+    
+    chat_sessions[session_id] = {
+        "agent": agent,
+        "project_path": project_path,
+        "project_name": project_name,
+        "created_at": datetime.now().isoformat(),
+    }
+    
+    return JSONResponse({
+        "session_id": session_id,
+        "project_path": project_path,
+        "project_name": project_name,
+        "file_tree": agent.get_file_tree_display().split('\n')[:30],
+        "tech_stack": agent.project.tech_stack if agent.project else [],
+    })
+
+
+class ChatMessageRequest(BaseModel):
+    session_id: str
+    message: str
+
+
+@app.post("/api/coderchat/message")
+async def send_chat_message(req: ChatMessageRequest):
+    """Отправить сообщение в чат"""
+    session = chat_sessions.get(req.session_id)
+    if not session:
+        return JSONResponse({"error": "Session not found"}, status_code=404)
+    
+    agent: CoderChatAgent = session["agent"]
+    result = await agent.process_message(req.message)
+    
+    return JSONResponse(result)
+
+
+@app.get("/api/coderchat/history/{session_id}")
+async def get_chat_history(session_id: str):
+    """Получить историю чата"""
+    session = chat_sessions.get(session_id)
+    if not session:
+        return JSONResponse({"error": "Session not found"}, status_code=404)
+    
+    agent: CoderChatAgent = session["agent"]
+    return JSONResponse({
+        "messages": [
+            {"role": m.role, "content": m.content, "timestamp": m.timestamp}
+            for m in agent.messages
+        ],
+        "stats": agent.get_stats(),
+    })
+
+
+@app.get("/api/coderchat/files/{session_id}")
+async def get_project_files(session_id: str):
+    """Получить структуру файлов проекта"""
+    session = chat_sessions.get(session_id)
+    if not session:
+        return JSONResponse({"error": "Session not found"}, status_code=404)
+    
+    agent: CoderChatAgent = session["agent"]
+    return JSONResponse({
+        "file_tree": agent.get_file_tree_display().split('\n'),
+        "project_path": session["project_path"],
+    })
+
+
+@app.get("/api/coderchat/file/{session_id}")
+async def read_project_file(session_id: str, path: str):
+    """Прочитать файл проекта"""
+    session = chat_sessions.get(session_id)
+    if not session:
+        return JSONResponse({"error": "Session not found"}, status_code=404)
+    
+    agent: CoderChatAgent = session["agent"]
+    content = agent.read_project_file(path)
+    
+    if content is None:
+        return JSONResponse({"error": "File not found"}, status_code=404)
+    
+    return JSONResponse({"path": path, "content": content})
+
+
+@app.delete("/api/coderchat/{session_id}")
+async def delete_chat_session(session_id: str):
+    """Удалить сессию чата"""
+    if session_id in chat_sessions:
+        del chat_sessions[session_id]
+    return JSONResponse({"status": "deleted"})
 
 
 if __name__ == "__main__":

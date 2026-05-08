@@ -29,6 +29,7 @@ from .hardware_detector import HardwareDetector
 from .export_lesson import ExportLesson
 from .webhooks import webhook_manager, WebhookManager, WebhookSubscription, WebhookEvent
 from .analytics import analytics_manager, AnalyticsManager, AgentCallMetric
+from .coder_chat import CoderChatAgent, FileTools, ProjectContext, ChatMessage, FileAction
 
 __version__ = "2.1.0"
 __all__ = [

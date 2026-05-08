@@ -1698,6 +1698,127 @@ function addMcpServer() {
   });
 }
 
+
+// ══════════════════════════════════════════
+//  CODER CHAT
+// ══════════════════════════════════════════
+
+var coderSessionId = null;
+var coderProjectPath = null;
+
+function initCoderChat() {
+  var projectName = document.getElementById('coder-project-name').value.trim() || 'my_project';
+  
+  fetch('/api/coderchat/init', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ project_name: projectName })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.session_id) {
+      coderSessionId = data.session_id;
+      coderProjectPath = data.project_path;
+      document.getElementById('coder-init').style.display = 'none';
+      document.getElementById('coder-chat-container').style.display = 'block';
+      updateCoderFileTree(data.file_tree);
+      updateCoderStats(data);
+      addCoderMessage('system', 'Проект "' + projectName + '" инициализирован. Технологии: ' + (data.tech_stack || []).join(', ') + '. Спросите меня о чём угодно!');
+    } else {
+      alert('Ошибка: ' + (data.error || 'не удалось инициализировать'));
+    }
+  })
+  .catch(function(e) { alert('Ошибка: ' + e.message); });
+}
+
+function sendCoderMessage() {
+  var input = document.getElementById('coder-input');
+  var message = input.value.trim();
+  if (!message || !coderSessionId) return;
+  input.value = '';
+  addCoderMessage('user', message);
+  showCoderTyping();
+  fetch('/api/coderchat/message', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: coderSessionId, message: message })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    hideCoderTyping();
+    if (data.response) addCoderMessage('assistant', data.response, data.file_actions);
+    else if (data.error) addCoderMessage('system', '⚠️ Ошибка: ' + data.error);
+    if (data.file_actions && data.file_actions.length > 0) refreshCoderFiles();
+  })
+  .catch(function(e) { hideCoderTyping(); addCoderMessage('system', '⚠️ Ошибка: ' + e.message); });
+}
+
+function addCoderMessage(role, content, fileActions) {
+  var container = document.getElementById('coder-messages');
+  var placeholder = container.querySelector('p[style*="text-align:center"]');
+  if (placeholder) placeholder.remove();
+  var msgDiv = document.createElement('div');
+  var bg = role === 'user' ? 'rgba(124,110,245,.15)' : role === 'assistant' ? 'var(--surface)' : 'rgba(107,107,126,.1)';
+  var border = role === 'user' ? 'rgba(124,110,245,.3)' : 'var(--border)';
+  var align = role === 'user' ? 'flex-end' : 'flex-start';
+  msgDiv.style.cssText = 'background:' + bg + ';border:1px solid ' + border + ';border-radius:12px;padding:12px 16px;max-width:85%;align-self:' + align + ';';
+  var header = role === 'user' ? '<div style="font-size:10px;color:var(--accent);margin-bottom:4px;">👤 Вы</div>' :
+               role === 'assistant' ? '<div style="font-size:10px;color:var(--success);margin-bottom:4px;">🤖 CoderChat</div>' :
+               '<div style="font-size:10px;color:var(--muted);margin-bottom:4px;">⚙️ Система</div>';
+  msgDiv.innerHTML = header + formatCoderMessage(content);
+  if (fileActions && fileActions.length > 0) {
+    var ad = document.createElement('div');
+    ad.style.cssText = 'margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:10px;color:var(--muted);';
+    for (var a of fileActions) ad.innerHTML += '<div>' + (a.action === 'create' ? '📄' : '✏️') + ' ' + a.path + '</div>';
+    msgDiv.appendChild(ad);
+  }
+  container.appendChild(msgDiv);
+  container.scrollTop = container.scrollHeight;
+}
+
+function formatCoderMessage(text) {
+  if (!text) return '';
+  return text
+    .replace(/```(\w*)\n([\s\S]*?)```/g, '<div class="code-block"><strong>$1</strong><br><pre style="margin:0;white-space:pre-wrap;">$2</pre></div>')
+    .replace(/`([^`]+)`/g, '<code style="background:rgba(124,110,245,.1);padding:2px 6px;border-radius:4px;font-size:11px;">$1</code>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n/g, '<br>');
+}
+
+function showCoderTyping() {
+  var c = document.getElementById('coder-messages');
+  var t = document.createElement('div');
+  t.id = 'coder-typing';
+  t.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 16px;align-self:flex-start;';
+  t.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
+  c.appendChild(t);
+  c.scrollTop = c.scrollHeight;
+}
+
+function hideCoderTyping() { var t = document.getElementById('coder-typing'); if (t) t.remove(); }
+
+function updateCoderFileTree(tree) { var d = document.getElementById('coder-file-tree'); if (d && tree) d.textContent = tree.join('\n'); }
+
+function updateCoderStats(data) {
+  var d = document.getElementById('coder-stats');
+  if (d) d.innerHTML = 'Проект: ' + (data.project_name || '-') + '<br>Файлов: ' + (data.file_tree ? data.file_tree.length : 0) + '<br>Стек: ' + (data.tech_stack || []).join(', ');
+}
+
+function refreshCoderFiles() {
+  if (!coderSessionId) return;
+  fetch('/api/coderchat/files/' + coderSessionId)
+    .then(function(r) { return r.json(); })
+    .then(function(data) { if (data.file_tree) updateCoderFileTree(data.file_tree); })
+    .catch(function() {});
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.target && e.target.id === 'coder-input' && e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendCoderMessage();
+  }
+});
+
 function reloadMcpServers() {
   var status = document.getElementById('settings-status');
   status.textContent = 'Перезагрузка...';
@@ -1712,3 +1833,124 @@ function reloadMcpServers() {
     status.innerHTML = '<span style="color:#ef4444;">❌ Ошибка: ' + e.message + '</span>';
   });
 }
+
+
+// ══════════════════════════════════════════
+//  CODER CHAT
+// ══════════════════════════════════════════
+
+var coderSessionId = null;
+var coderProjectPath = null;
+
+function initCoderChat() {
+  var projectName = document.getElementById('coder-project-name').value.trim() || 'my_project';
+  
+  fetch('/api/coderchat/init', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ project_name: projectName })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    if (data.session_id) {
+      coderSessionId = data.session_id;
+      coderProjectPath = data.project_path;
+      document.getElementById('coder-init').style.display = 'none';
+      document.getElementById('coder-chat-container').style.display = 'block';
+      updateCoderFileTree(data.file_tree);
+      updateCoderStats(data);
+      addCoderMessage('system', 'Проект "' + projectName + '" инициализирован. Технологии: ' + (data.tech_stack || []).join(', ') + '. Спросите меня о чём угодно!');
+    } else {
+      alert('Ошибка: ' + (data.error || 'не удалось инициализировать'));
+    }
+  })
+  .catch(function(e) { alert('Ошибка: ' + e.message); });
+}
+
+function sendCoderMessage() {
+  var input = document.getElementById('coder-input');
+  var message = input.value.trim();
+  if (!message || !coderSessionId) return;
+  input.value = '';
+  addCoderMessage('user', message);
+  showCoderTyping();
+  fetch('/api/coderchat/message', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: coderSessionId, message: message })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    hideCoderTyping();
+    if (data.response) addCoderMessage('assistant', data.response, data.file_actions);
+    else if (data.error) addCoderMessage('system', '⚠️ Ошибка: ' + data.error);
+    if (data.file_actions && data.file_actions.length > 0) refreshCoderFiles();
+  })
+  .catch(function(e) { hideCoderTyping(); addCoderMessage('system', '⚠️ Ошибка: ' + e.message); });
+}
+
+function addCoderMessage(role, content, fileActions) {
+  var container = document.getElementById('coder-messages');
+  var placeholder = container.querySelector('p[style*="text-align:center"]');
+  if (placeholder) placeholder.remove();
+  var msgDiv = document.createElement('div');
+  var bg = role === 'user' ? 'rgba(124,110,245,.15)' : role === 'assistant' ? 'var(--surface)' : 'rgba(107,107,126,.1)';
+  var border = role === 'user' ? 'rgba(124,110,245,.3)' : 'var(--border)';
+  var align = role === 'user' ? 'flex-end' : 'flex-start';
+  msgDiv.style.cssText = 'background:' + bg + ';border:1px solid ' + border + ';border-radius:12px;padding:12px 16px;max-width:85%;align-self:' + align + ';';
+  var header = role === 'user' ? '<div style="font-size:10px;color:var(--accent);margin-bottom:4px;">👤 Вы</div>' :
+               role === 'assistant' ? '<div style="font-size:10px;color:var(--success);margin-bottom:4px;">🤖 CoderChat</div>' :
+               '<div style="font-size:10px;color:var(--muted);margin-bottom:4px;">⚙️ Система</div>';
+  msgDiv.innerHTML = header + formatCoderMessage(content);
+  if (fileActions && fileActions.length > 0) {
+    var ad = document.createElement('div');
+    ad.style.cssText = 'margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:10px;color:var(--muted);';
+    for (var a of fileActions) ad.innerHTML += '<div>' + (a.action === 'create' ? '📄' : '✏️') + ' ' + a.path + '</div>';
+    msgDiv.appendChild(ad);
+  }
+  container.appendChild(msgDiv);
+  container.scrollTop = container.scrollHeight;
+}
+
+function formatCoderMessage(text) {
+  if (!text) return '';
+  return text
+    .replace(/```(\w*)\n([\s\S]*?)```/g, '<div class="code-block"><strong>$1</strong><br><pre style="margin:0;white-space:pre-wrap;">$2</pre></div>')
+    .replace(/`([^`]+)`/g, '<code style="background:rgba(124,110,245,.1);padding:2px 6px;border-radius:4px;font-size:11px;">$1</code>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n/g, '<br>');
+}
+
+function showCoderTyping() {
+  var c = document.getElementById('coder-messages');
+  var t = document.createElement('div');
+  t.id = 'coder-typing';
+  t.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 16px;align-self:flex-start;';
+  t.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
+  c.appendChild(t);
+  c.scrollTop = c.scrollHeight;
+}
+
+function hideCoderTyping() { var t = document.getElementById('coder-typing'); if (t) t.remove(); }
+
+function updateCoderFileTree(tree) { var d = document.getElementById('coder-file-tree'); if (d && tree) d.textContent = tree.join('\n'); }
+
+function updateCoderStats(data) {
+  var d = document.getElementById('coder-stats');
+  if (d) d.innerHTML = 'Проект: ' + (data.project_name || '-') + '<br>Файлов: ' + (data.file_tree ? data.file_tree.length : 0) + '<br>Стек: ' + (data.tech_stack || []).join(', ');
+}
+
+function refreshCoderFiles() {
+  if (!coderSessionId) return;
+  fetch('/api/coderchat/files/' + coderSessionId)
+    .then(function(r) { return r.json(); })
+    .then(function(data) { if (data.file_tree) updateCoderFileTree(data.file_tree); })
+    .catch(function() {});
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.target && e.target.id === 'coder-input' && e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendCoderMessage();
+  }
+});
