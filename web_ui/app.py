@@ -1150,17 +1150,21 @@ class InitChatRequest(BaseModel):
 async def init_coder_chat(req: InitChatRequest):
     """Инициализировать CoderChat сессию"""
     from core.coder_chat import CoderChatAgent
-    
+    from core.model_router import ModelRouter
+
     session_id = f"chat_{int(time.time())}"
-    
+
     # Default project path
     project_path = req.project_path or str(BASE_DIR / "projects" / "coderchat_default")
     project_name = req.project_name or "coderchat_project"
-    
+
     # Create agent
     router = ModelRouter(profile=os.getenv("HARDWARE_PROFILE", "medium"))
     agent = CoderChatAgent(model_router=router)
-    agent.init_project(project_path, project_name)
+    try:
+        agent.init_project(project_path, project_name)
+    except Exception as e:
+        return JSONResponse({"error": f"Failed to init project: {e}"}, status_code=500)
     
     chat_sessions[session_id] = {
         "agent": agent,
