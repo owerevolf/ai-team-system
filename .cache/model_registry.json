@@ -11,6 +11,15 @@
     "description": "Единый API для 100+ моделей. Бесплатные модели доступны без подписки.",
     "models": [
       {
+        "id": "inclusionai/ring-2.6-1t:free",
+        "name": "inclusionAI: Ring-2.6-1T (free)",
+        "provider": "openrouter",
+        "context_length": 262144,
+        "is_free": true,
+        "strength": "strong",
+        "description": "Ring-2.6-1T is a 1T-parameter-scale thinking model with 63B active parameters, built for real-world agent workflows that require both strong capability and operational efficiency. It is optimized for "
+      },
+      {
         "id": "baidu/cobuddy:free",
         "name": "Baidu Qianfan: CoBuddy (free)",
         "provider": "openrouter",
@@ -54,15 +63,6 @@
         "is_free": true,
         "strength": "general",
         "description": "Laguna M.1 is the flagship coding agent model from [Poolside](https://poolside.ai), optimized for complex software engineering tasks. Designed for agentic coding workflows, it supports tool calling an"
-      },
-      {
-        "id": "tencent/hy3-preview:free",
-        "name": "Tencent: Hy3 preview (free)",
-        "provider": "openrouter",
-        "context_length": 262144,
-        "is_free": true,
-        "strength": "strong",
-        "description": "Hy3 preview is a high-efficiency Mixture-of-Experts model from Tencent designed for agentic workflows and production use. It supports configurable reasoning levels across disabled, low, and high modes"
       },
       {
         "id": "baidu/qianfan-ocr-fast:free",
@@ -325,5 +325,5 @@
     "description": "Российский агрегатор AI моделей. Объединяет провайдеров в один API.",
     "models": []
   },
-  "_cached_at": 1778226578.3004184
+  "_cached_at": 1778424933.3232205
 }

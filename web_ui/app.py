@@ -1268,6 +1268,7 @@ class PAMessageRequest(BaseModel):
 async def init_prompt_architect(req: PAInitRequest):
     """Инициализировать сессию Prompt Architect."""
     from core.prompt_architect import PromptArchitectAgent
+    from core.model_router import ModelRouter
 
     session_id = f"pa_{int(time.time())}"
 

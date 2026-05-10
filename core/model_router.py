@@ -334,8 +334,10 @@ class ModelRouter:
             try:
                 # Для Ollama — модель из конфига или дефолтная
                 actual_model = target_model
-                if prov == "ollama" and not actual_model:
-                    actual_model = self.ollama_model
+                if prov == "ollama":
+                    # Если модель от другого провайдера (содержит /), используем дефолтную Ollama модель
+                    if not actual_model or "/" in actual_model:
+                        actual_model = self.ollama_model
 
                 response = self._call_provider(prov, prompt, actual_model)
 
