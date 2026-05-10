@@ -4,6 +4,7 @@ AI Team System Web UI — FastAPI приложение с SSE-стриминго
 """
 
 import os
+import re
 import sys
 import time
 import threading
