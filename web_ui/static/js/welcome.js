@@ -1021,7 +1021,8 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 function switchTab(tabName) {
   document.querySelectorAll('.tab-content').forEach(function(el) { el.classList.remove('active'); });
   document.querySelectorAll('.tab-btn').forEach(function(el) { el.classList.remove('active'); });
-  document.getElementById('tab-' + tabName).classList.add('active');
+  var tabEl = document.getElementById('tab-' + tabName);
+  if (tabEl) tabEl.classList.add('active');
   document.getElementById('tab-btn-' + tabName).classList.add('active');
   var isChat = tabName === 'chat';
   document.getElementById('agents-bar').style.display = isChat ? 'flex' : 'none';

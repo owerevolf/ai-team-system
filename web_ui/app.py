@@ -688,6 +688,7 @@ async def get_agents_config():
     - доступные модели для каждой роли
     """
     from core.agent_skills import list_agents, AGENT_SKILL_MAP
+    from core.model_registry import get_free_models
 
     agents = list_agents()
 
