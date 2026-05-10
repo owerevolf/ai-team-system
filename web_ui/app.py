@@ -908,6 +908,7 @@ async def call_mcp_tool(request: Request):
 async def get_providers_health():
     """Получить статистику здоровья провайдеров"""
     try:
+        from core.model_router import ModelRouter
         router = ModelRouter(profile=os.getenv("HARDWARE_PROFILE", "medium"))
         health_stats = router.health.get_stats()
         return JSONResponse({
