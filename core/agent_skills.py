@@ -69,6 +69,14 @@ AGENT_SKILL_MAP = {
         "description": "Документация, README, комментарии",
         "skill_file": "DOCUMENTALIST_SKILL.md",
     },
+    "prompt_architect": {
+        "preferred_strength": "reasoning",
+        "min_context": 65536,
+        "fallback_strengths": ["strong", "general"],
+        "temperature": 0.7,
+        "description": "Обучалка промтов — учит собирать мысли, контекст, ТЗ",
+        "skill_file": "PROMPT_ARCHITECT_SKILL.md",
+    },
 }
 
 

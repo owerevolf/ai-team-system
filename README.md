@@ -1,11 +1,11 @@
-# 🤖 AI Team System v2.1
+# 🤖 AI Team System v2.2
 
-**Мультиагентная платформа разработки ПО** — 7 AI-агентов создают проекты с нуля, объясняя каждый шаг.
+**Мультиагентная платформа разработки ПО** — 8 AI-агентов создают проекты с нуля, объясняя каждый шаг.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688.svg)
-![Tests](https://img.shields.io/badge/Tests-171%20passed-brightgreen.svg)
+![Tests](https://img.shields.io/badge/Tests-193%20passed-brightgreen.svg)
 
 ---
 
@@ -33,8 +33,9 @@ scripts\install.ps1
 | Фича | Описание |
 |------|----------|
 | 🎓 Режим обучения | 5-шаговый тур с аналогиями из жизни |
-| 🤖 7 AI-агентов | TeamLead, Architect, Backend, Frontend, DevOps, Tester, Documentalist |
-| 🧠 Авто-детект железа | Выбор модели по VRAM/RAM (4b/8b/14b) |
+|| 🤖 8 AI-агентов | TeamLead, Architect, Backend, Frontend, DevOps, Tester, Documentalist, Prompt Architect |
+|| 🧠 Обучалка промтов | Prompt Architect учит собирать мысли, контекст, ТЗ и промты |
+|| 🧠 Авто-детект железа | Выбор модели по VRAM/RAM (4b/8b/14b) |
 | 💬 Оффлайн-первый | Работает через Ollama без интернета |
 | ☁️ Мульти-провайдер | OpenRouter, Ollama, OmniRoute — fallback цепочки |
 | 📥 Экспорт уроков | Markdown-гайды с примерами |
@@ -45,6 +46,20 @@ scripts\install.ps1
 | 🎨 Цветные агенты | Каждый агент имеет свой цвет в баре |
 | 🔀 Hot-swap моделей | Переключение моделей без перезагрузки сервера |
 | 📖 Интерактивная инструкция | Вкладка с пошаговым гайдом |
+
+---
+
+## 🆕 v2.2 — Что нового
+
+### Новый агент
+- ✅ **Prompt Architect** — обучалка промтов. Учит правильно собирать мысли, контекст, ТЗ и промты для AI-агентов. 5 слоёв промта: Роль, Контекст, Задача, Ограничения, Формат. Режимы: обучение, помощь с задачей, критика и улучшение.
+
+### Исправлено
+- ✅ Удалено дублирование JS кода в welcome.js (CoderChat блок был продублирован)
+- ✅ Удалены незакоммиченные backup файлы
+
+### Тесты
+- ✅ 22 новых теста для Prompt Architect (193 всего)
 
 ---
 
@@ -122,6 +137,10 @@ POST /api/teamlead_query  — запрос к TeamLead (SSE)
 POST /api/create_project_stream — сборка проекта (SSE)
 POST /api/agent/query     — запрос к агенту
 POST /api/stop_build      — остановка сборки
+POST /api/promptarchitect/init     — инициализация сессии Prompt Architect
+POST /api/promptarchitect/message  — отправить сообщение
+GET  /api/promptarchitect/history  — история диалога
+POST /api/promptarchitect/clear    — очистить историю
 ```
 
 ---
@@ -137,6 +156,7 @@ POST /api/stop_build      — остановка сборки
 | 🚀 DevOps | Docker, CI/CD, инфраструктура | 0.3 | 🟢 |
 | 🧪 Tester | Тесты, проверка качества, QA | 0.2 | 🟡 |
 | 📝 Documentalist | Документация, README, комментарии | 0.7 | 🟪 |
+| 🧠 Prompt Architect | Обучалка промтов — учит собирать мысли, контекст, ТЗ | 0.7 | 🟤 |
 
 Каждый агент имеет свой цвет в баре и в сообщениях чата.
 
@@ -187,13 +207,14 @@ ai-team-system/
 │   ├── agent_skills.py     # Скиллы агентов
 │   ├── hardware_detector.py # Детектор железа
 │   ├── export_lesson.py    # Экспорт уроков
+│   ├── prompt_architect.py  # Агент-обучалка промтов
 │   └── skills/             # Промпты скиллов (LVL99)
 ├── web_ui/                 # Веб-интерфейс
 │   ├── app.py              # FastAPI приложение
 │   ├── static/             # CSS, JS
 │   └── templates/
 │       └── welcome.html    # Главная страница
-├── tests/                  # Тесты (171 passed)
+├── tests/                  # Тесты (193 passed)
 ├── config/                 # Конфигурация
 │   ├── agent_models.json   # Пользовательские модели
 │   └── profiles.yaml       # Профили железа

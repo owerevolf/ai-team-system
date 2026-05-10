@@ -1835,31 +1835,27 @@ function reloadMcpServers() {
 }
 
 
+
 // ══════════════════════════════════════════
-//  CODER CHAT
+//  PROMPT ARCHITECT
 // ══════════════════════════════════════════
 
-var coderSessionId = null;
-var coderProjectPath = null;
+var paSessionId = null;
 
-function initCoderChat() {
-  var projectName = document.getElementById('coder-project-name').value.trim() || 'my_project';
-  
-  fetch('/api/coderchat/init', {
+function initPromptArchitect() {
+  fetch('/api/promptarchitect/init', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ project_name: projectName })
+    body: JSON.stringify({})
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
     if (data.session_id) {
-      coderSessionId = data.session_id;
-      coderProjectPath = data.project_path;
-      document.getElementById('coder-init').style.display = 'none';
-      document.getElementById('coder-chat-container').style.display = 'block';
-      updateCoderFileTree(data.file_tree);
-      updateCoderStats(data);
-      addCoderMessage('system', 'Проект "' + projectName + '" инициализирован. Технологии: ' + (data.tech_stack || []).join(', ') + '. Спросите меня о чём угодно!');
+      paSessionId = data.session_id;
+      document.getElementById('pa-init').style.display = 'none';
+      document.getElementById('pa-chat-container').style.display = 'block';
+      addPAMessage('assistant', data.welcome || '👋 Привет. Я Prompt Architect. С чего начнём?');
+      updatePAStats({ total_messages: 1, user_messages: 0, assistant_messages: 1 });
     } else {
       alert('Ошибка: ' + (data.error || 'не удалось инициализировать'));
     }
@@ -1867,30 +1863,35 @@ function initCoderChat() {
   .catch(function(e) { alert('Ошибка: ' + e.message); });
 }
 
-function sendCoderMessage() {
-  var input = document.getElementById('coder-input');
+function sendPAMessage() {
+  var input = document.getElementById('pa-input');
   var message = input.value.trim();
-  if (!message || !coderSessionId) return;
+  if (!message || !paSessionId) return;
   input.value = '';
-  addCoderMessage('user', message);
-  showCoderTyping();
-  fetch('/api/coderchat/message', {
+  addPAMessage('user', message);
+  showPATyping();
+  fetch('/api/promptarchitect/message', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ session_id: coderSessionId, message: message })
+    body: JSON.stringify({ session_id: paSessionId, message: message })
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
-    hideCoderTyping();
-    if (data.response) addCoderMessage('assistant', data.response, data.file_actions);
-    else if (data.error) addCoderMessage('system', '⚠️ Ошибка: ' + data.error);
-    if (data.file_actions && data.file_actions.length > 0) refreshCoderFiles();
+    hidePATyping();
+    if (data.response) addPAMessage('assistant', data.response);
+    else if (data.error) addPAMessage('system', '⚠️ Ошибка: ' + data.error);
+    if (data.success) {
+      fetch('/api/promptarchitect/history/' + paSessionId)
+        .then(function(r) { return r.json(); })
+        .then(function(h) { if (h.stats) updatePAStats(h.stats); })
+        .catch(function() {});
+    }
   })
-  .catch(function(e) { hideCoderTyping(); addCoderMessage('system', '⚠️ Ошибка: ' + e.message); });
+  .catch(function(e) { hidePATyping(); addPAMessage('system', '⚠️ Ошибка: ' + e.message); });
 }
 
-function addCoderMessage(role, content, fileActions) {
-  var container = document.getElementById('coder-messages');
+function addPAMessage(role, content) {
+  var container = document.getElementById('pa-messages');
   var placeholder = container.querySelector('p[style*="text-align:center"]');
   if (placeholder) placeholder.remove();
   var msgDiv = document.createElement('div');
@@ -1899,20 +1900,14 @@ function addCoderMessage(role, content, fileActions) {
   var align = role === 'user' ? 'flex-end' : 'flex-start';
   msgDiv.style.cssText = 'background:' + bg + ';border:1px solid ' + border + ';border-radius:12px;padding:12px 16px;max-width:85%;align-self:' + align + ';';
   var header = role === 'user' ? '<div style="font-size:10px;color:var(--accent);margin-bottom:4px;">👤 Вы</div>' :
-               role === 'assistant' ? '<div style="font-size:10px;color:var(--success);margin-bottom:4px;">🤖 CoderChat</div>' :
+               role === 'assistant' ? '<div style="font-size:10px;color:var(--success);margin-bottom:4px;">🧠 Prompt Architect</div>' :
                '<div style="font-size:10px;color:var(--muted);margin-bottom:4px;">⚙️ Система</div>';
-  msgDiv.innerHTML = header + formatCoderMessage(content);
-  if (fileActions && fileActions.length > 0) {
-    var ad = document.createElement('div');
-    ad.style.cssText = 'margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:10px;color:var(--muted);';
-    for (var a of fileActions) ad.innerHTML += '<div>' + (a.action === 'create' ? '📄' : '✏️') + ' ' + a.path + '</div>';
-    msgDiv.appendChild(ad);
-  }
+  msgDiv.innerHTML = header + formatPAMessage(content);
   container.appendChild(msgDiv);
   container.scrollTop = container.scrollHeight;
 }
 
-function formatCoderMessage(text) {
+function formatPAMessage(text) {
   if (!text) return '';
   return text
     .replace(/```(\w*)\n([\s\S]*?)```/g, '<div class="code-block"><strong>$1</strong><br><pre style="margin:0;white-space:pre-wrap;">$2</pre></div>')
@@ -1921,36 +1916,42 @@ function formatCoderMessage(text) {
     .replace(/\n/g, '<br>');
 }
 
-function showCoderTyping() {
-  var c = document.getElementById('coder-messages');
+function showPATyping() {
+  var c = document.getElementById('pa-messages');
   var t = document.createElement('div');
-  t.id = 'coder-typing';
+  t.id = 'pa-typing';
   t.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 16px;align-self:flex-start;';
   t.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
   c.appendChild(t);
   c.scrollTop = c.scrollHeight;
 }
 
-function hideCoderTyping() { var t = document.getElementById('coder-typing'); if (t) t.remove(); }
+function hidePATyping() { var t = document.getElementById('pa-typing'); if (t) t.remove(); }
 
-function updateCoderFileTree(tree) { var d = document.getElementById('coder-file-tree'); if (d && tree) d.textContent = tree.join('\n'); }
-
-function updateCoderStats(data) {
-  var d = document.getElementById('coder-stats');
-  if (d) d.innerHTML = 'Проект: ' + (data.project_name || '-') + '<br>Файлов: ' + (data.file_tree ? data.file_tree.length : 0) + '<br>Стек: ' + (data.tech_stack || []).join(', ');
+function updatePAStats(stats) {
+  var d = document.getElementById('pa-stats');
+  if (d && stats) {
+    d.innerHTML = 'Сообщений: ' + (stats.total_messages || 0) +
+      '<br>Ваших: ' + (stats.user_messages || 0) +
+      '<br>Ответов: ' + (stats.assistant_messages || 0);
+  }
 }
 
-function refreshCoderFiles() {
-  if (!coderSessionId) return;
-  fetch('/api/coderchat/files/' + coderSessionId)
-    .then(function(r) { return r.json(); })
-    .then(function(data) { if (data.file_tree) updateCoderFileTree(data.file_tree); })
-    .catch(function() {});
+function clearPAChat() {
+  if (paSessionId) {
+    fetch('/api/promptarchitect/clear/' + paSessionId, { method: 'POST' }).catch(function() {});
+  }
+  paSessionId = null;
+  document.getElementById('pa-chat-container').style.display = 'none';
+  document.getElementById('pa-init').style.display = 'block';
+  document.getElementById('pa-messages').innerHTML = '<p style="color:var(--muted);font-size:12px;text-align:center;">Нажми "Начать обучение" чтобы начать...</p>';
+  document.getElementById('pa-stats').innerHTML = 'Нет активной сессии';
 }
 
 document.addEventListener('keydown', function(e) {
-  if (e.target && e.target.id === 'coder-input' && e.key === 'Enter' && !e.shiftKey) {
+  if (e.target && e.target.id === 'pa-input' && e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
-    sendCoderMessage();
+    sendPAMessage();
   }
 });
+

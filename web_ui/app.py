@@ -1248,6 +1248,90 @@ async def delete_chat_session(session_id: str):
     return JSONResponse({"status": "deleted"})
 
 
+# ══════════════════════════════════════════
+#  PROMPT ARCHITECT API
+# ══════════════════════════════════════════
+
+pa_sessions: Dict[str, Dict[str, Any]] = {}
+
+
+class PAInitRequest(BaseModel):
+    pass  # No params needed — fresh start each time
+
+
+class PAMessageRequest(BaseModel):
+    session_id: str
+    message: str
+
+
+@app.post("/api/promptarchitect/init")
+async def init_prompt_architect(req: PAInitRequest):
+    """Инициализировать сессию Prompt Architect."""
+    from core.prompt_architect import PromptArchitectAgent
+
+    session_id = f"pa_{int(time.time())}"
+
+    router = ModelRouter(profile=os.getenv("HARDWARE_PROFILE", "medium"))
+    agent = PromptArchitectAgent(model_router=router)
+
+    pa_sessions[session_id] = {
+        "agent": agent,
+        "created_at": datetime.now().isoformat(),
+    }
+
+    return JSONResponse({
+        "session_id": session_id,
+        "welcome": "👋 Привет. Я Prompt Architect.\n\nМоя работа — помочь тебе научиться превращать хаотичные мысли в чёткие задачи для ИИ-агентов.\n\nС чего начнём?\n  А) Объясни мне что такое промт и зачем это вообще\n  Б) У меня есть идея — помоги оформить в нормальную задачу\n  В) Вот мой промт — скажи что с ним не так",
+    })
+
+
+@app.post("/api/promptarchitect/message")
+async def send_pa_message(req: PAMessageRequest):
+    """Отправить сообщение в Prompt Architect."""
+    session = pa_sessions.get(req.session_id)
+    if not session:
+        return JSONResponse({"error": "Session not found"}, status_code=404)
+
+    agent: PromptArchitectAgent = session["agent"]
+    result = await agent.process_message(req.message)
+
+    return JSONResponse(result)
+
+
+@app.get("/api/promptarchitect/history/{session_id}")
+async def get_pa_history(session_id: str):
+    """Получить историю диалога."""
+    session = pa_sessions.get(session_id)
+    if not session:
+        return JSONResponse({"error": "Session not found"}, status_code=404)
+
+    agent: PromptArchitectAgent = session["agent"]
+    return JSONResponse({
+        "messages": agent.get_history(),
+        "stats": agent.get_stats(),
+    })
+
+
+@app.post("/api/promptarchitect/clear/{session_id}")
+async def clear_pa_history(session_id: str):
+    """Очистить историю (начать новый диалог)."""
+    session = pa_sessions.get(session_id)
+    if not session:
+        return JSONResponse({"error": "Session not found"}, status_code=404)
+
+    agent: PromptArchitectAgent = session["agent"]
+    agent.clear_history()
+    return JSONResponse({"status": "cleared"})
+
+
+@app.delete("/api/promptarchitect/{session_id}")
+async def delete_pa_session(session_id: str):
+    """Удалить сессию Prompt Architect."""
+    if session_id in pa_sessions:
+        del pa_sessions[session_id]
+    return JSONResponse({"status": "deleted"})
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("web_ui.app:app", host="0.0.0.0", port=8000, reload=False)

@@ -34,6 +34,7 @@
     <button class="tab-btn" id="tab-btn-settings" onclick="switchTab('settings')">⚙️ Настройки</button>
     <button class="tab-btn" id="tab-btn-instruction" onclick="switchTab('instruction')">📖 Инструкция</button>
     <button class="tab-btn" id="tab-btn-kanban" onclick="switchTab('kanban')">📋 Канбан</button>
+    <button class="tab-btn" id="tab-btn-promptarchitect" onclick="switchTab('promptarchitect')">🧠 Промт</button>
   </div>
 </header>
 
@@ -71,14 +72,65 @@
 
 <!-- TAB: SETTINGS -->
 <div class="tab-content" id="tab-settings">
-  <div class="settings-section" id="settings-content">
+  <!-- Provider Settings -->
+  <div class="settings-section" id="provider-section">
     <h2>⚙️ Настройки провайдеров</h2>
     <p>Выбери провайдера AI моделей и настрой модели для каждого агента. Каждый агент может использовать свой провайдер.</p>
     <div id="settings-loading">Загрузка...</div>
   </div>
-</div>
 
-<!-- TAB: INSTRUCTION -->
+  <!-- Webhooks -->
+  <div class="settings-section" id="webhooks-section">
+    <h2>🔗 Webhooks</h2>
+    <p>Настройте автоматическое получение событий из внешних сервисов (GitHub, GitLab и т.д.).</p>
+    <div id="webhooks-section">
+      <div id="webhooks-loading">Загрузка...</div>
+      <div id="webhooks-list"></div>
+      <div id="webhooks-form" style="margin-top:20px;padding:16px;border:1px solid var(--border);border-radius:8px;background:var(--surface);display:none;">
+        <h3>➕ Добавить вебхук</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;">
+          <input type="text" id="webhook-name" placeholder="Название" style="padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);">
+          <input type="text" id="webhook-url" placeholder="URL вебхука" style="padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);">
+          <input type="text" id="webhook-secret" placeholder="Секрет (оставьте пустым для генерации)" style="padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);">
+          <input type="text" id="webhook-events" placeholder="События через запятую (push, pull_request, issues)" style="padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);">
+          <button class="btn-save" onclick="createWebhook()">Создать вебхук</button>
+          <button class="btn-secondary" onclick="toggleWebhookForm(false)">Отмена</button>
+        </div>
+      </div>
+      <button class="btn-secondary" onclick="toggleWebhookForm(true)">➕ Добавить вебхук</button>
+    </div>
+  </div>
+
+  <!-- Analytics -->
+  <div class="settings-section" id="analytics-section">
+    <h2>📊 Аналитика</h2>
+    <p>Просмотр статистики использования агентов и метрик производительности.</p>
+    <div id="analytics-section">
+      <div id="analytics-loading">Загрузка...</div>
+      <div id="analytics-dashboard"></div>
+    </div>
+  </div>
+
+  <!-- i18n -->
+  <div class="settings-section" id="i18n-section">
+    <h2>🌍 Интернационализация (i18n)</h2>
+    <p>Настройка языков и переводов для интерфейса.</p>
+    <div id="i18n-section">
+      <div id="i18n-loading">Загрузка...</div>
+      <div id="i18n-content"></div>
+    </div>
+  </div>
+
+  <!-- Plugins -->
+  <div class="settings-section" id="plugins-section">
+    <h2>🔌 Плагины</h2>
+    <p>Управление расширяемыми инструментами для агентов.</p>
+    <div id="plugins-section">
+      <div id="plugins-loading">Загрузка...</div>
+      <div id="plugins-list"></div>
+    </div>
+  </div>
+</div>
 <div class="tab-content" id="tab-instruction">
   <div class="settings-section">
     <h2>📖 Инструкция по настройке</h2>
@@ -204,6 +256,59 @@
           <div style="display:flex;gap:10px;margin-top:12px;">
             <textarea id="coder-input" placeholder="Опиши задачу или задай вопрос..." rows="2" style="flex:1;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text);font-size:13px;resize:none;"></textarea>
             <button class="send-btn" onclick="sendCoderMessage()" style="width:46px;height:46px;align-self:flex-end;">➤</button>
+          </div>
+          <div style="font-size:10px;color:var(--muted);margin-top:4px;">Enter — отправить · Shift+Enter — новая строка</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TAB: PROMPT ARCHITECT -->
+<div class="tab-content" id="tab-promptarchitect">
+  <div class="settings-section">
+    <h2>🧠 Prompt Architect — Обучалка промтов</h2>
+    <p>Научись правильно собирать мысли, контекст, ТЗ и промты для AI-агентов. Объясняю каждый шаг — не просто даю результат, а учу думать.</p>
+
+    <!-- Init -->
+    <div id="pa-init" style="margin:20px 0;">
+      <button class="btn-save" onclick="initPromptArchitect()">🚀 Начать обучение</button>
+    </div>
+
+    <!-- Chat Area (hidden until init) -->
+    <div id="pa-chat-container" style="display:none;">
+      <div style="display:flex;gap:16px;margin-bottom:16px;">
+        <!-- Sidebar: Tips -->
+        <div style="width:280px;flex-shrink:0;">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;">
+            <h4 style="font-size:12px;color:var(--text);margin-bottom:8px;">📐 5 слоёв промта</h4>
+            <div style="font-size:10px;color:var(--muted);line-height:1.8;">
+              <b>1. РОЛЬ</b> — Кто агент?<br>
+              <b>2. КОНТЕКСТ</b> — Что уже есть?<br>
+              <b>3. ЗАДАЧА</b> — Что сделать?<br>
+              <b>4. ОГРАНИЧЕНИЯ</b> — Как и чего не делать?<br>
+              <b>5. ФОРМАТ</b> — Что получить на выходе?
+            </div>
+          </div>
+          <div style="margin-top:12px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;">
+            <h4 style="font-size:12px;color:var(--text);margin-bottom:8px;">📊 Статус</h4>
+            <div id="pa-stats" style="font-size:10px;color:var(--muted);line-height:1.8;">Нет активной сессии</div>
+          </div>
+          <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px;">
+            <button class="btn-secondary" onclick="clearPAChat()" style="width:100%;">🗑 Новый диалог</button>
+          </div>
+        </div>
+
+        <!-- Chat Messages -->
+        <div style="flex:1;display:flex;flex-direction:column;">
+          <div id="pa-messages" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;min-height:400px;max-height:500px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;">
+            <p style="color:var(--muted);font-size:12px;text-align:center;">Нажми "Начать обучение" чтобы начать...</p>
+          </div>
+
+          <!-- Input -->
+          <div style="display:flex;gap:10px;margin-top:12px;">
+            <textarea id="pa-input" placeholder="Задай вопрос или выбери режим (А/Б/В)..." rows="2" style="flex:1;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text);font-size:13px;resize:none;"></textarea>
+            <button class="send-btn" onclick="sendPAMessage()" style="width:46px;height:46px;align-self:flex-end;">➤</button>
           </div>
           <div style="font-size:10px;color:var(--muted);margin-top:4px;">Enter — отправить · Shift+Enter — новая строка</div>
         </div>
