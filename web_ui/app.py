@@ -27,6 +27,9 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from loguru import logger
 
+# Import repo router (must be before app creation for include_router)
+from web_ui.repo_endpoints import router as repo_router
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
@@ -39,6 +42,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include repo router
+app.include_router(repo_router)
 
 STATIC_DIR = BASE_DIR / "web_ui" / "static"
 TEMPLATES_DIR = BASE_DIR / "web_ui" / "templates"
@@ -56,6 +62,9 @@ session_lock = threading.Lock()
 
 # Import webhook manager
 from core.webhooks import webhook_manager
+
+# Global orchestrator reference (set during startup)
+_ai_team_system = None
 
 
 class AgentQueryRequest(BaseModel):
@@ -131,6 +140,9 @@ def validate_env() -> bool:
 @app.on_event("startup")
 async def startup() -> None:
     validate_env()
+    # Set orchestrator for repo endpoints
+    from web_ui.repo_endpoints import set_orchestrator
+    set_orchestrator(_ai_team_system)
     logger.info("AI Team System Web UI запущен на порту 8000")
 
 

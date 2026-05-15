@@ -11,15 +11,6 @@
     "description": "Единый API для 100+ моделей. Бесплатные модели доступны без подписки.",
     "models": [
       {
-        "id": "inclusionai/ring-2.6-1t:free",
-        "name": "inclusionAI: Ring-2.6-1T (free)",
-        "provider": "openrouter",
-        "context_length": 262144,
-        "is_free": true,
-        "strength": "strong",
-        "description": "Ring-2.6-1T is a 1T-parameter-scale thinking model with 63B active parameters, built for real-world agent workflows that require both strong capability and operational efficiency. It is optimized for "
-      },
-      {
         "id": "baidu/cobuddy:free",
         "name": "Baidu Qianfan: CoBuddy (free)",
         "provider": "openrouter",
@@ -65,13 +56,13 @@
         "description": "Laguna M.1 is the flagship coding agent model from [Poolside](https://poolside.ai), optimized for complex software engineering tasks. Designed for agentic coding workflows, it supports tool calling an"
       },
       {
-        "id": "baidu/qianfan-ocr-fast:free",
-        "name": "Baidu: Qianfan-OCR-Fast (free)",
+        "id": "deepseek/deepseek-v4-flash:free",
+        "name": "DeepSeek: DeepSeek V4 Flash (free)",
         "provider": "openrouter",
-        "context_length": 65536,
+        "context_length": 1048576,
         "is_free": true,
-        "strength": "general",
-        "description": "Qianfan-OCR-Fast is a domain-specific multimodal large model purpose-built for OCR. By leveraging specialized OCR training data while preserving versatile multimodal intelligence, it provides a powerf"
+        "strength": "fast",
+        "description": "DeepSeek V4 Flash is an efficiency-optimized Mixture-of-Experts model from DeepSeek with 284B total parameters and 13B activated parameters, supporting a 1M-token context window. It is designed for fa"
       },
       {
         "id": "google/gemma-4-26b-a4b-it:free",
@@ -90,6 +81,15 @@
         "is_free": true,
         "strength": "strong",
         "description": "Gemma 4 31B Instruct is Google DeepMind's 30.7B dense multimodal model supporting text and image input with text output. Features a 256K token context window, configurable thinking/reasoning mode, nat"
+      },
+      {
+        "id": "arcee-ai/trinity-large-thinking:free",
+        "name": "Arcee AI: Trinity Large Thinking (free)",
+        "provider": "openrouter",
+        "context_length": 262144,
+        "is_free": true,
+        "strength": "reasoning",
+        "description": "Trinity Large Thinking is a powerful open source reasoning model from the team at Arcee AI. It shows strong performance in PinchBench, agentic workloads, and reasoning tasks. Launch video: https://you"
       },
       {
         "id": "google/lyria-3-pro-preview",
@@ -325,5 +325,5 @@
     "description": "Российский агрегатор AI моделей. Объединяет провайдеров в один API.",
     "models": []
   },
-  "_cached_at": 1778437958.3132398
+  "_cached_at": 1778862005.7796109
 }

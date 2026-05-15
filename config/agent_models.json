@@ -1,0 +1,38 @@
+{
+  "teamlead": {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
+  },
+  "architect": {
+    "provider": "openrouter",
+    "model": "openrouter/owl-alpha"
+  },
+  "backend": {
+    "provider": "openrouter",
+    "model": "qwen/qwen3-coder:free"
+  },
+  "frontend": {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3-nano-30b-a3b:free"
+  },
+  "devops": {
+    "provider": "openrouter",
+    "model": "baidu/cobuddy:free"
+  },
+  "tester": {
+    "provider": "openrouter",
+    "model": "qwen/qwen3-coder:free"
+  },
+  "documentalist": {
+    "provider": "openrouter",
+    "model": "minimax/minimax-m2.5:free"
+  },
+  "prompt_architect": {
+    "provider": "openrouter",
+    "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
+  },
+  "repo_explorer": {
+    "provider": "openrouter",
+    "model": "qwen/qwen3-coder:free"
+  }
+}

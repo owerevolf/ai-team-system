@@ -35,19 +35,21 @@ class AITeamSystem:
         self.console = console
         self.project_id: Optional[int] = None
         self.context: Optional[ProjectContext] = None
-        
+
         self.console.print(Panel.fit(
             "[bold cyan]AI Team System v2[/bold cyan]\n"
             "Мультиагентная система разработки ПО",
             border_style="cyan"
         ))
-        
+
         self.logger = setup_logger("ai_team_system")
         self.db = Database()
         self.scanner = SystemScanner()
         self.model_router = ModelRouter(profile)
         self.agent_manager = AgentManager(self.model_router)
         self.events: list = []
+        # ProjectManager (passive observer, initialized on project open/create)
+        self.project_manager = None
     
     def on_event(self, event_type: str, data: Dict[str, Any]):
         """Callback для событий агентов"""
@@ -94,6 +96,17 @@ class AITeamSystem:
         self.project_path = project_dir
         self.agent_manager.set_project_path(project_dir)
         self.agent_manager.set_event_callback(self.on_event)
+
+        # Initialize ProjectManager for new project
+        try:
+            from core.project_manager import ProjectManager
+            self.project_manager = ProjectManager(project_dir)
+            self.agent_manager.set_project_manager(self.project_manager)
+            pm_stats = self.project_manager.index_project()
+            self.console.print(f"[dim]PM indexed: {pm_stats['total_files']} files, {pm_stats['total_symbols']} symbols[/dim]")
+        except Exception as e:
+            self.logger.warning(f"PM init failed (non-critical): {e}")
+            self.project_manager = None
         
         project_id = self.db.create_project(
             name=project_name,
@@ -362,6 +375,39 @@ class AITeamSystem:
             if self.project_id:
                 self.db.update_project_status(self.project_id, "error")
             raise
+
+
+    def open_project(self, project_path: str) -> dict:
+        """Open existing project for exploration or modification."""
+        path = Path(project_path)
+        if not path.exists():
+            raise ValueError(f"Project not found: {project_path}")
+
+        self.project_path = path
+        self.agent_manager.project_path = path
+        self.agent_manager.set_event_callback(self.on_event)
+
+        # Initialize ProjectManager
+        try:
+            from core.project_manager import ProjectManager
+            self.project_manager = ProjectManager(path)
+            self.agent_manager.set_project_manager(self.project_manager)
+            self.console.print("[bold cyan]Indexing project...[/bold cyan]")
+            stats = self.project_manager.index_project()
+            self.console.print(f"[green]Indexed:[/green]")
+            self.console.print(f"  Files: {stats['total_files']}")
+            self.console.print(f"  Symbols: {stats['total_symbols']}")
+            self.console.print(f"  Dependencies: {stats['total_dependencies']}")
+        except Exception as e:
+            self.logger.warning(f"PM init failed (non-critical): {e}")
+            self.project_manager = None
+            stats = {}
+
+        return {
+            "project_path": str(path),
+            "stats": stats,
+            "status": "opened",
+        }
 
 
 def main():

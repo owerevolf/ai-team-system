@@ -74,3 +74,6 @@ new_cleanToolCall.js
 
 # Claude Code skills (duplicated in core/skills/)
 skill/
+
+# ProjectManager runtime data (snapshots, index cache)
+.agents/

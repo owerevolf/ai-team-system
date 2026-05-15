@@ -73,6 +73,8 @@ class AgentManager:
         self.event_callback: Optional[Callable] = None
         self.memory = AgentMemory()
         self._self_improvement_enabled = True
+        # ProjectManager integration (optional, passive)
+        self.project_manager = None
     
     def set_self_improvement(self, enabled: bool):
         """Включить/выключить self-improvement агентов"""
@@ -83,7 +85,11 @@ class AgentManager:
     
     def set_event_callback(self, callback: Callable):
         self.event_callback = callback
-    
+
+    def set_project_manager(self, pm) -> None:
+        """Set ProjectManager instance (optional, passive observer)."""
+        self.project_manager = pm
+
     def emit_event(self, event_type: str, data: Dict[str, Any]):
         if self.event_callback:
             self.event_callback(event_type, data)
@@ -265,6 +271,19 @@ class AgentManager:
         if self.context:
             agent_context = self.context.get_context_for_agent(agent_name)
 
+        # PM context (passive observer, optional)
+        pm_context = ""
+        if self.project_manager and self.project_manager.is_indexed:
+            try:
+                pm_context = self.project_manager.query(
+                    agent=agent_name,
+                    question=task,
+                    max_tokens=2000,
+                )
+            except Exception as e:
+                self.logger.debug(f"PM query failed: {e}")
+                pm_context = ""
+
         # TeamLead - координатор, НЕ получает инструкции создавать файлы
         is_coordinator = (agent_name == 'teamlead')
 
@@ -278,6 +297,9 @@ class AgentManager:
 
 ## CONTEXT
 {json.dumps(context or agent_context, indent=2, ensure_ascii=False) if (context or agent_context) else 'Нет контекста'}
+
+## PROJECT STATE (from ProjectManager)
+{pm_context if pm_context else 'ProjectManager не инициализирован'}
 
 ## ИНСТРУКЦИИ
 1. Реагируй КОНКРЕТНО на то что написал пользователь в ЗАДАНИИ выше
@@ -312,6 +334,9 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
 ## CONTEXT (от других агентов)
 {json.dumps(context or agent_context, indent=2, ensure_ascii=False) if (context or agent_context) else 'Нет контекста'}
 
+## PROJECT STATE (from ProjectManager)
+{pm_context if pm_context else 'ProjectManager не инициализирован'}
+
 ## ИНСТРУКЦИИ
 1. Проанализируй задачу
 2. Используй create_file для создания кода
@@ -326,13 +351,14 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
 
 Начни работу!
 """
-        
+
+        created_files = []
         try:
             response = self.model_router.generate(
                 prompt=full_prompt,
                 agent=agent_name
             )
-            
+
             if not is_coordinator:
                 created_files = self._extract_and_create_files(response)
             
@@ -347,7 +373,22 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
             
             self.emit_event("agent_complete", {"agent": agent_name, "files": created_files})
             self.logger.info(f"Агент {agent_name} завершил. Файлов: {len(created_files)}")
-            
+
+            # Report to ProjectManager (passive observer)
+            if self.project_manager:
+                try:
+                    self.project_manager.update(
+                        agent=agent_name,
+                        action="task_completed",
+                        result={
+                            "status": "success",
+                            "files": created_files,
+                            "summary": result.get("summary", ""),
+                        }
+                    )
+                except Exception as e:
+                    self.logger.debug(f"PM update failed: {e}")
+
             # Self-improvement: сохраняем результат в память
             if self._self_improvement_enabled:
                 try:
