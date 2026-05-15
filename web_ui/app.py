@@ -326,6 +326,7 @@ async def agent_query(req: AgentQueryRequest) -> AgentQueryResponse:
 
     prompt_hash = hashlib.sha256(f"{prompt}:{beginner}".encode()).hexdigest()[:12]
 
+    from core.model_router import ModelRouter
     router = ModelRouter(profile=profile, beginner_mode=beginner)
 
     cached = router.get_cached(prompt_hash)
@@ -479,6 +480,7 @@ async def teamlead_query(req: CreateProjectRequest):
         query_with_level = f"{level_hint}\n\n{full_query}"
 
         from core.agent_manager import AgentManager
+        from core.model_router import ModelRouter
         router = ModelRouter(profile=os.getenv("HARDWARE_PROFILE", "medium"))
         manager = AgentManager(model_router=router)
 
@@ -534,6 +536,7 @@ async def create_project_stream(req: CreateProjectRequest):
         all_files = []
 
         # Инициализируем AgentManager и ModelRouter один раз
+        from core.model_router import ModelRouter
         router = ModelRouter(profile=os.getenv("HARDWARE_PROFILE", "medium"))
         manager = AgentManager(model_router=router)
         # Передаём папку проекта — теперь агенты сами пишут файлы

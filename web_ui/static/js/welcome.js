@@ -1019,6 +1019,12 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ── TABS & SETTINGS & CHAT FUNCTIONS ──
 function switchTab(tabName) {
+  // Скрываем приветственный оверлей при переходе на любую вкладку
+  const overlay = document.getElementById('welcome-overlay');
+  if (overlay) {
+    overlay.style.display = 'none';
+  }
+  
   document.querySelectorAll('.tab-content').forEach(function(el) { el.classList.remove('active'); });
   document.querySelectorAll('.tab-btn').forEach(function(el) { el.classList.remove('active'); });
   var tabEl = document.getElementById('tab-' + tabName);
@@ -1032,6 +1038,7 @@ function switchTab(tabName) {
   if (tabName === 'settings') loadSettings();
   if (tabName === 'kanban') loadKanbanTasks();
   if (tabName === 'kanban') renderKanban();
+  if (tabName === 'promptarchitect') initPromptArchitectIfNotStarted();
 }
 
 var settingsData = null;
@@ -1956,3 +1963,40 @@ document.addEventListener('keydown', function(e) {
   }
 });
 
+// Функция для инициализации Prompt Architect если еще не запущен
+function initPromptArchitectIfNotStarted() {
+  if (!paSessionId) {
+    // Проверяем, есть ли уже содержимое в чате промтов
+    var chatContainer = document.getElementById('pa-messages');
+    var placeholder = chatContainer ? chatContainer.querySelector('p[style*="text-align:center"]') : null;
+    
+    // Если есть только плейсхолдер или нет сообщений, инициализируем
+    if (!placeholder || chatContainer.children.length <= 1) {
+      fetch('/api/promptarchitect/init', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.session_id) {
+          paSessionId = data.session_id;
+          document.getElementById('pa-init').style.display = 'none';
+          document.getElementById('pa-chat-container').style.display = 'block';
+          addPAMessage('assistant', data.welcome || '👋 Привет. Я Prompt Architect. С чего начнём?');
+          updatePAStats({ total_messages: 1, user_messages: 0, assistant_messages: 1 });
+        }
+      })
+      .catch(function(e) { 
+        console.error('Ошибка инициализации Prompt Architect:', e);
+        // Даже при ошибке показываем интерфейс
+        document.getElementById('pa-init').style.display = 'none';
+        document.getElementById('pa-chat-container').style.display = 'block';
+        addPAMessage('system', '⚠️ Ошибка инициализации. Интерфейс будет показан без данных.');
+      });
+    }
+  }
+}// Вызов инициализации при загрузке страницы
+document.addEventListener('DOMContentLoaded', function() {
+  init();
+});
