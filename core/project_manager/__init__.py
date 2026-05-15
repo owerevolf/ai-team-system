@@ -1112,6 +1112,145 @@ class ProjectManager:
             return {}
         return self._task_coordinator.get_stats()
 
+    # ── PHASE 5: EXECUTION OPTIMIZATION ───────────────────────
+
+    def retrieve_optimized(
+        self,
+        query: str,
+        agent: str = "unknown",
+        use_cache: bool = True,
+        compress: bool = True,
+        max_files: int = 15,
+        token_budget: int = 12000,
+    ) -> Dict[str, Any]:
+        """
+        Multi-stage optimized retrieval with caching and compression.
+
+        Returns:
+            Dict with context, stats, and cache info
+        """
+        import hashlib
+        import time
+
+        start = time.time()
+
+        # Check cache
+        query_hash = hashlib.md5(f"{agent}:{query}".encode()).hexdigest()[:16]
+        if use_cache and hasattr(self, '_execution_cache'):
+            cached = self._execution_cache.get_retrieval(query_hash)
+            if cached:
+                return {
+                    'context': cached,
+                    'cached': True,
+                    'elapsed_ms': round((time.time() - start) * 1000, 2),
+                }
+
+        # Multi-stage retrieval
+        from core.project_manager.runtime.optimization.retrieval import MultiStageRetrievalPipeline
+
+        hot_files = dict(self._query_engine.get_hot_files(limit=50))
+
+        pipeline = MultiStageRetrievalPipeline(
+            self.files, self.dependencies,
+            hot_files=hot_files,
+            max_files=max_files,
+            token_budget=token_budget,
+        )
+
+        context, stage_results = pipeline.retrieve(query, agent)
+
+        # Compress if requested
+        compression_stats = None
+        if compress:
+            from core.project_manager.runtime.optimization.compression import ContextCompressionEngine
+            compressor = ContextCompressionEngine()
+            context, compression_stats = compressor.compress(context)
+
+        elapsed_ms = round((time.time() - start) * 1000, 2)
+
+        # Cache result
+        if use_cache:
+            if not hasattr(self, '_execution_cache'):
+                from core.project_manager.runtime.optimization.cache import ExecutionCache
+                self._execution_cache = ExecutionCache()
+            deps = {e.hash for e in self.files.values()}
+            self._execution_cache.put_retrieval(query_hash, context, deps)
+
+        return {
+            'context': context,
+            'cached': False,
+            'elapsed_ms': elapsed_ms,
+            'stages': [
+                {'name': s.stage_name, 'files': len(s.files), 'symbols': len(s.symbols),
+                 'cost_ms': round(s.cost, 2)}
+                for s in stage_results
+            ],
+            'compression': compression_stats,
+        }
+
+    def validate_incremental(
+        self,
+        changed_files: List[str],
+        max_depth: int = 1,
+    ) -> Dict[str, Any]:
+        """Run validation only on affected files."""
+        from core.project_manager.runtime.optimization.incremental_validation import IncrementalValidator
+
+        reverse_deps = {}
+        for source, targets in self.dependencies.items():
+            for target in targets:
+                if target not in reverse_deps:
+                    reverse_deps[target] = []
+                reverse_deps[target].append(source)
+
+        validator = IncrementalValidator(self.files, self.dependencies, reverse_deps)
+
+        from core.project_manager.validation import ValidationPipeline
+        full_validator = ValidationPipeline(self.files, self.dependencies, self.project_path)
+
+        return validator.validate_incremental(changed_files, full_validator, max_depth)
+
+    def get_optimized_impact(
+        self,
+        changed_files: List[str],
+        max_depth: int = 3,
+    ) -> Dict[str, Any]:
+        """Get impact analysis using optimized graph traversal."""
+        if not hasattr(self, '_optimized_graph'):
+            from core.project_manager.runtime.optimization.graph import OptimizedDependencyGraph
+            self._optimized_graph = OptimizedDependencyGraph(self.dependencies)
+
+        return {
+            'impact_radius': self._optimized_graph.get_impact_radius(changed_files, max_depth),
+            'graph_stats': self._optimized_graph.get_stats(),
+        }
+
+    def get_execution_profile(self) -> Dict[str, Any]:
+        """Get execution profiling statistics."""
+        if not hasattr(self, '_profiler'):
+            from core.project_manager.runtime.optimization.profiling import ExecutionProfiler
+            self._profiler = ExecutionProfiler()
+        return self._profiler.get_all_stats()
+
+    def get_token_economy(self) -> Dict[str, Any]:
+        """Get token economy statistics."""
+        if not hasattr(self, '_token_economy'):
+            from core.project_manager.runtime.optimization.profiling import TokenEconomy
+            self._token_economy = TokenEconomy()
+        return self._token_economy.get_stats()
+
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """Get execution cache statistics."""
+        if not hasattr(self, '_execution_cache'):
+            return {'enabled': False}
+        return {**self._execution_cache.get_stats(), 'enabled': True}
+
+    def invalidate_cache_for_file(self, file_hash: str) -> int:
+        """Invalidate cache entries for a changed file."""
+        if not hasattr(self, '_execution_cache'):
+            return 0
+        return self._execution_cache.invalidate_file(file_hash)
+
     # ── CLASSIFICATION HELPERS ────────────────────────────────
 
     def _is_entry_point(self, rel_path: str, content: str) -> bool:

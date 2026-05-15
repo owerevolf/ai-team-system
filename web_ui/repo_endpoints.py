@@ -720,3 +720,86 @@ async def get_coordination_stats():
     pm = orchestrator.project_manager
     stats = pm.get_coordination_stats()
     return {"status": "success", "stats": stats}
+
+
+# ═══════════════════════════════════════════════════════════════
+# PHASE 5 ENDPOINTS — Execution Optimization
+# ═══════════════════════════════════════════════════════════════
+
+@router.post("/retrieve/optimized")
+async def retrieve_optimized(request: dict):
+    """Multi-stage optimized retrieval with caching and compression."""
+    if orchestrator is None or orchestrator.project_manager is None:
+        raise HTTPException(status_code=400, detail="No project open")
+
+    pm = orchestrator.project_manager
+    result = pm.retrieve_optimized(
+        query=request.get("query", ""),
+        agent=request.get("agent", "unknown"),
+        use_cache=request.get("use_cache", True),
+        compress=request.get("compress", True),
+        max_files=request.get("max_files", 15),
+        token_budget=request.get("token_budget", 12000),
+    )
+
+    return {"status": "success", "result": result}
+
+
+@router.post("/validate/incremental")
+async def validate_incremental(request: dict):
+    """Run validation only on affected files."""
+    if orchestrator is None or orchestrator.project_manager is None:
+        raise HTTPException(status_code=400, detail="No project open")
+
+    pm = orchestrator.project_manager
+    result = pm.validate_incremental(
+        changed_files=request.get("changed_files", []),
+        max_depth=request.get("max_depth", 1),
+    )
+
+    return {"status": "success", "validation": result}
+
+
+@router.post("/impact/optimized")
+async def get_optimized_impact(request: dict):
+    """Get impact analysis using optimized graph traversal."""
+    if orchestrator is None or orchestrator.project_manager is None:
+        raise HTTPException(status_code=400, detail="No project open")
+
+    pm = orchestrator.project_manager
+    result = pm.get_optimized_impact(
+        changed_files=request.get("changed_files", []),
+        max_depth=request.get("max_depth", 3),
+    )
+
+    return {"status": "success", "impact": result}
+
+
+@router.get("/optimization/profile")
+async def get_execution_profile():
+    """Get execution profiling statistics."""
+    if orchestrator is None or orchestrator.project_manager is None:
+        raise HTTPException(status_code=400, detail="No project open")
+
+    pm = orchestrator.project_manager
+    return {"status": "success", "profile": pm.get_execution_profile()}
+
+
+@router.get("/optimization/cache")
+async def get_cache_stats():
+    """Get execution cache statistics."""
+    if orchestrator is None or orchestrator.project_manager is None:
+        raise HTTPException(status_code=400, detail="No project open")
+
+    pm = orchestrator.project_manager
+    return {"status": "success", "cache": pm.get_cache_stats()}
+
+
+@router.get("/optimization/tokens")
+async def get_token_economy():
+    """Get token economy statistics."""
+    if orchestrator is None or orchestrator.project_manager is None:
+        raise HTTPException(status_code=400, detail="No project open")
+
+    pm = orchestrator.project_manager
+    return {"status": "success", "tokens": pm.get_token_economy()}
