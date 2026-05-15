@@ -1,4 +1,4 @@
-# Session Handoff — May 15 2026 (Phase 2)
+# Session Handoff — May 15 2026 (End of Session)
 
 ## Project
 AI Team System v2.2 — Python/FastAPI multi-agent dev platform
@@ -12,102 +12,103 @@ Branch: main (synced with origin)
 - PYTHONPATH=. required
 - AI_MODE=cloud, OpenRouter key configured
 
-## What Was Done This Session
+## Completed This Session
 
-### Commit: b9c5698 — FEAT: ProjectManager Phase 2
+### 5 Phases Implemented
 
-All 10 priorities implemented:
+**Phase 1 — Repository Foundation** (commit 68a10a4)
+- ProjectManager: passive observation kernel
+- FileIndexer, SymbolExtractor, DependencyGraph, Storage, EventBus, QueryEngine
+- GitIntelligence, FileWatch
+- 8 repo endpoints (/api/repo/*)
 
-**P1 — Incremental Indexing:**
-- FileIndexer.scan_incremental() with hash-based change detection
-- Only processes changed/new/deleted files
-- Incremental dependency graph rebuild
-- Benchmark: full index ~9s, incremental ~0.6s for 2908 files
+**Phase 2 — Repository Intelligence** (commit b9c5698)
+- Incremental indexing (hash-based change detection)
+- AST parsing for Python (built-in ast module)
+- 10-signal deterministic retrieval ranking
+- Git state awareness
+- Impact analysis (BFS dependency traversal)
+- SQLite storage backend
+- Event system stabilization (dedup, throttling, depth protection)
+- Structural diff snapshots
 
-**P2 — AST Parsing:**
-- Python: built-in ast module (classes, methods, functions, decorators, inheritance, async)
-- JS/TS/Go/Rust/Java: enhanced regex patterns
-- Three-tier: AST -> regex -> safe skip (never crashes)
-- SymbolEntry now has: decorators, parent, is_async fields
+**Phase 3 — Engineering Safety** (commit 1268c05)
+- Validation pipeline (8 checks: broken imports, circular deps, orphans, etc.)
+- Architecture rules engine (declarative layer boundaries)
+- Protected files/symbols
+- Test impact analysis (4 strategies)
+- Semantic change detection
+- Risk analysis engine (8 factors)
+- Safe patch system (atomic rollback)
+- Execution checkpoints
+- Module stability metrics
 
-**P3 — Retrieval Ranking:**
-- 10 deterministic scoring signals
-- Query term extraction with stop word filtering
-- Recency, git activity, hot-path, dependency proximity boosts
+**Phase 4 — Collaborative Runtime** (commit 62407f6)
+- Task coordination system (lifecycle, state transitions)
+- Resource locking (READ/WRITE/EXCLUSIVE)
+- Patch merge engine (diff-aware, line-aware, symbol-aware)
+- Workflow pipelines (feature/bugfix/refactor)
+- Conflict detection engine
+- Approval workflows
+- Immutable audit log
+- Agent reliability metrics
 
-**P4 — Git Intelligence:**
-- GitIntelligence class: branch, commit, changed/staged/untracked files
-- Recently active files, file authors, last modified dates
-- Cached with TTL
+**Phase 5 — Execution Optimization** (commit f881512)
+- Multi-stage retrieval pipeline (4 stages)
+- Context compression engine (dedup, symbol collapsing)
+- Execution cache system (5 tiers, dependency-aware invalidation)
+- Optimized dependency graph (cached traversal, depth limits, partitioning)
+- Execution profiling with performance budgets
+- Token economy tracking
+- Incremental validation
 
-**P5 — Impact Analysis:**
-- analyze_impact(): BFS traversal of dependency graph
-- Direct + transitive dependents, affected tests, risk level
-- Dependency chain finding
+### CI Fix (commit d9e42ff)
+- Fixed test_init_heavy_profile: added "openrouter" to expected priority list
+- CI now passes (193 tests green)
 
-**P6 — Storage Evolution:**
-- SQLite backend with full schema
-- JSON backend preserved
-- migrate_to_sqlite() for existing data
+## Architecture
 
-**P7 — Context Quality Metrics:**
-- RetrievalMetrics per query
-- Hot files tracking
-- Telemetry storage in SQLite
+### Core Modules
+- `core/project_manager/` — PM core, models, __init__.py (~1200 lines)
+- `core/project_manager/indexers/` — FileIndexer, FileWatch, GitIntelligence
+- `core/project_manager/extractors/` — SymbolExtractor (AST + regex)
+- `core/project_manager/indexers/` — DependencyGraph
+- `core/project_manager/storage/` — JSON + SQLite backends
+- `core/project_manager/events/` — EventBus with safety features
+- `core/project_manager/query/` — QueryEngine with ranking
+- `core/project_manager/validation/` — ValidationPipeline, ArchitectureRules, TestImpact, SemanticChange, RiskAnalysis, SafePatch
+- `core/project_manager/runtime/` — TaskCoordination, PatchMerge, Workflows, ConflictDetection, Approval
+- `core/project_manager/runtime/optimization/` — Cache, Graph, Retrieval, Compression, Profiling
 
-**P8 — Event System Stabilization:**
-- Max recursion depth (default 5)
-- Event deduplication (1s window)
-- Event throttling (50/sec per type)
-- Handler isolation
-
-**P9 — Snapshot Intelligence:**
-- Structural diff: added/removed/changed files
-- compare_snapshots() endpoint
-
-**P10 — Repo Explorer Limits:**
-- get_repo_summary(): factual only, no speculation
-
-**New API Endpoints (10):**
-- GET /api/repo/git/state
-- GET /api/repo/git/recent
-- POST /api/repo/impact
-- GET /api/repo/dependencies/{file}
-- POST /api/repo/reindex
-- GET /api/repo/snapshots/compare
-- GET /api/repo/metrics/retrieval
-- GET /api/repo/hot-files
-
-**New Dependencies:**
-- watchdog 6.0.0 (file system events)
+### API Endpoints (38 total)
+- Phase 1: /api/repo/open, /status, /explore, /modify, /modify/confirm, /rollback, /tree, /file/{path}, /search, /ws
+- Phase 2: /api/repo/git/state, /git/recent, /impact, /dependencies/{file}, /reindex, /snapshots/compare, /metrics/retrieval, /hot-files
+- Phase 3: /api/repo/validate, /architecture/violations, /architecture/protected-files, /tests/impact, /risk/assess, /modules/stability
+- Phase 4: /api/repo/tasks/create, /tasks, /tasks/{id}, /tasks/{id}/lock, /tasks/{id}/conflicts, /tasks/{id}/evaluate-approval, /audit-log, /coordination/stats
+- Phase 5: /api/repo/retrieve/optimized, /validate/incremental, /impact/optimized, /optimization/profile, /optimization/cache, /optimization/tokens
 
 ## Test Status
 - 193 passed, 0 failed
+- CI: green (GitHub Actions)
 
-## Architecture
-- PM is OPTIONAL — if not initialized, system works as before
-- All PM changes are ADDITIVE — no existing code was modified in breaking ways
-- Context budget enforced: MAX_CONTEXT_CHARS = 12000
-- Fault-tolerant: PM never crashes the system
-- Only facts stored: file paths, symbols, dependencies, timestamps, hashes
+## Key Metrics
+- Indexing: ~2908 files, ~44K symbols in ~9s (full), ~0.6s (incremental)
+- Validation: 0.7s (full), ~0.1s (incremental, small changes)
+- Retrieval: 4-stage pipeline with caching and compression
+- Context: deterministic compression, token budgeting
 
-## Key Files Modified/Created
-- core/project_manager/__init__.py — major update
-- core/project_manager/models/__init__.py — new models (GitState, RetrievalMetrics, IndexStats)
-- core/project_manager/indexers/indexer.py — incremental scan
-- core/project_manager/indexers/file_watch.py — NEW (watchdog-based file watcher)
-- core/project_manager/indexers/git_intelligence.py — NEW (git state reader)
-- core/project_manager/indexers/dependency_graph.py — incremental build, BFS traversal
-- core/project_manager/extractors/__init__.py — AST parsing for Python
-- core/project_manager/query/__init__.py — 10-signal ranking
-- core/project_manager/storage/__init__.py — SQLite backend
-- core/project_manager/events/__init__.py — dedup, throttling, depth protection
-- web_ui/repo_endpoints.py — 10 new endpoints
+## Principles Maintained
+- PM = deterministic engineering control layer, NOT AI agent
+- No self-improvement, no autonomous rewriting
+- No AI-generated summaries or hallucinations
+- Deterministic > clever at every decision point
+- Safety > autonomy
 
-## Next Steps (Phase 3 — TBD)
+## Next Steps (Phase 6 — TBD)
 Possible directions:
-- tree-sitter integration for JS/TS AST parsing
-- WebSocket real-time updates for file changes
-- Frontend UI for repo mode
-- PM tests (unit + integration)
-- Agent prompt improvements using PM context
+- Domain contract system (NOT LLM summaries)
+- Workflow DSL for composable workflows
+- Trust tiers for approval fatigue
+- Graph partitioning for large monorepos
+- Distributed execution safety
+- Real production testing on large repos
