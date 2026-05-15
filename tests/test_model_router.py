@@ -27,8 +27,8 @@ class TestModelRouter:
         router = ModelRouter(profile="heavy")
         
         assert router.profile == "heavy"
-        # Heavy profile includes ollama, anthropic, openai in priority
-        assert router.priority[0] in ["ollama", "anthropic", "openai"]
+        # Heavy profile includes ollama, anthropic, openai, openrouter in priority
+        assert router.priority[0] in ["ollama", "anthropic", "openai", "openrouter"]
     
     def test_ollama_disabled_when_not_running(self):
         with patch('core.model_router.ModelRouter._check_ollama', return_value=False):
