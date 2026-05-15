@@ -370,7 +370,6 @@ async def repo_websocket(websocket: WebSocket):
             action = data.get("action")
 
             if action == "explore":
-                # Handle explore request
                 question = data.get("question", "")
                 if orchestrator and orchestrator.project_manager:
                     context = orchestrator.project_manager.query(
@@ -398,3 +397,131 @@ async def repo_websocket(websocket: WebSocket):
         })
     finally:
         await websocket.close()
+
+
+# ═══════════════════════════════════════════════════════════════
+# PHASE 2 ENDPOINTS
+# ═══════════════════════════════════════════════════════════════
+
+@router.get("/git/state")
+async def get_git_state():
+    """Get current git state."""
+    if orchestrator is None or orchestrator.project_manager is None:
+        raise HTTPException(status_code=400, detail="No project open")
+
+    pm = orchestrator.project_manager
+    return pm.get_git_state()
+
+
+@router.get("/git/recent")
+async def get_recently_active_files(days: int = 7, limit: int = 20):
+    """Get recently modified files from git history."""
+    if orchestrator is None or orchestrator.project_manager is None:
+        raise HTTPException(status_code=400, detail="No project open")
+
+    pm = orchestrator.project_manager
+    return {
+        "status": "success",
+        "files": pm.get_recently_active_files(days=days, limit=limit)
+    }
+
+
+@router.post("/impact")
+async def analyze_impact(file_path: str):
+    """
+    Analyze the impact of changing a file.
+    Returns affected files, broken imports, risk level.
+    """
+    if orchestrator is None or orchestrator.project_manager is None:
+        raise HTTPException(status_code=400, detail="No project open")
+
+    pm = orchestrator.project_manager
+    result = pm.analyze_impact(file_path)
+    return result
+
+
+@router.get("/dependencies/{file_path:path}")
+async def get_dependencies(file_path: str, direction: str = "both"):
+    """
+    Get dependencies for a file.
+    direction: 'imports' (what this file imports), 'dependents' (what imports this), 'both'
+    """
+    if orchestrator is None or orchestrator.project_manager is None:
+        raise HTTPException(status_code=400, detail="No project open")
+
+    pm = orchestrator.project_manager
+    result = {"file": file_path}
+
+    if direction in ("imports", "both"):
+        result["imports"] = pm.dependencies.get(file_path, [])
+
+    if direction in ("dependents", "both"):
+        result["dependents"] = pm._dep_graph.get_dependents(pm.dependencies, file_path)
+        result["all_dependents"] = pm._dep_graph.get_all_dependents(pm.dependencies, file_path)
+
+    return result
+
+
+@router.post("/reindex")
+async def reindex_project(incremental: bool = True):
+    """Trigger reindexing. Use incremental=true for fast updates."""
+    if orchestrator is None or orchestrator.project_manager is None:
+        raise HTTPException(status_code=400, detail="No project open")
+
+    pm = orchestrator.project_manager
+
+    if incremental:
+        stats = pm.index_incremental()
+    else:
+        stats = pm.index_project()
+
+    return {
+        "status": "success",
+        "stats": {
+            "total_files": stats.total_files,
+            "total_symbols": stats.total_symbols,
+            "total_dependencies": stats.total_dependencies,
+            "elapsed_seconds": stats.elapsed_seconds,
+            "is_incremental": stats.is_incremental,
+            "changed_files": stats.changed_files,
+            "added_files": stats.added_files,
+            "removed_files": stats.removed_files,
+        }
+    }
+
+
+@router.get("/snapshots/compare")
+async def compare_snapshots(snapshot_a: str, snapshot_b: str):
+    """Compare two snapshots and return structural diff."""
+    if orchestrator is None or orchestrator.project_manager is None:
+        raise HTTPException(status_code=400, detail="No project open")
+
+    pm = orchestrator.project_manager
+    result = pm.compare_snapshots(snapshot_a, snapshot_b)
+    return result
+
+
+@router.get("/metrics/retrieval")
+async def get_retrieval_metrics(limit: int = 50):
+    """Get retrieval quality metrics."""
+    if orchestrator is None or orchestrator.project_manager is None:
+        raise HTTPException(status_code=400, detail="No project open")
+
+    pm = orchestrator.project_manager
+    return {
+        "status": "success",
+        "metrics": pm.get_retrieval_metrics(limit=limit)
+    }
+
+
+@router.get("/hot-files")
+async def get_hot_files(limit: int = 10):
+    """Get most frequently accessed files."""
+    if orchestrator is None or orchestrator.project_manager is None:
+        raise HTTPException(status_code=400, detail="No project open")
+
+    pm = orchestrator.project_manager
+    return {
+        "status": "success",
+        "files": [{"path": f, "access_count": c} for f, c in pm.get_hot_files(limit=limit)]
+    }

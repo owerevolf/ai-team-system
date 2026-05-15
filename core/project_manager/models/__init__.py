@@ -5,7 +5,7 @@ Only facts. No AI opinions. No speculative summaries.
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 from datetime import datetime
 
 
@@ -28,6 +28,10 @@ class FileEntry:
     is_test: bool = False
     is_config: bool = False
 
+    # Incremental indexing metadata
+    index_time: float = 0.0       # when this file was last indexed
+    last_seen: float = 0.0        # mtime when hash was computed
+
 
 @dataclass
 class SymbolEntry:
@@ -37,6 +41,9 @@ class SymbolEntry:
     file_path: str
     line: int
     signature: str = ""    # first 100 chars of definition line
+    decorators: List[str] = field(default_factory=list)  # @app.route, @staticmethod, etc.
+    parent: str = ""       # parent class/method name
+    is_async: bool = False
 
 
 @dataclass
@@ -54,3 +61,50 @@ class Snapshot:
     file_hashes: Dict[str, str]     # path -> hash
     total_files: int
     total_symbols: int
+    # Phase 2: structural diff
+    added_files: List[str] = field(default_factory=list)
+    removed_files: List[str] = field(default_factory=list)
+    changed_files: List[str] = field(default_factory=list)
+    added_symbols: List[Dict] = field(default_factory=list)
+    removed_symbols: List[Dict] = field(default_factory=list)
+
+
+@dataclass
+class GitState:
+    """Current git state of the project."""
+    branch: str = ""
+    commit_hash: str = ""
+    commit_message: str = ""
+    commit_author: str = ""
+    commit_date: str = ""
+    changed_files: List[str] = field(default_factory=list)
+    untracked_files: List[str] = field(default_factory=list)
+    staged_files: List[str] = field(default_factory=list)
+    recent_commits: List[Dict] = field(default_factory=list)
+    is_clean: bool = True
+
+
+@dataclass
+class RetrievalMetrics:
+    """Metrics for a single retrieval operation."""
+    query: str
+    agent: str
+    timestamp: str
+    files_returned: int
+    symbols_returned: int
+    context_chars: int
+    duration_ms: float
+    cache_hit: bool = False
+
+
+@dataclass
+class IndexStats:
+    """Statistics about an indexing operation."""
+    total_files: int = 0
+    total_symbols: int = 0
+    total_dependencies: int = 0
+    elapsed_seconds: float = 0.0
+    changed_files: int = 0
+    added_files: int = 0
+    removed_files: int = 0
+    is_incremental: bool = False

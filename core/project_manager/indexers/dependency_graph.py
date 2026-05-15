@@ -42,13 +42,23 @@ class DependencyGraph:
         files: Dict[str, FileEntry],
         existing_graph: Dict[str, List[str]],
         changed_files: List[str],
+        removed_files: List[str],
     ) -> Dict[str, List[str]]:
         """
-        Update dependency graph for changed files only.
+        Update dependency graph for changed/removed files only.
+
+        For changed files: re-resolve their imports.
+        For removed files: remove from graph and clean dependents.
+        Also update files that might be affected by removed files.
         """
         graph = dict(existing_graph)
         module_map = self._build_module_map(files)
 
+        # Remove deleted files from graph
+        for rel_path in removed_files:
+            graph.pop(rel_path, None)
+
+        # Rebuild deps for changed files
         for rel_path in changed_files:
             if rel_path in files:
                 entry = files[rel_path]
@@ -61,15 +71,74 @@ class DependencyGraph:
             else:
                 graph.pop(rel_path, None)
 
+        # Clean up references to removed files from other entries' deps
+        if removed_files:
+            removed_set = set(removed_files)
+            for source in list(graph.keys()):
+                deps = graph[source]
+                new_deps = sorted(d for d in deps if d not in removed_set)
+                if new_deps != deps:
+                    graph[source] = new_deps
+
         return graph
 
     def get_dependents(self, graph: Dict[str, List[str]], target: str) -> List[str]:
-        """Find all files that depend on the target file."""
+        """Find all files that depend on the target file (reverse lookup)."""
         result = []
         for source, deps in graph.items():
             if target in deps:
                 result.append(source)
         return result
+
+    def get_all_dependents(
+        self, graph: Dict[str, List[str]], target: str
+    ) -> List[str]:
+        """
+        BFS to find ALL transitively affected files.
+        Returns files sorted by distance from target.
+        """
+        visited: Set[str] = set()
+        queue: List[tuple] = [(target, 0)]
+        result: List[tuple] = []
+
+        while queue:
+            current, depth = queue.pop(0)
+            if current in visited:
+                continue
+            visited.add(current)
+
+            dependents = self.get_dependents(graph, current)
+            for dep in dependents:
+                if dep not in visited:
+                    result.append((dep, depth + 1))
+                    queue.append((dep, depth + 1))
+
+        # Sort by depth (closest first)
+        result.sort(key=lambda x: x[1])
+        return [path for path, _ in result]
+
+    def get_dependency_chain(
+        self, graph: Dict[str, List[str]], source: str, target: str
+    ) -> List[str]:
+        """Find dependency path from source to target via BFS. Returns path or empty."""
+        if source == target:
+            return [source]
+
+        visited: Set[str] = {source}
+        queue: List[List[str]] = [[source]]
+
+        while queue:
+            path = queue.pop(0)
+            current = path[-1]
+
+            for dep in graph.get(current, []):
+                if dep == target:
+                    return path + [dep]
+                if dep not in visited:
+                    visited.add(dep)
+                    queue.append(path + [dep])
+
+        return []
 
     def _build_module_map(self, files: Dict[str, FileEntry]) -> Dict[str, str]:
         """Map module-like paths to actual file paths."""
