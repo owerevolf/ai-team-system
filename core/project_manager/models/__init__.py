@@ -5,7 +5,7 @@ Only facts. No AI opinions. No speculative summaries.
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Any
 from datetime import datetime
 
 
@@ -108,3 +108,58 @@ class IndexStats:
     added_files: int = 0
     removed_files: int = 0
     is_incremental: bool = False
+
+
+# ── Phase 3: Engineering Safety Models ──
+
+@dataclass
+class ValidationReport:
+    """Result of running validation pipeline."""
+    issues: List[Dict] = field(default_factory=list)
+    files_checked: int = 0
+    symbols_checked: int = 0
+    elapsed_seconds: float = 0.0
+    has_errors: bool = False
+    has_critical: bool = False
+
+    def summary(self) -> Dict[str, Any]:
+        from collections import Counter
+        severities = Counter(i.get('severity', 'unknown') for i in self.issues)
+        return {
+            'total_issues': len(self.issues),
+            'critical': severities.get('critical', 0),
+            'errors': severities.get('error', 0),
+            'warnings': severities.get('warning', 0),
+            'info': severities.get('info', 0),
+            'files_checked': self.files_checked,
+            'elapsed_seconds': self.elapsed_seconds,
+        }
+
+
+@dataclass
+class ExecutionRecord:
+    """Record of a task execution attempt."""
+    task_id: str = ""
+    agent: str = ""
+    action: str = ""
+    status: str = "pending"  # pending, running, completed, failed, rolled_back
+    started_at: str = ""
+    completed_at: str = ""
+    files_changed: List[str] = field(default_factory=list)
+    validation_result: Optional[Dict] = None
+    risk_level: str = "low"
+    risk_score: float = 0.0
+    error: str = ""
+    snapshot_before: str = ""
+    snapshot_after: str = ""
+
+
+@dataclass
+class ModuleStability:
+    """Stability metrics for a module."""
+    file_path: str = ""
+    change_count: int = 0       # how many times modified
+    last_change: str = ""       # timestamp
+    failure_count: int = 0      # how many times changes here caused failures
+    dependent_count: int = 0    # how many files depend on this
+    stability_score: float = 1.0  # 0.0 (unstable) to 1.0 (stable)

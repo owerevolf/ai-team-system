@@ -525,3 +525,81 @@ async def get_hot_files(limit: int = 10):
         "status": "success",
         "files": [{"path": f, "access_count": c} for f, c in pm.get_hot_files(limit=limit)]
     }
+
+
+# ═══════════════════════════════════════════════════════════════
+# PHASE 3 ENDPOINTS — Engineering Safety
+# ═══════════════════════════════════════════════════════════════
+
+@router.post("/validate")
+async def validate_project(checks: Optional[List[str]] = None):
+    """Run validation pipeline on the project."""
+    if orchestrator is None or orchestrator.project_manager is None:
+        raise HTTPException(status_code=400, detail="No project open")
+
+    pm = orchestrator.project_manager
+    result = pm.validate_project(checks=checks)
+    return {"status": "success", "validation": result}
+
+
+@router.get("/architecture/violations")
+async def get_architecture_violations():
+    """Check all imports for architecture rule violations."""
+    if orchestrator is None or orchestrator.project_manager is None:
+        raise HTTPException(status_code=400, detail="No project open")
+
+    pm = orchestrator.project_manager
+    violations = pm.check_architecture_rules()
+    return {"status": "success", "violations": violations, "count": len(violations)}
+
+
+@router.get("/architecture/protected-files")
+async def get_protected_files():
+    """Get list of files protected from agent modifications."""
+    if orchestrator is None or orchestrator.project_manager is None:
+        raise HTTPException(status_code=400, detail="No project open")
+
+    pm = orchestrator.project_manager
+    from core.project_manager.validation.architecture_rules import (
+        ArchitectureRulesEngine, ArchitectureRulesConfig
+    )
+    engine = ArchitectureRulesEngine(
+        pm.files, pm.dependencies,
+        config=ArchitectureRulesConfig.default_rules(),
+    )
+    return {"status": "success", "protected_files": engine.get_protected_files()}
+
+
+@router.post("/tests/impact")
+async def get_test_impact(files: List[str]):
+    """Find relevant tests for the given file changes."""
+    if orchestrator is None or orchestrator.project_manager is None:
+        raise HTTPException(status_code=400, detail="No project open")
+
+    pm = orchestrator.project_manager
+    result = pm.find_relevant_tests(files)
+    return {"status": "success", "test_impact": result}
+
+
+@router.post("/risk/assess")
+async def assess_risk(request: dict):
+    """Assess risk of proposed changes."""
+    if orchestrator is None or orchestrator.project_manager is None:
+        raise HTTPException(status_code=400, detail="No project open")
+
+    pm = orchestrator.project_manager
+    changed_files = request.get("files", [])
+    violations = request.get("architecture_violations", [])
+    result = pm.assess_risk(changed_files, architecture_violations=violations)
+    return {"status": "success", "risk": result}
+
+
+@router.get("/modules/stability")
+async def get_module_stability():
+    """Get stability metrics for all modules."""
+    if orchestrator is None or orchestrator.project_manager is None:
+        raise HTTPException(status_code=400, detail="No project open")
+
+    pm = orchestrator.project_manager
+    result = pm.get_module_stability()
+    return {"status": "success", "modules": result[:50]}  # Top 50 least stable

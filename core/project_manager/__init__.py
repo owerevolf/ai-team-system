@@ -741,6 +741,209 @@ class ProjectManager:
             logger.error(f"Rollback failed: {e}")
             return False
 
+    # ── PHASE 3: ENGINEERING SAFETY ───────────────────────────
+
+    def validate_project(self, checks: Optional[List[str]] = None) -> Dict[str, Any]:
+        """
+        Run validation pipeline on the project.
+
+        Args:
+            checks: Optional list of check names. If None, run all.
+
+        Returns:
+            ValidationResult summary dict
+        """
+        from core.project_manager.validation import ValidationPipeline
+
+        pipeline = ValidationPipeline(self.files, self.dependencies, self.project_path)
+        result = pipeline.validate(checks=checks)
+        return result.summary()
+
+    def check_architecture_rules(self) -> List[Dict]:
+        """Check all imports for architecture rule violations."""
+        from core.project_manager.validation.architecture_rules import (
+            ArchitectureRulesEngine, ArchitectureRulesConfig
+        )
+
+        engine = ArchitectureRulesEngine(
+            self.files, self.dependencies,
+            config=ArchitectureRulesConfig.default_rules(),
+        )
+        violations = engine.check_all_imports()
+        return [
+            {
+                'rule': v.rule_name,
+                'source': v.source_file,
+                'target': v.target_file,
+                'action': v.action.value,
+                'message': v.message,
+            }
+            for v in violations
+        ]
+
+    def is_file_protected(self, file_path: str) -> bool:
+        """Check if a file is protected from agent modifications."""
+        from core.project_manager.validation.architecture_rules import (
+            ArchitectureRulesEngine, ArchitectureRulesConfig
+        )
+
+        engine = ArchitectureRulesEngine(
+            self.files, self.dependencies,
+            config=ArchitectureRulesConfig.default_rules(),
+        )
+        return engine.is_file_protected(file_path)
+
+    def find_relevant_tests(self, changed_files: List[str]) -> Dict:
+        """Find tests relevant to the given file changes."""
+        from core.project_manager.validation.test_impact import TestImpactAnalyzer
+
+        analyzer = TestImpactAnalyzer(self.files, self.dependencies)
+        return analyzer.get_test_recommendations(changed_files)
+
+    def detect_semantic_changes(
+        self, old_files: Dict[str, FileEntry]
+    ) -> Dict[str, Any]:
+        """
+        Detect semantic changes between current state and old state.
+
+        Args:
+            old_files: Previous file index (from snapshot)
+        """
+        from core.project_manager.validation.semantic_change import SemanticChangeDetector
+
+        detector = SemanticChangeDetector(old_files, self.files)
+        report = detector.detect_changes()
+        return report.summary()
+
+    def assess_risk(
+        self,
+        changed_files: List[str],
+        architecture_violations: Optional[List[Dict]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Assess risk of proposed changes.
+
+        Args:
+            changed_files: Files to be changed
+            architecture_violations: Any architecture violations
+
+        Returns:
+            RiskAssessment summary dict
+        """
+        from core.project_manager.validation.risk_analysis import RiskAnalysisEngine
+
+        # Get hot files from query engine
+        hot_files = dict(self._query_engine.get_hot_files(limit=50))
+
+        # Get protected files
+        from core.project_manager.validation.architecture_rules import (
+            ArchitectureRulesEngine, ArchitectureRulesConfig
+        )
+        arch_engine = ArchitectureRulesEngine(
+            self.files, self.dependencies,
+            config=ArchitectureRulesConfig.default_rules(),
+        )
+        protected = set(arch_engine.get_protected_files())
+
+        risk_engine = RiskAnalysisEngine(
+            self.files, self.dependencies,
+            hot_files=hot_files,
+            protected_files=protected,
+        )
+
+        # Count public API changes (simplified)
+        public_api_changes = 0
+        for f in changed_files:
+            if f in self.files:
+                for sym in self.files[f].symbols:
+                    name = sym.get('name', '')
+                    if not name.startswith('_') and sym.get('type') in ('class', 'function'):
+                        public_api_changes += 1
+
+        assessment = risk_engine.assess_changes(
+            changed_files,
+            architecture_violations=architecture_violations,
+            public_api_changes=public_api_changes,
+        )
+        return assessment.summary()
+
+    def apply_patch_set(self, patch_set: Any, dry_run: bool = False) -> List[Dict]:
+        """
+        Apply a set of patches safely.
+
+        Args:
+            patch_set: PatchSet to apply
+            dry_run: If True, only check without applying
+
+        Returns:
+            List of patch results
+        """
+        from core.project_manager.validation.safe_patch import SafePatchSystem
+
+        patcher = SafePatchSystem(self.project_path)
+        results = patcher.apply_patch_set(patch_set, dry_run=dry_run)
+        return [
+            {
+                'file': r.patch.file_path,
+                'type': r.patch.patch_type.value,
+                'success': r.success,
+                'conflict': r.conflict,
+                'error': r.error,
+            }
+            for r in results
+        ]
+
+    def get_module_stability(self) -> List[Dict]:
+        """Get stability metrics for all modules."""
+        from collections import defaultdict
+
+        # Count changes per file from task history
+        change_counts: Dict[str, int] = defaultdict(int)
+        failure_counts: Dict[str, int] = defaultdict(int)
+
+        try:
+            history = self._storage.load_task_history(limit=500)
+            for record in history:
+                result = record.get('result', {})
+                files = result.get('files', [])
+                action = record.get('action', '')
+
+                for f in files:
+                    change_counts[f] += 1
+                    if action == 'error' or action == 'failed':
+                        failure_counts[f] += 1
+        except Exception:
+            pass
+
+        results = []
+        for rel_path in self.files:
+            entry = self.files[rel_path]
+            changes = change_counts.get(rel_path, 0)
+            failures = failure_counts.get(rel_path, 0)
+            dependents = len(self._dep_graph.get_dependents(self.dependencies, rel_path))
+
+            # Stability score: 1.0 = perfectly stable, 0.0 = very unstable
+            if changes == 0:
+                stability = 1.0
+            else:
+                failure_rate = failures / max(changes, 1)
+                change_penalty = min(changes * 0.05, 0.5)
+                stability = max(0.0, 1.0 - failure_rate - change_penalty)
+
+            results.append({
+                'file': rel_path,
+                'changes': changes,
+                'failures': failures,
+                'dependents': dependents,
+                'stability': round(stability, 2),
+                'is_test': entry.is_test,
+                'is_entry_point': entry.is_entry_point,
+            })
+
+        # Sort by stability (least stable first)
+        results.sort(key=lambda x: x['stability'])
+        return results
+
     # ── CLASSIFICATION HELPERS ────────────────────────────────
 
     def _is_entry_point(self, rel_path: str, content: str) -> bool:
