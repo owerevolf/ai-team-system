@@ -603,3 +603,120 @@ async def get_module_stability():
     pm = orchestrator.project_manager
     result = pm.get_module_stability()
     return {"status": "success", "modules": result[:50]}  # Top 50 least stable
+
+
+# ═══════════════════════════════════════════════════════════════
+# PHASE 4 ENDPOINTS — Collaborative Runtime
+# ═══════════════════════════════════════════════════════════════
+
+@router.post("/tasks/create")
+async def create_task(request: dict):
+    """Create a new engineering task."""
+    if orchestrator is None or orchestrator.project_manager is None:
+        raise HTTPException(status_code=400, detail="No project open")
+
+    pm = orchestrator.project_manager
+    task_id = pm.create_task(
+        title=request.get("title", ""),
+        agent=request.get("agent", ""),
+        description=request.get("description", ""),
+        priority=request.get("priority", "normal"),
+        workflow=request.get("workflow", "default"),
+    )
+
+    if task_id is None:
+        raise HTTPException(status_code=500, detail="Failed to create task")
+
+    return {"status": "success", "task_id": task_id}
+
+
+@router.get("/tasks")
+async def get_active_tasks():
+    """Get all active tasks."""
+    if orchestrator is None or orchestrator.project_manager is None:
+        raise HTTPException(status_code=400, detail="No project open")
+
+    pm = orchestrator.project_manager
+    tasks = pm.get_active_tasks()
+    return {"status": "success", "tasks": tasks, "count": len(tasks)}
+
+
+@router.get("/tasks/{task_id}")
+async def get_task(task_id: str):
+    """Get task details."""
+    if orchestrator is None or orchestrator.project_manager is None:
+        raise HTTPException(status_code=400, detail="No project open")
+
+    pm = orchestrator.project_manager
+    task = pm.get_task(task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    return {"status": "success", "task": task}
+
+
+@router.post("/tasks/{task_id}/lock")
+async def acquire_lock(task_id: str, request: dict):
+    """Acquire a resource lock for a task."""
+    if orchestrator is None or orchestrator.project_manager is None:
+        raise HTTPException(status_code=400, detail="No project open")
+
+    pm = orchestrator.project_manager
+    success = pm.acquire_resource_lock(
+        task_id=task_id,
+        resource=request.get("resource", ""),
+        lock_type=request.get("lock_type", "write"),
+    )
+
+    return {"status": "success" if success else "failed", "locked": success}
+
+
+@router.post("/tasks/{task_id}/conflicts")
+async def detect_conflicts(task_id: str):
+    """Detect conflicts for a task."""
+    if orchestrator is None or orchestrator.project_manager is None:
+        raise HTTPException(status_code=400, detail="No project open")
+
+    pm = orchestrator.project_manager
+    conflicts = pm.detect_task_conflicts(task_id)
+    return {"status": "success", "conflicts": conflicts, "count": len(conflicts)}
+
+
+@router.post("/tasks/{task_id}/evaluate-approval")
+async def evaluate_approval(task_id: str, request: dict):
+    """Evaluate whether a task requires approval."""
+    if orchestrator is None or orchestrator.project_manager is None:
+        raise HTTPException(status_code=400, detail="No project open")
+
+    pm = orchestrator.project_manager
+    result = pm.evaluate_approval(
+        task_id=task_id,
+        risk_level=request.get("risk_level", "low"),
+        risk_score=request.get("risk_score", 0.0),
+        files_affected=request.get("files_affected", []),
+        architecture_violations=request.get("architecture_violations", []),
+    )
+
+    return {"status": "success", "approval": result}
+
+
+@router.get("/audit-log")
+async def get_audit_log(task_id: Optional[str] = None, limit: int = 100):
+    """Get workflow audit log."""
+    if orchestrator is None or orchestrator.project_manager is None:
+        raise HTTPException(status_code=400, detail="No project open")
+
+    pm = orchestrator.project_manager
+    entries = pm.get_audit_log(task_id=task_id, limit=limit)
+    return {"status": "success", "entries": entries, "count": len(entries)}
+
+
+@router.get("/coordination/stats")
+async def get_coordination_stats():
+    """Get task coordination statistics."""
+    if orchestrator is None or orchestrator.project_manager is None:
+        raise HTTPException(status_code=400, detail="No project open")
+
+    pm = orchestrator.project_manager
+    stats = pm.get_coordination_stats()
+    return {"status": "success", "stats": stats}

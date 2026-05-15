@@ -944,6 +944,174 @@ class ProjectManager:
         results.sort(key=lambda x: x['stability'])
         return results
 
+    # ── PHASE 4: COLLABORATIVE RUNTIME ────────────────────────
+
+    def create_task(
+        self,
+        title: str,
+        agent: str,
+        description: str = "",
+        priority: str = "normal",
+        workflow: str = "default",
+    ) -> Optional[str]:
+        """
+        Create and register a new task.
+
+        Returns:
+            Task ID or None if creation failed
+        """
+        if not hasattr(self, '_task_coordinator'):
+            from core.project_manager.runtime import TaskCoordinationSystem
+            self._task_coordinator = TaskCoordinationSystem()
+
+        from core.project_manager.runtime import TaskPriority
+        priority_map = {
+            'low': TaskPriority.LOW,
+            'normal': TaskPriority.NORMAL,
+            'high': TaskPriority.HIGH,
+            'critical': TaskPriority.CRITICAL,
+        }
+
+        task = self._task_coordinator.create_task(
+            title=title,
+            agent=agent,
+            description=description,
+            priority=priority_map.get(priority, TaskPriority.NORMAL),
+            workflow=workflow,
+        )
+
+        # Audit log
+        if hasattr(self, '_approval_engine'):
+            self._approval_engine.log_task_created(task.id, agent, title)
+
+        return task.id
+
+    def get_task(self, task_id: str) -> Optional[Dict]:
+        """Get task info by ID."""
+        if not hasattr(self, '_task_coordinator'):
+            return None
+        task = self._task_coordinator.get_task(task_id)
+        if not task:
+            return None
+        return {
+            'id': task.id,
+            'title': task.title,
+            'agent': task.agent,
+            'state': task.state.value,
+            'priority': task.priority.value,
+            'workflow': task.workflow,
+            'files_locked': task.files_locked,
+            'files_changed': task.files_changed,
+            'risk_level': task.risk_level,
+            'risk_score': task.risk_score,
+            'requires_approval': task.requires_approval,
+            'approved': task.approved,
+            'created_at': task.created_at,
+            'started_at': task.started_at,
+            'completed_at': task.completed_at,
+            'error': task.error,
+        }
+
+    def get_active_tasks(self) -> List[Dict]:
+        """Get all active tasks."""
+        if not hasattr(self, '_task_coordinator'):
+            return []
+        tasks = self._task_coordinator.get_active_tasks()
+        result = []
+        for t in tasks:
+            info = self.get_task(t.id)
+            if info is not None:
+                result.append(info)
+        return result
+
+    def acquire_resource_lock(
+        self, task_id: str, resource: str, lock_type: str = "write"
+    ) -> bool:
+        """Acquire a lock on a resource for a task."""
+        if not hasattr(self, '_task_coordinator'):
+            return False
+
+        from core.project_manager.runtime import LockType
+        type_map = {
+            'read': LockType.READ,
+            'write': LockType.WRITE,
+            'exclusive': LockType.EXCLUSIVE,
+        }
+
+        return self._task_coordinator.acquire_lock(
+            task_id, resource, type_map.get(lock_type, LockType.WRITE)
+        )
+
+    def release_resource_lock(self, task_id: str, resource: str) -> bool:
+        """Release a resource lock."""
+        if not hasattr(self, '_task_coordinator'):
+            return False
+        return self._task_coordinator.release_lock(task_id, resource)
+
+    def detect_task_conflicts(self, task_id: str) -> List[Dict]:
+        """Detect conflicts between a task and other active tasks."""
+        if not hasattr(self, '_task_coordinator'):
+            return []
+        conflicts = self._task_coordinator.detect_conflicts(task_id)
+        return [
+            {
+                'type': c['type'],
+                'resource': c['resource'],
+                'task_a': c['task_a'],
+                'task_b': c['task_b'],
+                'severity': c['severity'],
+                'message': c['message'],
+            }
+            for c in conflicts
+        ]
+
+    def evaluate_approval(
+        self,
+        task_id: str,
+        risk_level: str,
+        risk_score: float,
+        files_affected: List[str],
+        architecture_violations: Optional[List[str]] = None,
+    ) -> Dict:
+        """Evaluate whether a task requires approval."""
+        if not hasattr(self, '_approval_engine'):
+            from core.project_manager.runtime.approval import ApprovalWorkflowEngine
+            self._approval_engine = ApprovalWorkflowEngine()
+
+        # Check protected files
+        protected_touched = [f for f in files_affected if self.is_file_protected(f)]
+
+        result = self._approval_engine.evaluate_approval_need(
+            task_id=task_id,
+            risk_level=risk_level,
+            risk_score=risk_score,
+            files_affected=files_affected,
+            architecture_violations=architecture_violations or [],
+            public_api_changes=0,
+            breaking_changes=0,
+            protected_files_touched=protected_touched,
+        )
+
+        return {
+            'approval_id': result.id,
+            'status': result.status.value,
+            'trigger': result.trigger.value,
+            'description': result.description,
+            'auto_approved': result.auto_approved,
+        }
+
+    def get_audit_log(self, task_id: Optional[str] = None, limit: int = 100) -> List[Dict]:
+        """Get workflow audit log."""
+        if not hasattr(self, '_approval_engine'):
+            return []
+        return self._approval_engine.get_audit_log(task_id=task_id, limit=limit)
+
+    def get_coordination_stats(self) -> Dict:
+        """Get task coordination statistics."""
+        if not hasattr(self, '_task_coordinator'):
+            return {}
+        return self._task_coordinator.get_stats()
+
     # ── CLASSIFICATION HELPERS ────────────────────────────────
 
     def _is_entry_point(self, rel_path: str, content: str) -> bool:

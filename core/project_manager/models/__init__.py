@@ -163,3 +163,35 @@ class ModuleStability:
     failure_count: int = 0      # how many times changes here caused failures
     dependent_count: int = 0    # how many files depend on this
     stability_score: float = 1.0  # 0.0 (unstable) to 1.0 (stable)
+
+
+# ── Phase 4: Collaborative Runtime Models ──
+
+@dataclass
+class AgentMetrics:
+    """Metrics for agent reliability tracking."""
+    agent_name: str = ""
+    tasks_completed: int = 0
+    tasks_failed: int = 0
+    patches_applied: int = 0
+    patches_rolled_back: int = 0
+    validation_failures: int = 0
+    avg_risk_score: float = 0.0
+    reliability_score: float = 1.0  # 0.0 to 1.0
+
+    def update_reliability(self):
+        total = self.tasks_completed + self.tasks_failed
+        if total > 0:
+            self.reliability_score = round(self.tasks_completed / total, 2)
+
+
+@dataclass
+class WorkflowMetrics:
+    """Metrics for workflow execution."""
+    workflow_name: str = ""
+    executions: int = 0
+    successes: int = 0
+    failures: int = 0
+    rollbacks: int = 0
+    avg_duration_seconds: float = 0.0
+    avg_risk_score: float = 0.0
