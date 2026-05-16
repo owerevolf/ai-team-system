@@ -88,14 +88,16 @@ class TestSurfaceAreaAudit:
         assert report.surface_density == 5.0
 
     def test_auditor_finds_python_files(self):
-        base = "/media/aram/28c41f20-b9ef-4ac3-90f6-8f877a30e33c/owerevolf/ai teem/ai-team-system/core/project_manager/runtime/compression"
-        auditor = SurfaceAreaAuditor(base)
+        from pathlib import Path
+        base = Path(__file__).parent.parent / "core/project_manager/runtime/compression"
+        auditor = SurfaceAreaAuditor(str(base))
         report = auditor.audit()
         assert report.total_items > 0
 
     def test_auditor_classifies_endpoints(self):
-        base = "/media/aram/28c41f20-b9ef-4ac3-90f6-8f877a30e33c/owerevolf/ai teem/ai-team-system/core/project_manager/runtime/compression"
-        auditor = SurfaceAreaAuditor(base)
+        from pathlib import Path
+        base = Path(__file__).parent.parent / "core/project_manager/runtime/compression"
+        auditor = SurfaceAreaAuditor(str(base))
         report = auditor.audit()
         # Should find classes and functions
         assert len(report.items) > 0

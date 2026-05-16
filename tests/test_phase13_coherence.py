@@ -177,14 +177,16 @@ class TestOntologyDrift:
 
 class TestBoundaryEnforcement:
     def test_enforcer_creates(self):
-        base = "/media/aram/28c41f20-b9ef-4ac3-90f6-8f877a30e33c/owerevolf/ai teem/ai-team-system/core/project_manager/runtime"
-        enforcer = ArchitecturalBoundaryEnforcer(base)
+        from pathlib import Path
+        base = Path(__file__).parent.parent / "core/project_manager/runtime"
+        enforcer = ArchitecturalBoundaryEnforcer(str(base))
         report = enforcer.check_boundaries()
         assert report.total_imports_checked > 0
 
     def test_allowed_imports_defined(self):
-        base = "/media/aram/28c41f20-b9ef-4ac3-90f6-8f877a30e33c/owerevolf/ai teem/ai-team-system/core/project_manager/runtime"
-        enforcer = ArchitecturalBoundaryEnforcer(base)
+        from pathlib import Path
+        base = Path(__file__).parent.parent / "core/project_manager/runtime"
+        enforcer = ArchitecturalBoundaryEnforcer(str(base))
         allowed = enforcer.get_allowed_imports("compression")
         assert len(allowed) > 0
 
@@ -199,14 +201,16 @@ class TestBoundaryEnforcement:
 
 class TestDependencyGravity:
     def test_analyzer_runs(self):
-        base = "/media/aram/28c41f20-b9ef-4ac3-90f6-8f877a30e33c/owerevolf/ai teem/ai-team-system/core/project_manager/runtime"
-        analyzer = DependencyGravityAnalyzer(base)
+        from pathlib import Path
+        base = Path(__file__).parent.parent / "core/project_manager/runtime"
+        analyzer = DependencyGravityAnalyzer(str(base))
         report = analyzer.analyze()
         assert len(report.modules) > 0
 
     def test_top_chokepoints(self):
-        base = "/media/aram/28c41f20-b9ef-4ac3-90f6-8f877a30e33c/owerevolf/ai teem/ai-team-system/core/project_manager/runtime"
-        analyzer = DependencyGravityAnalyzer(base)
+        from pathlib import Path
+        base = Path(__file__).parent.parent / "core/project_manager/runtime"
+        analyzer = DependencyGravityAnalyzer(str(base))
         report = analyzer.analyze()
         top = report.top_chokepoints
         assert len(top) > 0
