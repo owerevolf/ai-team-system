@@ -2012,4 +2012,25 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
   }
+
+  // Agent chip click handler
+  var agentsBar = document.getElementById('agents-bar');
+  if (agentsBar) {
+    agentsBar.addEventListener('click', function(e) {
+      var chip = e.target.closest('.agent-chip');
+      if (chip && chip.dataset.agent) {
+        var agent = chip.dataset.agent;
+        // Toggle active state
+        document.querySelectorAll('.agent-chip').forEach(function(c) {
+          c.classList.remove('active');
+        });
+        chip.classList.add('active');
+        // Update state
+        if (typeof state !== 'undefined') {
+          state.currentAgent = agent;
+        }
+        console.log('Agent selected:', agent);
+      }
+    });
+  }
 });
