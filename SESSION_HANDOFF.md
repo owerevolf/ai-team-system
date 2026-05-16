@@ -1,95 +1,106 @@
-# SESSION_HANDOFF — Phase 12 Complete
+# SESSION_HANDOFF — Phase 13 Complete
 
-## Status: Phase 12 completed
+## Status: Phase 13 completed
 
-- **Phase**: 12 — Minimal Surface & System Compression
-- **Commit**: 637a31b
-- **Tests**: 737 passing (88 new)
+- **Phase**: 13 — Architectural Coherence & Evolution Control
+- **Commit**: 7ac6d79
+- **Tests**: 791 passing (54 new)
 - **Date**: May 2026
 
 ## What was built
 
-New subpackage: `core/project_manager/runtime/compression/` — 10 modules:
+New subpackage: `core/project_manager/runtime/coherence/` — 10 modules:
 
-1. **surface_audit.py** — Surface Area Audit Engine (P1)
-   - Measures complete operational surface: API endpoints, workflows, approvals, explanations, observability entrypoints
-   - Uses AST analysis to scan all Python files
-   - Identifies compression candidates (deprecated, unreferenced, unused)
+1. **vocabulary.py** — Unified Runtime Vocabulary (P1)
+   - CanonicalPriority, CanonicalStateTier, CanonicalEventType
+   - CanonicalApprovalRisk/Status, CanonicalExplanationLevel, CanonicalVisibility
+   - Cross-reference mappings from old fragmented models
+   - Concept definitions with invariants and source module tracking
 
-2. **workflow_compression.py** — Workflow Path Compression (P2)
-   - Analyzes workflow step counts, identifies redundant steps
-   - Batches mergeable operations, warns on long approval chains
-   - Compression ratio tracking
+2. **contract_validation.py** — Cross-Subsystem Contract Validation (P2)
+   - Detects conflicts between trust/ergonomics/durability contracts
+   - Visibility, approval, state, recovery, explanation, priority checks
+   - Known conflicts: calm mode vs visibility guarantees, do_less vs attention
 
-3. **governance_simplification.py** — Governance Simplification (P3)
-   - Detects governance entropy: overlapping rules, unused policies, contradictions
-   - Name similarity detection for duplicate governance items
-   - Removable count tracking
+3. **ontology_drift.py** — Ontology Drift Detection (P3)
+   - 6 known drift patterns from Phase 12 audit
+   - Priority fragmentation (3 models), event type fragmentation (4+ systems)
+   - Explanation depth split, state model split, approval split, visibility split
 
-4. **dead_system_detection.py** — Dead System Detection (P4)
-   - Static analysis for unused modules, unreachable classes/functions
-   - Import/reference mapping across the entire codebase
-   - Isolated module detection
+4. **boundary_enforcement.py** — Architectural Boundary Enforcement (P4)
+   - Allowed cross-subsystem import definitions
+   - Circular dependency detection via DFS
+   - Forbidden import checking (web_ui, core.main, etc.)
 
-5. **latency_reduction.py** — Runtime Latency Reduction (P5)
-   - Measures cognitive, approval, explanation, workflow, recovery latency
-   - Budget-based violation detection with warnings
-   - Context manager for timing operations
+5. **dependency_gravity.py** — Dependency Gravity Analysis (P5)
+   - Incoming/outgoing dependency counts per module
+   - Responsibility score and gravity levels (LOW → CRITICAL)
+   - Top chokepoint identification
 
-6. **interaction_minimalism.py** — Interaction Minimalism Layer (P6)
-   - Priority-based interaction filtering (CRITICAL → SILENT)
-   - Deduplication with time windows
-   - Per-workflow/per-session limits on confirmations, explanations, warnings
+6. **evolution_safety.py** — Evolution Safety Rules (P6)
+   - 16 change categories across 3 risk levels
+   - SAFE: dead code removal, isolated simplification
+   - REVIEW_REQUIRED: new surface, new governance, boundary changes
+   - HIGH_RISK: hidden automation, semantic redefinition, authority expansion
 
-7. **progressive_disclosure.py** — Progressive Disclosure Engine (P7)
-   - 5 disclosure levels: MINIMAL → DEBUG
-   - Profile-based max level enforcement
-   - Auto-expand on error, expand-on-demand
-   - Tracks frequently vs never expanded items
+7. **semantic_compression.py** — Semantic Compression (P7)
+   - 6 conceptual overlaps identified
+   - ~325 lines estimated savings through unification
+   - Migration paths for each compression target
 
-8. **operational_calm.py** — Operational Calm Metrics (P8)
-   - 6 calm dimensions: interruption density, alert frequency, approval pressure, recovery stress, workflow turbulence, explanation overload
-   - 5 calm levels: CALM → OVERWHELMING
-   - Trend analysis and recommendations
+8. **decision_traceability.py** — Architectural Decision Traceability (P8)
+   - 8 core architectural decisions (ADR-001 through ADR-008)
+   - Context, rationale, alternatives, tradeoffs, consequences
+   - Cross-references between related decisions
 
-9. **architecture_compression.py** — Architecture Compression Initiative (P9)
-   - Finds duplicate classes/functions across modules
-   - Conceptual overlap detection via naming patterns
-   - Merge/collapse/unify recommendations with line savings estimates
+9. **controlled_evolution.py** — Controlled Evolution Framework (P9)
+   - Risk-based approval workflow
+   - Safety check integration
+   - Change status tracking (PROPOSED → APPROVED → IMPLEMENTED)
 
-10. **do_less.py** — Do Less Runtime Philosophy (P10)
-    - Central restraint engine — all proposed actions pass through
-    - Value-based filtering: CRITICAL always passes, ZERO always suppressed, LOW deferred
-    - Blocks interruptions and advisory by default
-    - Rate limiting (max actions per minute)
-    - Restraint ratio tracking
+10. **coherence_engine.py** — Coherence Preservation Engine (P10)
+    - 5 coherence dimensions: semantic, behavioral, governance, visibility, recovery
+    - Overall coherence status assessment
+    - Drift area identification
 
-Plus:
-- **compression_engine.py** — Unified orchestrator running all 10 analyses
-- **__init__.py** — Clean exports
+## Key findings from coherence analysis
 
-## Key findings from running the compression analysis
+### Semantic fragmentation detected:
+- **Priority**: 3 models (AttentionPriority, InteractionPriority, CalmLevel)
+- **Event types**: 4+ systems (EntryType, NoiseType, EventCategory, InteractionType)
+- **Explanation depth**: 3 models (ExplanationField, ExplanationLevel, DisclosureLevel)
+- **State**: 2 models (StateTier, ContextType)
+- **Approval**: 2 models (ApprovalRisk/Status in ergonomics, governance_pressure in trust)
+- **Visibility**: 3 models (VisibilityAction, GuaranteeLevel, InteractionPriority-based)
 
-- 44 runtime modules across 4 subpackages (~11,000 lines)
-- Conceptual overlaps detected:
-  - explainability: durability/explainability_layer + trust/explainability_compression
-  - observability: durability/observability + trust/visibility_guarantees + trust/audit_visible_automation
-  - cognitive: durability/cognitive_load + ergonomics/attention_management + ergonomics/human_time_protection
-  - noise/calm: ergonomics/noise_reduction + ergonomics/calm_mode
-  - governance: runtime/approval.py + trust/governance_pressure + trust/transparency_contracts
-- kimi/ directory: 2,293 lines of duplicate/stale code from Kimi system
-- web_ui/app.py: 1,360 lines, 58 functions — candidate for decomposition
+### Architectural decisions preserved:
+- ADR-001: Deterministic over AI (Phase 1)
+- ADR-002: Safety over Autonomy (Phase 3)
+- ADR-003: Coordination over Complexity (Phase 4)
+- ADR-004: Subpackage Architecture (Phase 9-13)
+- ADR-005: Transparency Contracts (Phase 11)
+- ADR-006: Do Less as Architecture (Phase 12)
+- ADR-007: Canonical Vocabulary (Phase 13)
+- ADR-008: Deletion as First-Class Operation (Phase 12)
 
-## Principles applied
+## System state after Phase 13
 
-- Every subsystem must continuously justify its existence
-- Deletion is a first-class operation
-- Silence is acceptable
-- Restraint as architecture
-- Fewer steps without hidden automation
+- 13 phases completed
+- 791 tests passing
+- 54 runtime modules across 6 subpackages:
+  - durability/ (10 modules)
+  - ergonomics/ (7 modules)
+  - trust/ (10 modules)
+  - optimization/ (6 modules)
+  - compression/ (11 modules)
+  - coherence/ (10 modules)
+- ~14,000 lines of runtime code
+- Server on port 8000
+- Pushed to github.com/owerevolf/ai-team-system
 
 ## Next session options
 
-1. **Phase 13: Actual Compression** — Act on the findings: merge overlapping modules, remove dead code, decompose app.py
-2. **Phase 13: Runtime API Integration** — Expose compression/ergonomics/trust modules via web_ui endpoints
-3. **Phase 13: Developer Experience** — Interactive dashboard for runtime control and monitoring
+1. **Phase 14: Actual Semantic Compression** — Execute the migration plan: replace fragmented models with canonical ones
+2. **Phase 14: Runtime API Integration** — Expose coherence/compression/trust modules via web_ui endpoints
+3. **Phase 14: Developer Experience** — Interactive dashboard for runtime control and monitoring
+4. **Phase 14: Integration Testing** — End-to-end tests for cross-subsystem workflows
