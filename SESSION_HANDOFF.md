@@ -1,36 +1,42 @@
 # SESSION_HANDOFF — AI Team System
 
-## Проект: AI Team System v2.6
+## Проект: AI Team System v2.7
 **Путь:** `/media/aram/28c41f20-b9ef-4ac3-90f6-8f877a30e33c/owerevolf/ai teem/ai-team-system`
 **GitHub:** github.com/owerevolf/ai-team-system
 **Ветка:** main
 
-## Текущее состояние: Phase 10 завершена
+## Текущее состояние: Phase 11 завершена
 
 ### Ключевые цифры:
-- **540 тестов** — все зелёные
-- **35 модулей** в workspace/, runtime/durability/, runtime/ergonomics/
+- **649 тестов** — все зелёные
+- **45 модулей** в workspace/, runtime/durability/, runtime/ergonomics/, runtime/trust/
 - **38+ API endpoints**
 - Сервер работает на порту 8000
 
 ### Последние коммиты:
 ```
+9c3213c Phase 11: Adaptive Transparency & Trust Stability (P1-P10)
+a432e3d Update SESSION_HANDOFF.md for Phase 10 completion
 031b227 Phase 10: Operational Ergonomics & Human Scaling (P1-P7)
-2fb0f07 Prepare SESSION_HANDOFF for next session
-8d1a19f Update SESSION_HANDOFF.md for Phase 9 completion
-3e558c2 Phase 9: Runtime Durability & Operational Resilience (P1-P10)
 ```
 
 ## Архитектура (что есть):
 
+### core/project_manager/runtime/trust/ (Phase 11 — 10 модулей)
+- transparency_contracts.py — Explicit visibility contracts (never hide / can summarize / can delay / can suppress)
+- visibility_guarantees.py — Critical event invariants (always shown, never compressed/batched/suppressed)
+- adaptation_inspector.py — Why surfaced/hidden/delayed — every adaptation decision explainable
+- user_controlled_adaptivity.py — Adjustable operational policy (Beginner/Focused/Expert/Recovery profiles)
+- trust_drift_detection.py — Governance fatigue, blind approvals, suppression distrust, recovery avoidance
+- explainability_compression.py — Layered explanations (Summary -> Reasoning -> Full Trace), losslessly expandable
+- predictable_personality.py — Stable operational identity, bounded adaptivity, style change limits
+- audit_visible_automation.py — All automation visible, replayable, attributable, reversible
+- governance_pressure.py — Approval fatigue, interruption frequency, cognitive load, trust instability
+- simplicity_preservation.py — Complexity budget (operational/cognitive/maintenance/observability cost)
+
 ### core/project_manager/runtime/ergonomics/ (Phase 10 — 7 модулей)
-- workflow_compression.py — Сжатие runtime graph в digestible views (3 levels)
-- attention_management.py — Priority-based attention что важно сейчас
-- approval_intelligence.py — Smart batching, grouping, risk-tiering
-- noise_reduction.py — Suppress redundant explanations/telemetry/alerts
-- calm_mode.py — Minimal operational mode (Full/Reduced/Calm/Silent)
-- intent_centric_ux.py — "What do you want to do?" vs "manage runtime"
-- human_time_protection.py — Focus blocks, batch interruptions
+- workflow_compression.py, attention_management.py, approval_intelligence.py
+- noise_reduction.py, calm_mode.py, intent_centric_ux.py, human_time_protection.py
 
 ### core/project_manager/workspace/ (Phase 8 — 20 модулей)
 - project_importer.py, project_health.py, repo_repair.py, feature_dev.py
@@ -78,11 +84,15 @@ cd /media/aram/28c41f20-b9ef-4ac3-90f6-8f877a30e33c/owerevolf/ai teem/ai-team-sy
 - Signal over noise, user time is expensive
 - Calm by default, verbose on demand
 - Goals not operations
+- Adaptive systems must expose their adaptation rules
+- User controls the knobs, runtime stays within bounds
+- Trust degradation is a silent failure — detect it early
+- Compressed by default, losslessly expandable
 
-## Что делать дальше (Phase 11 — если нужен):
+## Что делать дальше (Phase 12 — если нужен):
 
 Варианты:
-1. **Интеграция Phase 8/9/10 модулей в web_ui API** — новые endpoints
+1. **Интеграция Phase 8-11 модулей в web_ui API** — новые endpoints
 2. **IDE integration** — runtime control panel
 3. **Multi-user coordination** — user sessions, approval routing
 4. **Performance optimization** — profiling, bottleneck removal
