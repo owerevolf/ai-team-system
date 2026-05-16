@@ -1,10 +1,10 @@
 # SESSION_HANDOFF — AI Team System
 
-## Проект: AI Team System v2.3
+## Проект: AI Team System v2.4
 **Путь:** `/media/aram/28c41f20-b9ef-4ac3-90f6-8f877a30e33c/owerevolf/ai teem/ai-team-system`
 **GitHub:** github.com/owerevolf/ai-team-system
 
-## Что сделано — 7 фаз:
+## Что сделано — 8 фаз:
 
 ### Phase 1 — Repository Foundation
 PM kernel, indexing, retrieval, SQLite storage
@@ -27,13 +27,35 @@ Multi-stage retrieval, caching, graph optimization, profiling, token economy
 ### Phase 7 — Real-World Execution & Human Workflow Integration
 Git workflow (branch classification, commit parsing, PR generation, merge safety), failure analysis, engineering memory, persistent sessions, execution explainability, workflow templates (8 types), runtime recovery, knowledge graph, trust calibration
 
+### Phase 8 — Practical Workspace & Real Project Operations (COMPLETED)
+All 20 priorities implemented:
+- P1: project_importer.py — Universal project import (local, GitHub, zip)
+- P2: project_health.py — Health dashboard with scoring and recommendations
+- P3: repo_repair.py — Repair analysis (broken imports, circular deps, deprecated patterns)
+- P4: feature_dev.py — Feature development mode with staged planning
+- P5: educational_mode.py — Tutorial flows, explanations, guided workflows
+- P6: workspace_ux.py — Clean workspace state management
+- P7: autonomy_guard.py — Runtime autonomy enforcement
+- P8: project_understanding.py — Project understanding layer (stack detection, architecture)
+- P9: task_traceability.py — Task-to-code traceability (append-only audit log)
+- P10: patch_review.py — Patch review UX (risk assessment, rollback plan)
+- P11: session_memory.py — Lightweight session memory
+- P12: project_templates.py — 7 starter workflow templates
+- P13/P17/P18: user_modes.py — Beginner/Advanced modes with hard autonomy limits
+- P14: local_first.py — Local-first operation verification
+- P15: failure_visibility.py — Clear, actionable failure reports
+- P16: project_sandbox.py — Project sandboxing (checkpoints, rollback, temp branches)
+- P19: real_world_testing.py — 7 real-world test scenarios
+- P20: fun_mode.py — Keep the system fun and approachable
+
 ## Ключевые цифры:
-- **278 тестов**, CI зелёный
+- **400 тестов**, CI зелёный
 - **38+ API endpoints**
+- **20 workspace modules** in core/project_manager/workspace/
 - **Индексация:** 2908 файлов за 9s (full) / 0.6s (incremental)
 - **Validation:** 0.7s (full) / ~0.1s (incremental)
 - **Governance:** 21 модуль, 20 приоритетов
-- **Workflow:** 8 шаблонов, git integration, recovery system
+- **Workflow:** 8+ шаблонов, git integration, recovery system
 
 ## Принципы:
 - PM = deterministic engineering control layer, НЕ AI agent
@@ -41,21 +63,13 @@ Git workflow (branch classification, commit parsing, PR generation, merge safety
 - Safety > autonomy
 - Coordination > complexity
 - Trust > autonomy
-
-## Следующие направления (Phase 8):
-- Self-hosting workflows (P1) — PM разрабатывает сам себя через governed workflows
-- IDE integration (P3) — runtime control panel
-- Human approval UX (P4) — grouped approvals, impact visualization
-- Domain context layer (P7) — explicit domain contracts
-- Multi-user coordination (P13) — user sessions, approval routing
-- Operational tooling (P18) — dashboard, inspectors, dependency explorer
-- Platform simplification (P20) — dead feature removal, friction reduction
+- Usability > enterprise complexity
 
 ## Архитектура:
 ```
 core/
   project_manager/
-    __init__.py          — PM kernel (1276 lines)
+    __init__.py          — PM kernel
     models/              — Data models
     indexers/            — File indexing, git intelligence, file watch
     extractors/          — Symbol extraction
@@ -63,51 +77,17 @@ core/
     events/              — Event bus
     query/               — Query engine
     validation/          — Validation pipeline
-    runtime/
-      __init__.py        — Task coordination system
-      approval.py        — Approval workflows
-      workflows.py       — Workflow pipelines
-      patch_merge.py     — Patch merging
-      optimization/      — Cache, graph, retrieval, profiling, compression
-      git_workflow.py    — Git workflow integration (P2)
-      failure_analysis.py — Failure taxonomy (P5)
-      engineering_memory.py — Structured memory (P6)
-      explainability.py  — Execution explainability (P10)
-      workflow_templates.py — 8 reusable templates (P11)
-      recovery.py        — Runtime recovery (P12)
-      knowledge_graph.py — Engineering knowledge graph (P14)
-      trust_calibration.py — Trust scoring (P16)
-    session/
-      __init__.py        — Engineering session system (P9)
-    governance/
-      __init__.py        — GovernanceLayer (unified)
-      interfaces.py      — Service boundaries (P1)
-      dependency_governance.py — Dependency policies (P2)
-      drift_detection.py — Architectural drift (P3)
-      complexity_budget.py — Complexity budgets (P4)
-      health_model.py    — Health scoring (P5)
-      introspection.py   — Runtime introspection (P6)
-      debuggability.py   — Execution tracing (P7)
-      policy_engine.py   — Policy engine (P8)
-      operational_modes.py — Operational modes (P9)
-      event_governance.py — Event governance (P10)
-      change_governance.py — Change tracking (P11)
-      ownership.py       — Subsystem ownership (P12)
-      config_governance.py — Config governance (P13)
-      failure_governance.py — Failure management (P14)
-      auditability.py    — Audit log (P15)
-      observability.py   — Observability simplification (P16)
-      simplification.py  — Dead code detection (P17)
-      extensibility.py   — Governed extensibility (P18)
-      stress_tests.py    — Stress tests (P19)
-      long_run_stability.py — Long-run stability (P20)
+    runtime/             — Task coordination, approvals, workflows, git, recovery
+      optimization/      — Cache, graph, retrieval, profiling
+    session/             — Engineering session system
+    governance/          — 20 governance modules
+    workspace/           — 20 Phase 8 modules (practical workspace)
   main.py                — AITeamSystem orchestrator
   agent_manager.py       — Agent management
   model_router.py        — Model routing
   database.py            — Database layer
-  ...
 web_ui/                  — Web UI (FastAPI)
-tests/                   — 278 tests
+tests/                   — 400 tests
 ```
 
 ## Сервер:
