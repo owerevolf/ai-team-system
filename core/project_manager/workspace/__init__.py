@@ -32,7 +32,7 @@ from core.project_manager.workspace.patch_review import PatchReview
 from core.project_manager.workspace.project_health import ProjectHealthBuilder
 from core.project_manager.workspace.project_importer import ProjectImporter
 from core.project_manager.workspace.project_sandbox import ProjectSandbox
-from core.project_manager.workspace.project_templates import TemplateManager
+from core.project_manager.workspace.project_templates import TemplateManager, ProjectTemplate
 from core.project_manager.workspace.project_understanding import ProjectUnderstanding
 from core.project_manager.workspace.real_world_testing import RealWorldTestRunner
 from core.project_manager.workspace.repo_repair import RepoRepair

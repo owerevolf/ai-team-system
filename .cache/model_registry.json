@@ -113,7 +113,7 @@
         "id": "nvidia/nemotron-3-super-120b-a12b:free",
         "name": "NVIDIA: Nemotron 3 Super (free)",
         "provider": "openrouter",
-        "context_length": 262144,
+        "context_length": 1000000,
         "is_free": true,
         "strength": "strong",
         "description": "NVIDIA Nemotron 3 Super is a 120B-parameter open hybrid MoE model, activating just 12B parameters for maximum compute efficiency and accuracy in complex multi-agent applications. Built on a hybrid Mam"
@@ -122,7 +122,7 @@
         "id": "minimax/minimax-m2.5:free",
         "name": "MiniMax: MiniMax M2.5 (free)",
         "provider": "openrouter",
-        "context_length": 196608,
+        "context_length": 204800,
         "is_free": true,
         "strength": "fast",
         "description": "MiniMax-M2.5 is a SOTA large language model designed for real-world productivity. Trained in a diverse range of complex real-world digital working environments, M2.5 builds upon the coding expertise o"
@@ -221,7 +221,7 @@
         "id": "qwen/qwen3-coder:free",
         "name": "Qwen: Qwen3 Coder 480B A35B (free)",
         "provider": "openrouter",
-        "context_length": 262000,
+        "context_length": 1048576,
         "is_free": true,
         "strength": "coding",
         "description": "Qwen3-Coder-480B-A35B-Instruct is a Mixture-of-Experts (MoE) code generation model developed by the Qwen team. It is optimized for agentic coding tasks such as function calling, tool use, and long-con"
@@ -239,7 +239,7 @@
         "id": "meta-llama/llama-3.3-70b-instruct:free",
         "name": "Meta: Llama 3.3 70B Instruct (free)",
         "provider": "openrouter",
-        "context_length": 65536,
+        "context_length": 131072,
         "is_free": true,
         "strength": "general",
         "description": "The Meta Llama 3.3 multilingual large language model (LLM) is a pretrained and instruction tuned generative model in 70B (text in/text out). The Llama 3.3 instruction tuned text only model..."
@@ -325,5 +325,5 @@
     "description": "Российский агрегатор AI моделей. Объединяет провайдеров в один API.",
     "models": []
   },
-  "_cached_at": 1778881728.3380537
+  "_cached_at": 1778925893.7175653
 }
