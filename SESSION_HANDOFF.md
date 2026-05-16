@@ -1,10 +1,10 @@
 # SESSION_HANDOFF — AI Team System
 
-## Проект: AI Team System v2.4
+## Проект: AI Team System v2.5
 **Путь:** `/media/aram/28c41f20-b9ef-4ac3-90f6-8f877a30e33c/owerevolf/ai teem/ai-team-system`
 **GitHub:** github.com/owerevolf/ai-team-system
 
-## Что сделано — 8 фаз:
+## Что сделано — 9 фаз:
 
 ### Phase 1 — Repository Foundation
 PM kernel, indexing, retrieval, SQLite storage
@@ -28,34 +28,28 @@ Multi-stage retrieval, caching, graph optimization, profiling, token economy
 Git workflow (branch classification, commit parsing, PR generation, merge safety), failure analysis, engineering memory, persistent sessions, execution explainability, workflow templates (8 types), runtime recovery, knowledge graph, trust calibration
 
 ### Phase 8 — Practical Workspace & Real Project Operations (COMPLETED)
-All 20 priorities implemented:
-- P1: project_importer.py — Universal project import (local, GitHub, zip)
-- P2: project_health.py — Health dashboard with scoring and recommendations
-- P3: repo_repair.py — Repair analysis (broken imports, circular deps, deprecated patterns)
-- P4: feature_dev.py — Feature development mode with staged planning
-- P5: educational_mode.py — Tutorial flows, explanations, guided workflows
-- P6: workspace_ux.py — Clean workspace state management
-- P7: autonomy_guard.py — Runtime autonomy enforcement
-- P8: project_understanding.py — Project understanding layer (stack detection, architecture)
-- P9: task_traceability.py — Task-to-code traceability (append-only audit log)
-- P10: patch_review.py — Patch review UX (risk assessment, rollback plan)
-- P11: session_memory.py — Lightweight session memory
-- P12: project_templates.py — 7 starter workflow templates
-- P13/P17/P18: user_modes.py — Beginner/Advanced modes with hard autonomy limits
-- P14: local_first.py — Local-first operation verification
-- P15: failure_visibility.py — Clear, actionable failure reports
-- P16: project_sandbox.py — Project sandboxing (checkpoints, rollback, temp branches)
-- P19: real_world_testing.py — 7 real-world test scenarios
-- P20: fun_mode.py — Keep the system fun and approachable
+20 priorities: project import, health dashboard, repo repair, feature development, educational mode, workspace UX, safe autonomy, project understanding, task traceability, patch review, session memory, project templates, user modes, local-first, failure visibility, sandboxing, real-world testing, fun mode
+
+### Phase 9 — Runtime Durability & Operational Resilience (COMPLETED)
+10 priorities:
+- P1: state_lifecycle — Tiered state management (Ephemeral/Session/Operational/Structural)
+- P2: context_gc — Context garbage collection with audit-safe pruning
+- P3: recovery_engine — Deterministic recovery with replay and failure snapshots
+- P4: large_repo — Large repository survival (monorepo, broken, legacy modes)
+- P5: explainability_layer — Unified explanation protocol
+- P6: cognitive_load — Cognitive load protection with adaptive detail levels
+- P7: chaos_testing — 8 chaos scenarios for runtime stress testing
+- P8: observability — Developer-grade observability
+- P9: plugin_boundaries — Plugin sandboxing with trust levels
+- P10: simplification — Runtime simplification initiative
 
 ## Ключевые цифры:
-- **400 тестов**, CI зелёный
+- **461 тест**, CI зелёный
 - **38+ API endpoints**
-- **20 workspace modules** in core/project_manager/workspace/
+- **30+ workspace modules** (Phase 8 + Phase 9)
 - **Индексация:** 2908 файлов за 9s (full) / 0.6s (incremental)
-- **Validation:** 0.7s (full) / ~0.1s (incremental)
 - **Governance:** 21 модуль, 20 приоритетов
-- **Workflow:** 8+ шаблонов, git integration, recovery system
+- **Durability:** 10 модулей для долговечности runtime
 
 ## Принципы:
 - PM = deterministic engineering control layer, НЕ AI agent
@@ -64,31 +58,11 @@ All 20 priorities implemented:
 - Coordination > complexity
 - Trust > autonomy
 - Usability > enterprise complexity
-
-## Архитектура:
-```
-core/
-  project_manager/
-    __init__.py          — PM kernel
-    models/              — Data models
-    indexers/            — File indexing, git intelligence, file watch
-    extractors/          — Symbol extraction
-    storage/             — SQLite/JSON storage
-    events/              — Event bus
-    query/               — Query engine
-    validation/          — Validation pipeline
-    runtime/             — Task coordination, approvals, workflows, git, recovery
-      optimization/      — Cache, graph, retrieval, profiling
-    session/             — Engineering session system
-    governance/          — 20 governance modules
-    workspace/           — 20 Phase 8 modules (practical workspace)
-  main.py                — AITeamSystem orchestrator
-  agent_manager.py       — Agent management
-  model_router.py        — Model routing
-  database.py            — Database layer
-web_ui/                  — Web UI (FastAPI)
-tests/                   — 400 tests
-```
+- State ages, doesn't just accumulate
+- GC never breaks replay/recovery
+- Every action explains itself
+- Plugins can't destroy determinism
+- Every subsystem must justify its existence
 
 ## Сервер:
 - Port: 8000
