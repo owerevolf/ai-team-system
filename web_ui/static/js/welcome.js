@@ -1999,4 +1999,17 @@ function initPromptArchitectIfNotStarted() {
 }// Вызов инициализации при загрузке страницы
 document.addEventListener('DOMContentLoaded', function() {
   init();
+
+  // Prompt Architect tab — event delegation
+  var tabsContainer = document.querySelector('.tabs');
+  if (tabsContainer) {
+    tabsContainer.addEventListener('click', function(e) {
+      var target = e.target.closest('#tab-btn-promptarchitect');
+      if (target) {
+        e.preventDefault();
+        e.stopPropagation();
+        switchTab('promptarchitect');
+      }
+    });
+  }
 });
