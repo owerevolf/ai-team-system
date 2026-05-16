@@ -3,67 +3,109 @@
 ## Проект: AI Team System v2.5
 **Путь:** `/media/aram/28c41f20-b9ef-4ac3-90f6-8f877a30e33c/owerevolf/ai teem/ai-team-system`
 **GitHub:** github.com/owerevolf/ai-team-system
+**Ветка:** main
 
-## Что сделано — 9 фаз:
+## Текущее состояние: Phase 9 завершена
 
-### Phase 1 — Repository Foundation
-PM kernel, indexing, retrieval, SQLite storage
-
-### Phase 2 — Repository Intelligence
-Incremental indexing (9s→0.6s), AST parsing, git intelligence, impact analysis
-
-### Phase 3 — Engineering Safety
-Validation pipeline, architecture rules, risk analysis, safe patching
-
-### Phase 4 — Collaborative Runtime
-Task coordination, locking, conflict detection, patch merge, workflows, approvals, audit log
-
-### Phase 5 — Execution Optimization
-Multi-stage retrieval, caching, graph optimization, profiling, token economy
-
-### Phase 6 — Platform Governance
-20 governance priorities: service boundaries, dependency governance, drift detection, complexity budgets, health scoring, introspection, debuggability, policy engine, operational modes, event governance, change governance, ownership, config governance, failure governance, auditability, observability simplification, simplification detection, governed extensibility, stress tests, long-run stability
-
-### Phase 7 — Real-World Execution & Human Workflow Integration
-Git workflow (branch classification, commit parsing, PR generation, merge safety), failure analysis, engineering memory, persistent sessions, execution explainability, workflow templates (8 types), runtime recovery, knowledge graph, trust calibration
-
-### Phase 8 — Practical Workspace & Real Project Operations (COMPLETED)
-20 priorities: project import, health dashboard, repo repair, feature development, educational mode, workspace UX, safe autonomy, project understanding, task traceability, patch review, session memory, project templates, user modes, local-first, failure visibility, sandboxing, real-world testing, fun mode
-
-### Phase 9 — Runtime Durability & Operational Resilience (COMPLETED)
-10 priorities:
-- P1: state_lifecycle — Tiered state management (Ephemeral/Session/Operational/Structural)
-- P2: context_gc — Context garbage collection with audit-safe pruning
-- P3: recovery_engine — Deterministic recovery with replay and failure snapshots
-- P4: large_repo — Large repository survival (monorepo, broken, legacy modes)
-- P5: explainability_layer — Unified explanation protocol
-- P6: cognitive_load — Cognitive load protection with adaptive detail levels
-- P7: chaos_testing — 8 chaos scenarios for runtime stress testing
-- P8: observability — Developer-grade observability
-- P9: plugin_boundaries — Plugin sandboxing with trust levels
-- P10: simplification — Runtime simplification initiative
-
-## Ключевые цифры:
-- **461 тест**, CI зелёный
+### Ключевые цифры:
+- **461 тест** — все зелёные
+- **28 модулей** в workspace/ и runtime/durability/
+- **9543 строки кода** в новых модулях
 - **38+ API endpoints**
-- **30+ workspace modules** (Phase 8 + Phase 9)
-- **Индексация:** 2908 файлов за 9s (full) / 0.6s (incremental)
-- **Governance:** 21 модуль, 20 приоритетов
-- **Durability:** 10 модулей для долговечности runtime
+- Сервер работает на порту 8000
+
+### Последние коммиты:
+```
+8d1a19f Update SESSION_HANDOFF.md for Phase 9 completion
+3e558c2 Phase 9: Runtime Durability & Operational Resilience (P1-P10)
+beb5748 Update SESSION_HANDOFF.md for Phase 8 completion
+6586005 Phase 8: Complete workspace modules (P1-P20)
+```
+
+## Архитектура (что есть):
+
+### core/project_manager/workspace/ (Phase 8 — 20 модулей)
+- project_importer.py — Универсальный импорт (local, GitHub, zip)
+- project_health.py — Health dashboard
+- repo_repair.py — Анализ и план ремонта
+- feature_dev.py — Feature development mode
+- educational_mode.py — Tutorial flows, explanations
+- workspace_ux.py — Workspace state management
+- autonomy_guard.py — Runtime autonomy enforcement
+- project_understanding.py — Project understanding layer
+- task_traceability.py — Task-to-code traceability
+- patch_review.py — Patch review UX
+- session_memory.py — Lightweight session memory
+- project_templates.py — 7 starter workflow templates
+- user_modes.py — Beginner/Advanced modes
+- local_first.py — Local-first operation
+- failure_visibility.py — Failure reports
+- project_sandbox.py — Sandboxing (checkpoints, rollback)
+- real_world_testing.py — 7 test scenarios
+- fun_mode.py — Keep it fun
+
+### core/project_manager/runtime/durability/ (Phase 9 — 10 модулей)
+- state_lifecycle.py — Tiered state (Ephemeral/Session/Operational/Structural)
+- context_gc.py — Context garbage collection
+- recovery_engine.py — Deterministic recovery with replay
+- large_repo.py — Large repository survival
+- explainability_layer.py — Unified explanation protocol
+- cognitive_load.py — Cognitive load protection
+- chaos_testing.py — 8 chaos scenarios
+- observability.py — Developer-grade observability
+- plugin_boundaries.py — Plugin sandboxing
+- simplification.py — Runtime simplification
+
+### Существующие модули (Phase 1-7):
+- core/project_manager/__init__.py — PM kernel
+- core/project_manager/models/ — Data models
+- core/project_manager/indexers/ — Indexing, git intelligence
+- core/project_manager/extractors/ — Symbol extraction
+- core/project_manager/storage/ — SQLite/JSON storage
+- core/project_manager/events/ — Event bus
+- core/project_manager/query/ — Query engine
+- core/project_manager/validation/ — Validation pipeline
+- core/project_manager/runtime/ — Recovery, explainability, workflows, git
+- core/project_manager/runtime/optimization/ — Cache, graph, retrieval
+- core/project_manager/session/ — Session system
+- core/project_manager/governance/ — 20 governance modules
+
+## Запуск сервера:
+```bash
+cd /media/aram/28c41f20-b9ef-4ac3-90f6-8f877a30e33c/owerevolf/ai teem/ai-team-system
+./venv/bin/python -m uvicorn web_ui.app:app --port 8000
+```
+
+## Запуск тестов:
+```bash
+./venv/bin/python -m pytest tests/ -x --tb=short
+```
 
 ## Принципы:
 - PM = deterministic engineering control layer, НЕ AI agent
 - Deterministic > clever
 - Safety > autonomy
 - Coordination > complexity
-- Trust > autonomy
 - Usability > enterprise complexity
 - State ages, doesn't just accumulate
 - GC never breaks replay/recovery
 - Every action explains itself
-- Plugins can't destroy determinism
-- Every subsystem must justify its existence
 
-## Сервер:
-- Port: 8000
-- `./venv/bin/python -m uvicorn web_ui.app:app --port 8000`
+## Что делать дальше (Phase 10 — если нужен):
+
+Варианты:
+1. **Интеграция Phase 8/9 модулей в web_ui API** — новые endpoints для workspace/durability
+2. **IDE integration** — runtime control panel
+3. **Multi-user coordination** — user sessions, approval routing
+4. **Performance optimization** — profiling, bottleneck removal
+5. **Documentation** — API docs, user guide
+
+## Критические правила:
+- НЕ запускать delegate_task параллельно — модель висит
+- Делать ОДНУ задачу за раз, последовательно
+- После каждой фазы: тесты → коммит → пуш
+- Не превращать в enterprise monster
+
+## Известные проблемы:
+- workspace/__init__.py: `ProjectTemplate` импортирован но не критично
+- Некоторые LSP warnings в test_workspace.py (type hints) — не влияют на работу
