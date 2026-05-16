@@ -528,7 +528,32 @@ async def get_hot_files(limit: int = 10):
 
 
 # ═══════════════════════════════════════════════════════════════
-# PHASE 3 ENDPOINTS — Engineering Safety
+# PHASE 8 — PROJECT HEALTH DASHBOARD (P2)
+# ═══════════════════════════════════════════════════════════════
+
+@router.get("/health")
+async def get_project_health():
+    """
+    Get the complete project health dashboard.
+
+    Returns overall score, status, unstable modules,
+    dependency risks, complexity, drift, and recommendations.
+    """
+    if orchestrator is None or orchestrator.project_manager is None:
+        raise HTTPException(status_code=400, detail="No project open")
+
+    pm = orchestrator.project_manager
+
+    try:
+        from core.project_manager.workspace.project_health import ProjectHealthBuilder
+        builder = ProjectHealthBuilder(pm)
+        data = builder.build_dict()
+        return {"status": "success", "health": data}
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Failed to compute health dashboard: {e}",
+        }
 # ═══════════════════════════════════════════════════════════════
 
 @router.post("/validate")
