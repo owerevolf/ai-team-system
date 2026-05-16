@@ -1,94 +1,76 @@
-# SESSION_HANDOFF — Phase 16 Complete
+# SESSION_HANDOFF — Phase 17 Complete
 
-## Status: Phase 16 completed
+## Status: Phase 17 completed
 
-- **Phase**: 16 — Stabilization, Consolidation & Operational Hardening
-- **Commit**: 79031e3
-- **Tests**: 882 passing (35 new)
+- **Phase**: 17 — Operational Reality & Long-Term Usage Validation
+- **Commit**: 6dbc58c
+- **Tests**: 917 passing (35 new)
 - **Date**: May 2026
 
 ## What was built
 
-New subpackage: `core/project_manager/runtime/stabilization/` — 10 modules:
+New subpackage: `core/project_manager/runtime/reality/` — 10 modules:
 
-1. **consolidation.py** — Runtime Consolidation Engine (P1)
-   - 8 consolidation opportunities: CalmDimension duplication, CalmLevel fragmentation, priority/event/explanation/approval/visibility overlaps
-   - ~250 LOC potential savings
+1. **long_run_sessions.py** — Long-Run Runtime Sessions (P1)
+   - 8 health indicators, 7-day session simulation
+   - Tracks degradation, drift, latency growth, trust erosion
 
-2. **freeze_zones.py** — Architecture Freeze Zones (P2)
-   - 8 frozen/stable concepts with change approval requirements
-   - FROZEN: approval_semantics, visibility_guarantees, recovery_semantics, audit_integrity, plugin_boundaries
-   - STABLE: canonical_vocabulary, state_lifecycle, do_less_philosophy
+2. **repo_diversity.py** — Real Repository Diversity (P2)
+   - 8 repo types: monorepo, legacy, broken, abandoned, inconsistent, mixed-language, pathological git
 
-3. **hardening.py** — Operational Hardening Suite (P3)
-   - 6 stress test scenarios: long session, context storm, recovery loop, governance overload, plugin instability, memory pressure
+3. **contributor_observation.py** — Contributor Reality Observation (P3)
+   - 6 known observations: CalmLevel confusion, governance bypass, do_less misunderstood
 
-4. **contributor_validation.py** — Real Contributor Validation (P4)
-   - 5 metrics: onboarding time, comprehension, success rate, governance confusion, discoverability
+4. **plugin_stress.py** — Plugin Ecosystem Stress Testing (P4)
+   - 6 threat scenarios: malicious, resource exhaustion, visibility manipulation
 
-5. **governance_reduction.py** — Governance Reduction Pass (P5)
-   - 5 governance issues: duplicate approvals, ceremonial confirmations, redundant validation
+5. **remaining.py** — P5-P10 combined:
+   - GovernanceFatigueRealityCheck: 5 fatigue indicators
+   - RecoveryUnderRealFailures: 6 corruption scenarios
+   - CognitiveSustainabilityMonitor: 6 cognitive indicators
+   - ArchitecturalRealityDriftDetector: 3 known drifts
+   - EcosystemPressureMapper: 6 pressure vectors (all should_address=False)
+   - RealityCalibratedSimplification: 5 opportunities, ~320 LOC savings
 
-6. **slimming.py** — Runtime Slimming Initiative (P6)
-   - 7 slimming opportunities, ~250 LOC potential savings
+## System state after Phase 17
 
-7. **freeze_review.py** — Architectural Freeze Review (P7)
-   - 7 subsystems assessed: durability/ergonomics/compression SETTLED, trust/coherence STABILIZING, ecosystem EXPERIMENTAL
-
-8. **meta_limiter.py** — Meta-System Limiter (P8)
-   - Blocks META_META level systems, 5 dangerous patterns detected
-
-9. **ecosystem_stability.py** — Ecosystem Stability Validation (P9)
-   - 5 stability dimensions: plugin chaos, extension compatibility, contributor fatigue, fragmentation, identity erosion
-
-10. **enoughness.py** — Enoughness Engine (P10)
-    - Evaluates whether expansion improves survivability
-    - Key question: "Is this already enough?"
-
-## System state after Phase 16
-
-- 16 phases completed
-- 882 tests passing
-- 76 runtime modules across 7 subpackages:
-  - durability/ (10)
-  - ergonomics/ (7)
-  - trust/ (10)
-  - optimization/ (6)
-  - compression/ (11)
-  - coherence/ (10)
-  - ecosystem/ (10)
-  - stabilization/ (10)
-- ~16,600 lines runtime code
+- 17 phases completed
+- 917 tests passing
+- 94 runtime modules across 8 subpackages:
+  - durability/ (10), ergonomics/ (7), trust/ (10), optimization/ (6)
+  - compression/ (11), coherence/ (10), ecosystem/ (10), stabilization/ (10)
+  - reality/ (6)
+- ~20,900 lines runtime code
 - Server on port 8000
 - Pushed to github.com/owerevolf/ai-team-system
 
-## Key findings from Phase 16 audit
+## Key findings from Phase 17
 
-### Consolidation opportunities:
-- CalmDimension enum duplicated in 2 modules (15 LOC)
-- CalmLevel split between compression and ergonomics (30 LOC)
-- AttentionPriority and InteractionPriority identical (25 LOC)
-- 4 separate event classification systems (60 LOC)
-- 3 separate explanation depth models (40 LOC)
-- Approval logic split across ergonomics and trust (35 LOC)
-- Visibility semantics split across 3 modules (45 LOC)
+### Reality observations:
+- CalmLevel confusion: two different enums with same name
+- Governance bypass: contributors mark CRITICAL as LOW
+- Progressive disclosure ignored: 95% skip rate
+- Plugin registration: 5 steps → contributors create workarounds
 
-### Freeze zones:
-- 5 FROZEN concepts (never change without full review)
-- 3 STABLE concepts (change only with strong justification)
+### Simplification opportunities (~320 LOC):
+- Unused workflow templates (100 LOC)
+- Ignored telemetry (80 LOC)
+- Over-governed plugin registration (50 LOC)
+- Duplicate CalmLevel enums (30 LOC)
+- Unread explanations (60 LOC)
 
-### Enoughness assessment:
-- durability: ENOUGH (0.85)
-- ergonomics: ENOUGH (0.80)
-- trust: NEEDS_WORK (0.70)
-- compression: ENOUGH (0.85)
-- coherence: NEEDS_WORK (0.65)
-- ecosystem: UNDERBUILT (0.55)
-- stabilization: ENOUGH (0.75)
+### Ecosystem pressures (all should_address=False):
+- Enterprise: SSO, audit logs → plugin
+- Cloud: cloud-hosted → community plugin
+- Multi-user: out of scope
+- Autonomous agent: violates deterministic > AI
+- CI/CD: plugin
+- Commercial: open-source core stays free
 
 ## Next session options
 
-1. **Phase 17: Actual Consolidation** — Execute the consolidation plan: merge duplicates, remove ~250 LOC
-2. **Phase 17: Runtime API Integration** — Expose all runtime modules via web_ui endpoints
-3. **Phase 17: Developer Experience** — Interactive dashboard for runtime control
-4. **Phase 17: Documentation** — API docs, user guide, architecture overview
+1. **Phase 18: Actual Consolidation** — Execute simplification plan, remove ~320 LOC
+2. **Phase 18: Runtime API Integration** — Expose all runtime modules via web_ui endpoints
+3. **Phase 18: Developer Experience** — Interactive dashboard for runtime control
+4. **Phase 18: Documentation** — API docs, user guide, architecture overview
+5. **Phase 18: Performance Optimization** — Profile and optimize hot paths
