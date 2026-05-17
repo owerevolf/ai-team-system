@@ -2000,18 +2000,18 @@ function initPromptArchitectIfNotStarted() {
 document.addEventListener('DOMContentLoaded', function() {
   init();
 
-  // Prompt Architect tab — event delegation
-  var tabsContainer = document.querySelector('.tabs');
-  if (tabsContainer) {
-    tabsContainer.addEventListener('click', function(e) {
-      var target = e.target.closest('#tab-btn-promptarchitect');
-      if (target) {
+  // All tabs — direct click handlers (browser_click doesn't bubble to delegation)
+  var tabIds = ['chat', 'coder', 'settings', 'instruction', 'kanban', 'promptarchitect'];
+  tabIds.forEach(function(tabName) {
+    var btn = document.getElementById('tab-btn-' + tabName);
+    if (btn) {
+      btn.addEventListener('click', function(e) {
         e.preventDefault();
         e.stopPropagation();
-        switchTab('promptarchitect');
-      }
-    });
-  }
+        switchTab(tabName);
+      });
+    }
+  });
 
   // Agent chip click handler
   var agentsBar = document.getElementById('agents-bar');
