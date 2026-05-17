@@ -1169,8 +1169,8 @@ async def init_coder_chat(req: InitChatRequest):
 
     session_id = f"chat_{int(time.time())}"
 
-    # Default project path
-    project_path = req.project_path or str(BASE_DIR / "projects" / "coderchat_default")
+    # Default project path — use ~/projects to avoid permission issues
+    project_path = req.project_path or os.path.expanduser("~/projects/coderchat_default")
     project_name = req.project_name or "coderchat_project"
 
     # Create agent
