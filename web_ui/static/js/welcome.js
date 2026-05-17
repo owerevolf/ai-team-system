@@ -49,6 +49,21 @@ async function init() {
       modeBadge.textContent = mode === 'local' ? '🏠 Local' : '☁️ Cloud';
       modeBadge.style.borderColor = mode === 'local' ? 'var(--success)' : 'var(--accent2)';
     }
+    // Initialize header mode switcher
+    var localOpt = document.getElementById('mode-local');
+    var cloudOpt = document.getElementById('mode-cloud');
+    var indicator = document.getElementById('mode-indicator');
+    if (localOpt && cloudOpt && indicator) {
+      if (mode === 'cloud') {
+        localOpt.classList.remove('active');
+        cloudOpt.classList.add('active');
+        indicator.classList.add('cloud');
+      } else {
+        localOpt.classList.add('active');
+        cloudOpt.classList.remove('active');
+        indicator.classList.remove('cloud');
+      }
+    }
     if (settingsData) settingsData.aiMode = mode;
   } catch(e) {}
 }
@@ -1158,6 +1173,41 @@ function setAiMode(mode) {
     cloudBtn.classList.add('selected');
     localBtn.classList.remove('selected');
   }
+}
+
+// ── HEADER MODE SWITCHER ──
+function switchAiMode(mode) {
+  // Update header switcher UI
+  var localOpt = document.getElementById('mode-local');
+  var cloudOpt = document.getElementById('mode-cloud');
+  var indicator = document.getElementById('mode-indicator');
+
+  if (mode === 'local') {
+    localOpt.classList.add('active');
+    cloudOpt.classList.remove('active');
+    indicator.classList.remove('cloud');
+  } else {
+    cloudOpt.classList.add('active');
+    localOpt.classList.remove('active');
+    indicator.classList.add('cloud');
+  }
+
+  // Save to server
+  fetch('/api/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ai_mode: mode })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    console.log('Mode switched to:', mode, data);
+  })
+  .catch(function(e) {
+    console.error('Failed to switch mode:', e);
+  });
+
+  // Also update settingsData if it exists
+  if (settingsData) settingsData.aiMode = mode;
 }
 
 function selectProvider(pid) {

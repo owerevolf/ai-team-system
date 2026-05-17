@@ -62,6 +62,99 @@ header h1 {
   border-radius: 20px;
 }
 
+/* ── MODE SWITCHER (Cloud/Local) ── */
+.mode-switcher {
+  display: flex;
+  align-items: center;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 3px;
+  gap: 2px;
+  position: relative;
+}
+
+.mode-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .2s;
+  position: relative;
+  z-index: 1;
+}
+
+.mode-option:hover {
+  color: var(--text);
+  background: rgba(124,110,245,.08);
+}
+
+.mode-option.active {
+  color: var(--text);
+  background: rgba(124,110,245,.15);
+}
+
+.mode-option.active .mode-icon {
+  transform: scale(1.1);
+}
+
+.mode-icon {
+  font-size: 14px;
+  transition: transform .2s;
+}
+
+.mode-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+
+/* Sliding indicator */
+.mode-indicator {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: calc(50% - 2px);
+  height: calc(100% - 6px);
+  background: linear-gradient(135deg, rgba(124,110,245,.2), rgba(124,110,245,.1));
+  border: 1px solid rgba(124,110,245,.3);
+  border-radius: 8px;
+  transition: transform .3s cubic-bezier(.4,0,.2,1);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.mode-indicator.cloud {
+  transform: translateX(100%);
+}
+
+/* Status dot */
+.mode-option.active::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 6px var(--success);
+  animation: pulse-dot 2s infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
 /* ── AGENTS BAR ── */
 .agents-bar {
   display: flex;

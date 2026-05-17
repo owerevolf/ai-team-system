@@ -27,7 +27,20 @@
   <div class="logo-dot"></div>
   <h1>AI TEAM SYSTEM</h1>
   <div class="hw-badge" id="hw-badge">загрузка...</div>
-  <div class="hw-badge" id="mode-badge" style="margin-left:4px;">🏠 Local</div>
+
+  <!-- Cloud/Local Mode Switcher -->
+  <div class="mode-switcher" id="mode-switcher">
+    <button class="mode-option active" id="mode-local" onclick="switchAiMode('local')" title="Локальные модели (Ollama)">
+      <span class="mode-icon">🏠</span>
+      <span class="mode-label">Local</span>
+    </button>
+    <button class="mode-option" id="mode-cloud" onclick="switchAiMode('cloud')" title="Облачные модели (OpenRouter)">
+      <span class="mode-icon">☁️</span>
+      <span class="mode-label">Cloud</span>
+    </button>
+    <div class="mode-indicator" id="mode-indicator"></div>
+  </div>
+
   <div class="tabs">
     <button class="tab-btn active" id="tab-btn-chat">💬 Чат</button>
     <button class="tab-btn" id="tab-btn-coder">💻 Код</button>
