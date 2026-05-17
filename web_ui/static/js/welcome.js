@@ -1033,7 +1033,7 @@ function switchTab(tabName) {
   var isChat = tabName === 'chat';
   document.getElementById('agents-bar').style.display = isChat ? 'flex' : 'none';
   document.getElementById('chat').style.display = isChat ? 'flex' : 'none';
-  document.querySelector('.input-area').style.display = isChat ? 'flex' : 'none';
+  document.querySelector('.input-area').style.display = isChat ? 'block' : 'none';
   document.getElementById('chat-functions').style.display = isChat ? 'flex' : 'none';
   if (tabName === 'settings') loadSettings();
   if (tabName === 'kanban') loadKanbanTasks();
@@ -1708,7 +1708,7 @@ function addMcpServer() {
 
 
 // ══════════════════════════════════════════
-//  CODER CHAT
+//  CODER CHAT — Full Redesign
 // ══════════════════════════════════════════
 
 var coderSessionId = null;
@@ -1716,7 +1716,7 @@ var coderProjectPath = null;
 
 function initCoderChat() {
   var projectName = document.getElementById('coder-project-name').value.trim() || 'my_project';
-  
+
   fetch('/api/coderchat/init', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1727,16 +1727,25 @@ function initCoderChat() {
     if (data.session_id) {
       coderSessionId = data.session_id;
       coderProjectPath = data.project_path;
-      document.getElementById('coder-init').style.display = 'none';
-      document.getElementById('coder-chat-container').style.display = 'block';
-      updateCoderFileTree(data.file_tree);
-      updateCoderStats(data);
-      addCoderMessage('system', 'Проект "' + projectName + '" инициализирован. Технологии: ' + (data.tech_stack || []).join(', ') + '. Спросите меня о чём угодно!');
+
+      // Show chat area, hide welcome
+      document.getElementById('coder-welcome').style.display = 'none';
+      var chatArea = document.getElementById('coder-chat-area');
+      chatArea.style.display = 'flex';
+
+      // Update sidebar
+      document.getElementById('coder-project-path').textContent = data.project_path;
+      updateCoderFileTree(data.file_tree || []);
+      document.getElementById('coder-sidebar-footer').innerHTML =
+        'Проект: <strong>' + data.project_name + '</strong><br>Файлов: ' + (data.file_tree ? data.file_tree.length : 0) + '<br>Стек: ' + (data.tech_stack || []).join(', ');
+
+      // Add system message
+      addCoderMsg('system', 'Проект "' + data.project_name + '" инициализирован. Технологии: ' + (data.tech_stack || []).join(', ') + '. Спрашивайте о чём угодно!');
     } else {
-      alert('Ошибка: ' + (data.error || 'не удалось инициализировать'));
+      addCoderMsg('system', '⚠️ Ошибка: ' + (data.error || 'не удалось инициализировать'));
     }
   })
-  .catch(function(e) { alert('Ошибка: ' + e.message); });
+  .catch(function(e) { addCoderMsg('system', '⚠️ Ошибка: ' + e.message); });
 }
 
 function sendCoderMessage() {
@@ -1744,8 +1753,11 @@ function sendCoderMessage() {
   var message = input.value.trim();
   if (!message || !coderSessionId) return;
   input.value = '';
-  addCoderMessage('user', message);
+  input.style.height = 'auto';
+
+  addCoderMsg('user', message);
   showCoderTyping();
+
   fetch('/api/coderchat/message', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1754,62 +1766,116 @@ function sendCoderMessage() {
   .then(function(r) { return r.json(); })
   .then(function(data) {
     hideCoderTyping();
-    if (data.response) addCoderMessage('assistant', data.response, data.file_actions);
-    else if (data.error) addCoderMessage('system', '⚠️ Ошибка: ' + data.error);
+    if (data.response) {
+      addCoderMsg('assistant', data.response, data.file_actions);
+    } else if (data.error) {
+      addCoderMsg('system', '⚠️ Ошибка: ' + data.error);
+    }
     if (data.file_actions && data.file_actions.length > 0) refreshCoderFiles();
   })
-  .catch(function(e) { hideCoderTyping(); addCoderMessage('system', '⚠️ Ошибка: ' + e.message); });
+  .catch(function(e) {
+    hideCoderTyping();
+    addCoderMsg('system', '⚠️ Ошибка: ' + e.message);
+  });
 }
 
-function addCoderMessage(role, content, fileActions) {
+function addCoderMsg(role, content, fileActions) {
   var container = document.getElementById('coder-messages');
-  var placeholder = container.querySelector('p[style*="text-align:center"]');
-  if (placeholder) placeholder.remove();
-  var msgDiv = document.createElement('div');
-  var bg = role === 'user' ? 'rgba(124,110,245,.15)' : role === 'assistant' ? 'var(--surface)' : 'rgba(107,107,126,.1)';
-  var border = role === 'user' ? 'rgba(124,110,245,.3)' : 'var(--border)';
-  var align = role === 'user' ? 'flex-end' : 'flex-start';
-  msgDiv.style.cssText = 'background:' + bg + ';border:1px solid ' + border + ';border-radius:12px;padding:12px 16px;max-width:85%;align-self:' + align + ';';
-  var header = role === 'user' ? '<div style="font-size:10px;color:var(--accent);margin-bottom:4px;">👤 Вы</div>' :
-               role === 'assistant' ? '<div style="font-size:10px;color:var(--success);margin-bottom:4px;">🤖 CoderChat</div>' :
-               '<div style="font-size:10px;color:var(--muted);margin-bottom:4px;">⚙️ Система</div>';
-  msgDiv.innerHTML = header + formatCoderMessage(content);
-  if (fileActions && fileActions.length > 0) {
-    var ad = document.createElement('div');
-    ad.style.cssText = 'margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:10px;color:var(--muted);';
-    for (var a of fileActions) ad.innerHTML += '<div>' + (a.action === 'create' ? '📄' : '✏️') + ' ' + a.path + '</div>';
-    msgDiv.appendChild(ad);
+
+  var row = document.createElement('div');
+  row.className = 'msg-row ' + role;
+
+  // Avatar
+  var avatar = document.createElement('div');
+  avatar.className = 'msg-avatar';
+  if (role === 'user') avatar.textContent = '👤';
+  else if (role === 'assistant') avatar.textContent = '🤖';
+  row.appendChild(avatar);
+
+  // Bubble
+  var bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
+
+  if (role === 'assistant' && content) {
+    bubble.innerHTML = formatCoderMsg(content);
+  } else {
+    bubble.textContent = content;
   }
-  container.appendChild(msgDiv);
+
+  // File actions
+  if (fileActions && fileActions.length > 0) {
+    var faDiv = document.createElement('div');
+    faDiv.className = 'file-actions';
+    fileActions.forEach(function(a) {
+      var item = document.createElement('div');
+      item.className = 'action-item ' + (a.action || 'create');
+      item.innerHTML = (a.action === 'create' ? '📄' : a.action === 'delete' ? '🗑' : '✏️') + ' ' + a.path;
+      faDiv.appendChild(item);
+    });
+    bubble.appendChild(faDiv);
+  }
+
+  row.appendChild(bubble);
+  container.appendChild(row);
   container.scrollTop = container.scrollHeight;
 }
 
-function formatCoderMessage(text) {
+function formatCoderMsg(text) {
   if (!text) return '';
   return text
-    .replace(/```(\w*)\n([\s\S]*?)```/g, '<div class="code-block"><strong>$1</strong><br><pre style="margin:0;white-space:pre-wrap;">$2</pre></div>')
-    .replace(/`([^`]+)`/g, '<code style="background:rgba(124,110,245,.1);padding:2px 6px;border-radius:4px;font-size:11px;">$1</code>')
+    .replace(/```(\w*)\n([\s\S]*?)```/g, function(_, lang, code) {
+      return '<pre><span class="code-lang">' + (lang || 'code') + '</span><code>' + code.trim() + '</code></pre>';
+    })
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\n/g, '<br>');
 }
 
 function showCoderTyping() {
   var c = document.getElementById('coder-messages');
-  var t = document.createElement('div');
-  t.id = 'coder-typing';
-  t.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 16px;align-self:flex-start;';
-  t.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
-  c.appendChild(t);
+  var row = document.createElement('div');
+  row.className = 'msg-row assistant';
+  row.id = 'coder-typing-row';
+
+  var avatar = document.createElement('div');
+  avatar.className = 'msg-avatar';
+  avatar.textContent = '🤖';
+  row.appendChild(avatar);
+
+  var bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
+  bubble.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+  row.appendChild(bubble);
+
+  c.appendChild(row);
   c.scrollTop = c.scrollHeight;
 }
 
-function hideCoderTyping() { var t = document.getElementById('coder-typing'); if (t) t.remove(); }
+function hideCoderTyping() {
+  var t = document.getElementById('coder-typing-row');
+  if (t) t.remove();
+}
 
-function updateCoderFileTree(tree) { var d = document.getElementById('coder-file-tree'); if (d && tree) d.textContent = tree.join('\n'); }
+function updateCoderFileTree(tree) {
+  var container = document.getElementById('coder-file-tree');
+  if (!tree || tree.length === 0) {
+    container.innerHTML = '<div class="file-item"><span class="icon">📭</span> Пока пусто</div>';
+    return;
+  }
+  container.innerHTML = '';
+  tree.forEach(function(f) {
+    var item = document.createElement('div');
+    item.className = 'file-item' + (f.endsWith('/') ? ' dir' : '');
+    var icon = f.endsWith('/') ? '📁' : getFileIcon(f);
+    item.innerHTML = '<span class="icon">' + icon + '</span> ' + f.replace(/\/$/, '');
+    container.appendChild(item);
+  });
+}
 
-function updateCoderStats(data) {
-  var d = document.getElementById('coder-stats');
-  if (d) d.innerHTML = 'Проект: ' + (data.project_name || '-') + '<br>Файлов: ' + (data.file_tree ? data.file_tree.length : 0) + '<br>Стек: ' + (data.tech_stack || []).join(', ');
+function getFileIcon(filename) {
+  var ext = filename.split('.').pop().toLowerCase();
+  var icons = { py: '🐍', js: '📜', ts: '📘', html: '🌐', css: '🎨', json: '📋', md: '📝', txt: '📄', yml: '⚙️', yaml: '⚙️', sh: '💻', bash: '💻' };
+  return icons[ext] || '📄';
 }
 
 function refreshCoderFiles() {
@@ -1820,12 +1886,17 @@ function refreshCoderFiles() {
     .catch(function() {});
 }
 
-document.addEventListener('keydown', function(e) {
-  if (e.target && e.target.id === 'coder-input' && e.key === 'Enter' && !e.shiftKey) {
+function handleCoderKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
     sendCoderMessage();
   }
-});
+}
+
+function autoResizeTextarea(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
 
 function reloadMcpServers() {
   var status = document.getElementById('settings-status');
