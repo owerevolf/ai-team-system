@@ -35,7 +35,7 @@ class ExportLesson:
         lines.append(f"# {title}")
         lines.append("")
         lines.append(f"**Дата:** {datetime.now().strftime('%d.%m.%Y %H:%M')}")
-        lines.append(f"**Система:** AI Team System v2.0")
+        lines.append("**Система:** AI Team System v2.0")
         lines.append("")
         lines.append("---")
         lines.append("")

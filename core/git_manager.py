@@ -22,7 +22,7 @@ class GitManager:
                 self.run_command('git config user.email "ai-team@system.local"')
                 self.run_command('git config user.name "AI Team System"')
             return result["success"]
-        except Exception as e:
+        except Exception:
             return False
     
     def add_all(self) -> bool:

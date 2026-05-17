@@ -16,6 +16,7 @@ Ranking signals:
 """
 
 import time
+from datetime import datetime
 import re
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Set
@@ -350,4 +351,3 @@ class QueryEngine:
 
 
 # Need datetime for metrics
-from datetime import datetime

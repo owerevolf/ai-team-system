@@ -196,7 +196,6 @@ class ProjectManager:
         self.files, changed, added, removed = self._indexer.scan_incremental(self.files)
 
         # 2. Re-extract symbols for changed and new files
-        total_symbols = 0
         for rel_path in changed + added:
             entry = self.files.get(rel_path)
             if not entry:
@@ -677,7 +676,7 @@ class ProjectManager:
 
         parts = []
         parts.append(f"# Project: {self.project_path.name}\n")
-        parts.append(f"## Statistics")
+        parts.append("## Statistics")
         parts.append(f"- Total files: {len(self.files)}")
         parts.append(f"- Total symbols: {sum(len(e.symbols) for e in self.files.values())}")
         parts.append(f"- Total dependencies: {sum(len(v) for v in self.dependencies.values())}")
@@ -685,21 +684,21 @@ class ProjectManager:
         # Entry points
         entry_points = [f for f, e in self.files.items() if e.is_entry_point]
         if entry_points:
-            parts.append(f"\n## Entry Points")
+            parts.append("\n## Entry Points")
             for ep in entry_points[:10]:
                 parts.append(f"- {ep}")
 
         # Languages
         from collections import Counter
         langs = Counter(e.language for e in self.files.values())
-        parts.append(f"\n## Languages")
+        parts.append("\n## Languages")
         for lang, count in langs.most_common(10):
             parts.append(f"- {lang}: {count} files")
 
         # Git state
         git = self._git.get_state()
         if git.branch:
-            parts.append(f"\n## Git")
+            parts.append("\n## Git")
             parts.append(f"- Branch: {git.branch}")
             parts.append(f"- Commit: {git.commit_hash}")
             if not git.is_clean:
@@ -707,7 +706,7 @@ class ProjectManager:
                 parts.append(f"- Staged files: {len(git.staged_files)}")
 
         # Top-level structure
-        parts.append(f"\n## Structure")
+        parts.append("\n## Structure")
         tree = self.get_file_tree(max_depth=2)
         parts.extend(tree[:30])
 

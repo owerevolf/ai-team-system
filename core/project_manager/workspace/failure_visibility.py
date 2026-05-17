@@ -308,7 +308,7 @@ class FailureVisibility:
         if failure.rollback_available:
             lines.append("  Rollback Available:")
             lines.append(f"    Checkpoint: {failure.rollback_checkpoint[:12]}")
-            lines.append(f"    This will undo all changes made during the failed operation.")
+            lines.append("    This will undo all changes made during the failed operation.")
             lines.append("")
 
         lines.append(sep)

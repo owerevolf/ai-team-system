@@ -248,11 +248,10 @@ class AgentManager:
             from .agent_skills import get_agent_skill_addon, get_agent_config
             skill_addon = get_agent_skill_addon(agent_name)
             agent_cfg = get_agent_config(agent_name)
-            agent_temperature = agent_cfg.get("temperature", 0.7)
+            agent_cfg.get("temperature", 0.7)
         except Exception as e:
             self.logger.warning(f"Не удалось загрузить скиллы для {agent_name}: {e}")
             skill_addon = ""
-            agent_temperature = 0.7
         
         # Self-improvement: загружаем уроки из памяти
         lessons_from_memory = ""
@@ -260,7 +259,7 @@ class AgentManager:
             try:
                 lessons = self.memory.get_lessons_for_agent(agent_name, limit=3)
                 if lessons:
-                    lessons_from_memory = "\n".join([f"- {l}" for l in lessons])
+                    lessons_from_memory = "\n".join([f"- {lesson}" for lesson in lessons])
                 else:
                     lessons_from_memory = "Нет прошлых уроков. Ты первый раз выполняешь эту задачу."
             except Exception as e:

@@ -698,7 +698,7 @@ class TestAuditVisibleAutomation:
     def test_get_reversible(self):
         audit = AuditVisibleAutomation()
         r1 = audit.record_automation(AutomationType.AUTO_APPLY, "A", ["f1"], "R")
-        r2 = audit.record_automation(AutomationType.BATCHING, "B", ["f2"], "R")
+        audit.record_automation(AutomationType.BATCHING, "B", ["f2"], "R")
         audit.reverse(r1.record_id, "Rollback")
         reversible = audit.get_reversible()
         assert len(reversible) == 1  # Only r2 is still reversible

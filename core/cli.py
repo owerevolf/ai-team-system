@@ -87,7 +87,7 @@ def stats(project_name):
         console.print(f"[red]Проект не найден: {project_name}[/red]")
         return
     
-    tracker = TokenTracker(project_path)
+    TokenTracker(project_path)
     
     report_file = project_path / "token_usage.json"
     if report_file.exists():
@@ -137,7 +137,7 @@ def providers():
     from .model_router import ModelRouter
     
     router = ModelRouter()
-    status = router.get_status()
+    router.get_status()
     
     table = Table(title="Провайдеры")
     table.add_column("Провайдер", style="cyan")

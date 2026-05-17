@@ -267,7 +267,7 @@ class TestProjectSandbox:
     def test_init_creates_dir(self, tmp_dir):
         from core.project_manager.workspace.project_sandbox import ProjectSandbox
         path = os.path.join(tmp_dir, "new_project")
-        sb = ProjectSandbox(path)
+        ProjectSandbox(path)
         assert os.path.isdir(path)
 
     def test_protected_zones_default(self, tmp_dir):
@@ -478,7 +478,7 @@ class TestRepoRepair:
 class TestSessionMemory:
     def test_init_creates_dir(self, tmp_dir):
         from core.project_manager.workspace.session_memory import SessionMemory
-        sm = SessionMemory(tmp_dir)
+        SessionMemory(tmp_dir)
         assert os.path.isdir(os.path.join(tmp_dir, ".ai-team"))
         assert os.path.isfile(os.path.join(tmp_dir, ".ai-team", "session.json"))
 

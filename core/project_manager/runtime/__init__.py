@@ -254,7 +254,7 @@ class TaskCoordinationSystem:
             if existing:
                 # Same task can upgrade its lock
                 if existing.task_id == task_id:
-                    if lock_type == LockType.EXCLUSIVE or existing.lock_type != lockType:
+                    if lock_type == LockType.EXCLUSIVE or existing.lock_type != lock_type:
                         existing.lock_type = lock_type
                     return True
 

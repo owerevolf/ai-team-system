@@ -499,7 +499,6 @@ class ProjectUnderstanding:
             "next.config.ts": "next.js",
             "nuxt.config.js": "nuxt",
             "nuxt.config.ts": "nuxt",
-            "nuxt.config.js": "nuxt",
             "svelte.config.js": "svelte",
             "svelte.config.ts": "svelte",
             "astro.config.mjs": "astro",

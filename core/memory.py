@@ -152,7 +152,7 @@ class AgentMemory:
         # Уникальные уроки, последние первыми
         seen = set()
         unique_lessons = []
-        for l in reversed(lessons):
+        for lesson in reversed(lessons):
             if l not in seen:
                 seen.add(l)
                 unique_lessons.append(l)

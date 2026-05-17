@@ -424,7 +424,7 @@ def test_observability_dedup():
     )
     obs = ObservabilitySimplification()
     obs.set_threshold("cpu_usage", warning=70, critical=90, cooldown_seconds=0)
-    alert1 = obs.record_signal("cpu_usage", 95, SignalPriority.HIGH, "test")
+    obs.record_signal("cpu_usage", 95, SignalPriority.HIGH, "test")
     alert2 = obs.record_signal("cpu_usage", 96, SignalPriority.HIGH, "test")
     # Second should be deduplicated
     assert alert2 is None

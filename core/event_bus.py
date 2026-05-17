@@ -51,7 +51,7 @@ class EventBus:
         for handler in handlers:
             try:
                 handler(event)
-            except Exception as e:
+            except Exception:
                 pass
     
     def subscribe(self, agent: str) -> queue.Queue:

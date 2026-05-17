@@ -678,7 +678,7 @@ class TestIntentCentricUX:
 class TestHumanTimeProtection:
     def test_start_focus_block(self):
         htp = HumanTimeProtection()
-        block_id = htp.start_focus_block("Coding")
+        htp.start_focus_block("Coding")
         block = htp.get_active_focus_block()
         assert block is not None
         assert block.label == "Coding"

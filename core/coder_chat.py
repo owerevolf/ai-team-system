@@ -10,6 +10,7 @@ CoderChat Agent — диалоговый агент для написания к
 """
 
 import os
+import asyncio
 import json
 import re
 import time
@@ -92,7 +93,7 @@ class FileTools:
                         continue
                     if entry.name.startswith('.') and entry.name not in ['.env', '.gitignore', '.dockerignore']:
                         continue
-                    rel_path = str(entry.relative_to(self.project_path))
+                    str(entry.relative_to(self.project_path))
                     if entry.is_dir():
                         tree.append(f"{prefix}📁 {entry.name}/")
                         _walk(entry, prefix + "  ", depth + 1)
@@ -543,4 +544,3 @@ Ready to help! 🚀"""
         }
 
 
-import asyncio

@@ -103,7 +103,7 @@ class TestMCPManager:
 
     def test_load_config_missing_file(self):
         """Should handle missing config gracefully"""
-        manager = MCPManager()
+        MCPManager()
         # If no config file, servers should be empty
         # This tests the _load_config method's error handling
 

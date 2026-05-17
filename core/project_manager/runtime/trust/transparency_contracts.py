@@ -186,7 +186,7 @@ class TransparencyContractManager:
         self._rules[category] = TransparencyRule(
             category=category,
             action=action,
-            reason=reason or f"User override",
+            reason=reason or "User override",
             user_overridable=True,
         )
         return True

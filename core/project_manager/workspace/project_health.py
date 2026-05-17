@@ -114,7 +114,6 @@ class ProjectHealthBuilder:
 
     def build(self) -> ProjectHealthDashboard:
         """Build the complete health dashboard."""
-        pm = self._pm
         dashboard = ProjectHealthDashboard()
         dashboard.last_updated = datetime.now().isoformat()
 

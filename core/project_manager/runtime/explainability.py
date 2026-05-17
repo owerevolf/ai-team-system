@@ -94,7 +94,7 @@ class ExecutionExplainability:
 
         reason = f"Selected {len(files_selected)} from {total_candidates} candidates"
         if files_selected:
-            reason += f" based on relevance scoring"
+            reason += " based on relevance scoring"
 
         exp = Explanation(
             topic=ExplainabilityTopic.RETRIEVAL_SET,
@@ -211,11 +211,11 @@ class ExecutionExplainability:
         """Format an explanation for human reading."""
         lines = [
             f"## {exp.topic.value.replace('_', ' ').title()}",
-            f"",
+            "",
             f"Decision: {exp.decision}",
             f"Reason: {exp.reason}",
             f"Confidence: {exp.confidence:.0%}",
-            f"",
+            "",
         ]
         if exp.evidence:
             lines.append("Evidence:")

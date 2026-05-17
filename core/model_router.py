@@ -299,7 +299,7 @@ class ModelRouter:
         # Если указан агент но не указан провайдер/модель — берём из agent_skills
         if agent and not provider:
             from .agent_skills import AGENT_SKILL_MAP
-            skill = AGENT_SKILL_MAP.get(agent, {})
+            AGENT_SKILL_MAP.get(agent, {})
             target_model = target_model or self._get_agent_model(agent)
             # Определяем провайдер по модели
             if target_model:
@@ -314,7 +314,6 @@ class ModelRouter:
 
         # Пробуем целевой провайдер, потом fallback по цепочке
         tried: List[str] = []
-        last_error: Optional[Exception] = None
 
         # Строим цепочку: сначала целевой, потом остальные по приоритету
         chain = [target_provider] + [p for p in self.priority if p != target_provider]
@@ -344,7 +343,7 @@ class ModelRouter:
                 if self._should_fallback(response):
                     logger.warning(f"{prov}: слабый ответ, fallback")
                     self.health.record_failure(prov)
-                    last_error = RuntimeError(f"Слабый ответ от {prov}")
+                    RuntimeError(f"Слабый ответ от {prov}")
                     continue
 
                 self.cache.set(prompt_hash, response)
@@ -353,7 +352,6 @@ class ModelRouter:
                 return response
 
             except Exception as e:
-                last_error = e
                 self.health.record_failure(prov)
                 logger.warning(f"Ошибка {prov}: {e}")
                 continue

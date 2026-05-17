@@ -400,7 +400,6 @@ class Storage:
             return
 
         logger.info("Migrating PM storage to SQLite...")
-        old_backend = self.backend
         self.backend = "sqlite"
         self._init_sqlite()
 

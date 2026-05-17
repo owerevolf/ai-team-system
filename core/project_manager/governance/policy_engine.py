@@ -233,7 +233,7 @@ class GovernancePolicyEngine:
         """Evaluate if a rule's condition matches the context."""
         # Simple pattern matching based on rule type and metadata
         if rule.id == "exec-001":
-            agent = context.get('agent', '')
+            context.get('agent', '')
             current = context.get('current_concurrent', 0)
             return current >= rule.metadata.get('max_concurrent', 10)
 

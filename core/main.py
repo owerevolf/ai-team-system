@@ -198,7 +198,7 @@ class AITeamSystem:
             progress.add_task("[yellow]Параллельная работа агентов...[/yellow]", total=None)
             results = self.agent_manager.run_parallel(tasks, callback=agent_callback)
         
-        self.console.print(f"[green]✓ Агенты завершили работу[/green]")
+        self.console.print("[green]✓ Агенты завершили работу[/green]")
         
         # Итеративное исправление кода
         self._fix_code_errors()
@@ -239,7 +239,7 @@ class AITeamSystem:
             if test_result.get("success"):
                 self.console.print("[green]✓ Тесты прошли![/green]")
             else:
-                self.console.print(f"[yellow]⚠ Тесты не прошли, исправляю...[/yellow]")
+                self.console.print("[yellow]⚠ Тесты не прошли, исправляю...[/yellow]")
                 self._fix_test_errors(test_result)
         
         return results
@@ -394,7 +394,7 @@ class AITeamSystem:
             self.agent_manager.set_project_manager(self.project_manager)
             self.console.print("[bold cyan]Indexing project...[/bold cyan]")
             stats = self.project_manager.index_project()
-            self.console.print(f"[green]Indexed:[/green]")
+            self.console.print("[green]Indexed:[/green]")
             self.console.print(f"  Files: {stats['total_files']}")
             self.console.print(f"  Symbols: {stats['total_symbols']}")
             self.console.print(f"  Dependencies: {stats['total_dependencies']}")

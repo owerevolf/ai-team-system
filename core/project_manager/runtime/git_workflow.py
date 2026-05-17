@@ -239,7 +239,7 @@ class GitWorkflowIntegration:
     def get_commits(self, branch: str = "", limit: int = 20,
                     since: str = "") -> List[CommitInfo]:
         """Get parsed commit history."""
-        args = ["log", f"--format=%H|%s|%an|%ai"]
+        args = ["log", "--format=%H|%s|%an|%ai"]
         if limit > 0:
             args.extend(["-n", str(limit)])
         if since:
@@ -411,12 +411,12 @@ class GitWorkflowIntegration:
         groups = self.group_commits_by_type(commits)
 
         lines = [
-            f"## Summary",
-            f"",
+            "## Summary",
+            "",
             f"Branch: `{branch}`",
             f"Type: {branch_info.branch_type.value}",
             f"Commits: {len(commits)}",
-            f"",
+            "",
         ]
 
         # Group commits by type

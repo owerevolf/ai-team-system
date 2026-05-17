@@ -324,7 +324,7 @@ class ValidationPipeline:
             issues.append(ValidationIssue(
                 check='orphan_modules',
                 severity=Severity.WARNING,
-                message=f"Module is not imported by any other module",
+                message="Module is not imported by any other module",
                 file=rel_path,
             ))
 
@@ -437,7 +437,7 @@ class ValidationPipeline:
             issues.append(ValidationIssue(
                 check='unreachable_modules',
                 severity=Severity.INFO,
-                message=f"Module not reachable from any entry point",
+                message="Module not reachable from any entry point",
                 file=rel_path,
             ))
 
