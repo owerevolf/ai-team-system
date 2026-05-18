@@ -1241,14 +1241,27 @@ function selectModel(agentName, modelId) {
 
 function saveApiKey() {
   var status = document.getElementById('settings-status');
+  if (!status) {
+    // Create status element if not exists
+    var layout = document.querySelector('.settings-layout');
+    if (layout) {
+      var div = document.createElement('div');
+      div.id = 'settings-status';
+      div.className = 'settings-status';
+      layout.appendChild(div);
+      status = div;
+    }
+  }
+  if (!status) return;
+
   var key = document.getElementById('api-key-input').value;
   if (!key || key === '••••••••••••') {
     status.className = 'settings-status error';
-    status.textContent = 'Введи API ключ';
+    status.textContent = '⚠️ Введи API ключ';
     return;
   }
   status.className = 'settings-status success';
-  status.textContent = 'Сохранение...';
+  status.textContent = '⏳ Сохранение...';
 
   fetch('/api/config', {
     method: 'POST',
@@ -1258,7 +1271,12 @@ function saveApiKey() {
   .then(function(r) { return r.json(); })
   .then(function(data) {
     status.className = 'settings-status success';
-    status.textContent = '✅ API ключ сохранён';
+    status.textContent = '✅ API ключ сохранён!';
+    // Auto-hide after 5 seconds
+    setTimeout(function() {
+      status.className = 'settings-status';
+      status.textContent = '';
+    }, 5000);
   })
   .catch(function(e) {
     status.className = 'settings-status error';
@@ -1292,6 +1310,10 @@ function saveConfig() {
   .then(function(data) {
     status.className = 'settings-status success';
     status.textContent = '✅ Настройки сохранены! ' + (data.message || '');
+    setTimeout(function() {
+      status.className = 'settings-status';
+      status.textContent = '';
+    }, 5000);
   })
   .catch(function(e) {
     status.className = 'settings-status error';
