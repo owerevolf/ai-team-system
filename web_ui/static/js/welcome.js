@@ -64,6 +64,29 @@ async function init() {
         indicator.classList.remove('cloud');
       }
     }
+
+    // Auto-select models on first run (if no agents configured)
+    if (!cfg.agents || Object.keys(cfg.agents).length === 0) {
+      try {
+        var autoResp = await fetch('/api/models/auto-select', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider: mode === 'cloud' ? 'openrouter' : 'ollama' })
+        });
+        var autoData = await autoResp.json();
+        if (autoData.selections) {
+          // Save auto-selected models
+          await fetch('/api/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ agents: autoData.selections })
+          });
+          console.log('Auto-selected models:', autoData.selections);
+        }
+      } catch(e) {
+        console.log('Auto-select skipped:', e.message);
+      }
+    }
     if (settingsData) settingsData.aiMode = mode;
   } catch(e) {}
 }
@@ -1058,9 +1081,12 @@ function switchTab(tabName) {
 
 var settingsData = null;
 
+var settingsData = null;
+
 function loadSettings() {
   var container = document.getElementById('settings-content');
-  container.innerHTML = '<p style="color:var(--muted)">Загрузка...</p>';
+  container.innerHTML = '<div class="settings-loading"><div class="typing-indicator"><span></span><span></span><span></span></div><p>Загрузка настроек...</p></div>';
+
   Promise.all([
     fetch('/api/providers?force_refresh=true').then(function(r) { return r.json(); }),
     fetch('/api/agents/config').then(function(r) { return r.json(); }),
@@ -1070,7 +1096,7 @@ function loadSettings() {
     settingsData = { providers: results[0], agents: results[1], config: results[2], health: results[3].health || {} };
     renderSettings();
   }).catch(function(e) {
-    container.innerHTML = '<p style="color:#ef4444">Ошибка: ' + e.message + '</p>';
+    container.innerHTML = '<div class="settings-status error">Ошибка загрузки: ' + e.message + '</div>';
   });
 }
 
@@ -1080,194 +1106,299 @@ function renderSettings() {
   var agents = settingsData.agents;
   var config = settingsData.config;
   var health = settingsData.health || {};
-  var h = '<h2>⚙️ Настройки провайдеров</h2><p>Выбери провайдера и модели для каждого агента.</p>';
-  
-  // AI Mode toggle
   var currentMode = config.ai_mode || 'local';
-  var localSelected = currentMode === 'local' ? 'selected' : '';
-  var cloudSelected = currentMode === 'cloud' ? 'selected' : '';
-  h += '<h3 style="font-size:14px;margin:20px 0 12px;">🔄 Режим работы</h3>';
-  h += '<div style="display:flex;gap:8px;margin-bottom:20px;">';
-  h += '<button class="mode-btn ' + localSelected + '" onclick="setAiMode(\'local\')" id="mode-btn-local" style="flex:1;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-family:\'JetBrains Mono\',monospace;font-size:12px;cursor:pointer;transition:all .2s;">🏠 Local first<div style="font-size:10px;color:var(--muted);margin-top:4px;">Ollama → Cloud fallback</div></button>';
-  h += '<button class="mode-btn ' + cloudSelected + '" onclick="setAiMode(\'cloud\')" id="mode-btn-cloud" style="flex:1;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-family:\'JetBrains Mono\',monospace;font-size:12px;cursor:pointer;transition:all .2s;">☁️ Cloud first<div style="font-size:10px;color:var(--muted);margin-top:4px;">OpenRouter → Ollama fallback</div></button>';
+  var selectedProvider = config.selected_provider || 'openrouter';
+
+  var h = '<div class="settings-layout">';
+
+  // ── API Key Section ──
+  h += '<div class="settings-card">';
+  h += '<div class="settings-card-header"><div class="card-icon api-key">🔑</div><div><h3>API ключ</h3><p>Вставь ключ для облачных моделей</p></div></div>';
+  h += '<div class="api-key-input-wrap">';
+  h += '<input type="password" id="api-key-input" placeholder="sk-or-v1-..." value="' + (config.openrouter_api_key_set ? '••••••••••••' : '') + '">';
+  h += '<button onclick="saveApiKey()">💾 Сохранить</button>';
   h += '</div>';
-  
-  h += '<h3 style="font-size:14px;margin:20px 0 12px;">📡 Провайдеры</h3><div class="provider-grid">';
+  h += '<p style="font-size:10px;color:var(--muted);margin-top:8px;">🔗 <a href="https://openrouter.ai/keys" target="_blank" style="color:var(--accent2);">Получить ключ OpenRouter</a> · 🔗 <a href="https://ollama.com/download" target="_blank" style="color:var(--accent2);">Установить Ollama</a></p>';
+  h += '</div>';
+
+  // ── Providers Section ──
+  h += '<div class="settings-card">';
+  h += '<div class="settings-card-header"><div class="card-icon providers">📡</div><div><h3>Провайдеры</h3><p>Выбери провайдера AI моделей</p></div></div>';
+  h += '<div class="provider-cards">';
   for (var pid in providers) {
     var info = providers[pid];
-    var sc = info.is_available ? 'available' : 'unavailable';
-    var st = info.is_available ? '✅ Доступен' : '❌ Недоступен';
-    h += '<div class="provider-card" onclick="selectProvider(\'' + pid + '\')" id="provider-card-' + pid + '"><div class="provider-name">' + info.name + '</div><div class="provider-desc">' + info.description + '</div><div class="provider-status ' + sc + '">' + st + ' · ' + info.free_models_count + ' бесплатных</div></div>';
-  }
-  h += '</div>';
-  // Provider health status
-  var health = settingsData.health || {};
-  h += '<h3 style="font-size:14px;margin:20px 0 12px;">\u{1f7a2} Здоровье провайдеров</h3>';
-  h += '<div style="margin-bottom:20px;">';
-  for (var pid in providers) {
-    var info = providers[pid];
-    var healthInfo = health[pid] || {};
-    var statusIcon = info.is_available ? '✅' : '❌';
-    var cooldownWarning = healthInfo.in_cooldown ? ' <span style="color:#facc15;">(cooldown)</span>' : '';
-    var failuresInfo = healthInfo.recent_failures ? ' <span style="color:#ef4444;">(' + healthInfo.recent_failures + ' ошибок)</span>' : '';
-    h += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:11px;">';
-    h += '<span>' + statusIcon + '</span>';
-    h += '<span style="color:var(--text);flex:1;">' + info.name + cooldownWarning + failuresInfo + '</span>';
+    var isSelected = selectedProvider === pid ? ' selected' : '';
+    var statusClass = info.is_available ? 'online' : 'offline';
+    var statusText = info.is_available ? '● Доступен' : '○ Недоступен';
+    h += '<div class="provider-card' + isSelected + '" onclick="selectProvider(\'' + pid + '\')" id="provider-card-' + pid + '">';
+    h += '<div class="provider-name">' + info.name + '</div>';
+    h += '<div class="provider-desc">' + info.description + '</div>';
+    h += '<div class="provider-status ' + statusClass + '">' + statusText + '</div>';
+    h += '<div class="provider-models-count">' + info.free_models_count + ' бесплатных</div>';
     h += '</div>';
   }
+  h += '</div></div>';
+
+  // ── Agent Models Section ──
+  h += '<div class="settings-card">';
+  h += '<div class="settings-card-header"><div class="card-icon models">🤖</div><div><h3>Модели агентов</h3><p>Выбери модель для каждого агента</p></div></div>';
+
+  // Auto-select button
+  h += '<div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">';
+  h += '<div class="auto-select-btn" id="auto-select-btn" onclick="runAutoSelect()">✨ Авто-выбрать лучшие модели</div>';
+  h += '<div class="auto-select-btn" id="test-models-btn" onclick="testAllModels()" style="background:linear-gradient(135deg,rgba(124,110,245,.15),rgba(124,110,245,.05));border-color:rgba(124,110,245,.3);color:var(--accent2);">🧪 Протестировать модели</div>';
   h += '</div>';
-  
-  h += '<h3 style="font-size:14px;margin:20px 0 12px;">🔑 API ключ</h3><div style="margin-bottom:20px;"><input type="password" id="api-key-input" placeholder="Вставь API ключ (sk-or-v1-...)" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-family:\'JetBrains Mono\',monospace;font-size:12px;"><p style="font-size:11px;color:var(--muted);margin-top:6px;">🔗 <a href="https://openrouter.ai/keys" target="_blank">Получить ключ OpenRouter</a> · 🔗 <a href="https://ollama.com/download" target="_blank">Установить Ollama</a></p></div>';
-  // OmniRoute config
-  var omnirouteUrl = config.omniroute_url || 'http://localhost:21000/v1';
-  var omnirouteKey = config.omniroute_api_key_set ? '••••••••' : '';
-  h += '<h3 style="font-size:14px;margin:20px 0 12px;">🇷🇺 OmniRoute</h3><div style="margin-bottom:20px;"><input type="text" id="omniroute-url-input" placeholder="URL (http://localhost:21000/v1)" value="' + omnirouteUrl + '" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-family:\'JetBrains Mono\',monospace;font-size:12px;margin-bottom:8px;"><input type="password" id="omniroute-key-input" placeholder="API ключ (опционально)" value="' + omnirouteKey + '" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);font-family:\'JetBrains Mono\',monospace;font-size:12px;"><p style="font-size:11px;color:var(--muted);margin-top:6px;">🔗 <a href="https://omniroute.online" target="_blank">OmniRoute</a> — российский агрегатор AI моделей</p></div>';
-  
-  // MCP Servers config
-  var mcpServers = config.mcp_servers || [];
-  h += '<h3 style="font-size:14px;margin:20px 0 12px;">🔌 MCP серверы</h3>';
-  h += '<p style="font-size:11px;color:var(--muted);margin-bottom:12px;">Model Context Protocol — подключение внешних инструментов (filesystem, github, sqlite и др.)</p>';
-  h += '<div id="mcp-servers-list" style="margin-bottom:16px;">';
-  if (mcpServers.length === 0) {
-    h += '<p style="font-size:11px;color:var(--muted);">Нет настроенных MCP серверов. Добавьте серверы в config/mcp_servers.json</p>';
-  } else {
-    for (var m = 0; m < mcpServers.length; m++) {
-      var srv = mcpServers[m];
-      var srvEnabled = srv.enabled ? '✅' : '❌';
-      h += '<div style="display:flex;align-items:center;gap:8px;padding:8px;background:var(--surface);border:1px solid var(--border);border-radius:6px;margin-bottom:6px;">';
-      h += '<span>' + srvEnabled + '</span>';
-      h += '<span style="font-size:12px;color:var(--text);flex:1;">' + (srv.name || 'unnamed') + '</span>';
-      h += '<span style="font-size:10px;color:var(--muted);">' + (srv.transport || 'stdio') + '</span>';
-      h += '</div>';
-    }
-  }
-  h += '</div>';
-  h += '<div style="margin-bottom:20px;"><input type="text" id="mcp-server-name" placeholder="Имя сервера" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-family:\'JetBrains Mono\',monospace;font-size:11px;margin-bottom:6px;"><input type="text" id="mcp-server-command" placeholder="Команда (npx, python, ...)" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-family:\'JetBrains Mono\',monospace;font-size:11px;margin-bottom:6px;"><input type="text" id="mcp-server-args" placeholder="Аргументы (через запятую)" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-family:\'JetBrains Mono\',monospace;font-size:11px;margin-bottom:6px;"><select id="mcp-server-transport" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-family:\'JetBrains Mono\',monospace;font-size:11px;margin-bottom:6px;"><option value="stdio">stdio</option><option value="http">http</option></select></div>';
-  h += '<button class="btn-secondary" onclick="addMcpServer()" style="margin-right:8px;">➕ Добавить</button>';
-  h += '<button class="btn-secondary" onclick="reloadMcpServers()">🔄 Перезагрузить</button>';
-  
-  h += '<h3 style="font-size:14px;margin:20px 0 12px;">🤖 Модели агентов</h3>';
+
+  h += '<div class="agent-models-list">';
+
+  var agentIcons = { teamlead:'👔', architect:'🏛', backend:'⚙️', frontend:'🎨', devops:'🚀', tester:'🧪', documentalist:'📝' };
+  var agentRoles = { teamlead:'Координирует команду', architect:'Проектирует архитектуру', backend:'Серверная разработка', frontend:'Интерфейс', devops:'Инфраструктура', tester:'Тестирование', documentalist:'Документация' };
+
   for (var i = 0; i < agents.agents.length; i++) {
     var agent = agents.agents[i];
-    h += '<div style="margin-bottom:16px;"><div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px;">' + agent.name.toUpperCase() + ' <span style="font-size:10px;color:var(--muted);font-weight:400;">— ' + agent.description + '</span></div><div class="model-list" id="models-' + agent.name + '">';
-    for (var j = 0; j < Math.min(agent.available_models.length, 5); j++) {
+    var icon = agentIcons[agent.name] || '🤖';
+    var role = agentRoles[agent.name] || agent.description;
+    var selectedModel = config.agents && config.agents[agent.name] ? config.agents[agent.name].model : null;
+
+    h += '<div class="agent-model-card">';
+    h += '<div class="agent-header"><div class="agent-icon">' + icon + '</div><div><div class="agent-name">' + agent.name.toUpperCase() + '</div><div class="agent-role">' + role + '</div></div></div>';
+    h += '<div class="model-items" id="models-' + agent.name + '">';
+
+    // Show top models (max 8)
+    var maxModels = Math.min(agent.available_models.length, 8);
+    for (var j = 0; j < maxModels; j++) {
       var model = agent.available_models[j];
-      var isFree = model.id.indexOf(':free') !== -1 ? '<span class="model-badge free">FREE</span>' : '';
-      var strengthBadge = '<span class="model-badge ' + model.strength + '">' + model.strength + '</span>';
-      h += '<div class="model-item" onclick="selectModel(\'' + agent.name + '\',\'' + model.id + '\')"><div><div class="model-name">' + (model.name || model.id) + '</div><div class="model-id">' + model.id + '</div><div class="model-meta">' + isFree + strengthBadge + ' · ctx: ' + (model.context_length ? (model.context_length >= 1000000 ? (model.context_length/1000000).toFixed(1) + 'M' : (model.context_length/1000).toFixed(0) + 'K') : '?') + '</div></div></div>';
+      var isSelected = selectedModel === model.id ? ' selected' : '';
+      var isFree = model.id.indexOf(':free') !== -1;
+      var isRecommended = j < 2 && isFree; // First 2 free models are recommended
+
+      h += '<div class="model-item' + isSelected + (isRecommended ? ' recommended' : '') + '" onclick="selectModel(\'' + agent.name + '\',\'' + model.id + '\')" id="model-' + agent.name + '-' + j + '">';
+
+      if (isRecommended) {
+        h += '<div class="rec-badge">★ Рекомендуем</div>';
+      }
+
+      h += '<div class="model-info">';
+      h += '<div class="model-name">' + (model.name || model.id.split('/').pop()) + '</div>';
+      h += '<div class="model-id">' + model.id + '</div>';
+      h += '</div>';
+
+      h += '<div class="model-badges">';
+      if (isFree) h += '<span class="model-badge free">FREE</span>';
+      if (model.strength) h += '<span class="model-badge ' + model.strength + '">' + model.strength + '</span>';
+      var ctx = model.context_length ? (model.context_length >= 1000000 ? (model.context_length/1000000).toFixed(1) + 'M' : (model.context_length/1000).toFixed(0) + 'K') : '?';
+      h += '<span style="font-size:9px;color:var(--muted);font-family:monospace;">' + ctx + '</span>';
+      h += '</div>';
+
+      h += '<div class="model-status" id="status-' + agent.name + '-' + j + '">';
+      h += '<div class="status-dot" id="dot-' + agent.name + '-' + j + '"></div>';
+      h += '</div>';
+
+      h += '</div>';
     }
+
     h += '</div></div>';
   }
-  h += '<div class="settings-actions"><button class="btn-save" onclick="saveConfig()">💾 Сохранить</button><button class="btn-secondary" onclick="testConnection()">🔌 Проверить</button><button class="btn-secondary" onclick="loadSettings()">🔄 Обновить</button></div><div id="settings-status" style="margin-top:12px;font-size:12px;"></div>';
+
+  h += '</div></div>'; // end agent-models-list and settings-card
+
+  // ── Actions ──
+  h += '<div class="settings-actions">';
+  h += '<button class="btn-save" onclick="saveConfig()">💾 Сохранить все настройки</button>';
+  h += '<button class="btn-secondary" onclick="loadSettings()">🔄 Обновить</button>';
+  h += '</div>';
+
+  h += '<div class="settings-status" id="settings-status"></div>';
+
+  h += '</div>'; // end settings-layout
+
   container.innerHTML = h;
 }
 
-function setAiMode(mode) {
-  settingsData.aiMode = mode;
-  var localBtn = document.getElementById('mode-btn-local');
-  var cloudBtn = document.getElementById('mode-btn-cloud');
-  if (mode === 'local') {
-    localBtn.classList.add('selected');
-    cloudBtn.classList.remove('selected');
-  } else {
-    cloudBtn.classList.add('selected');
-    localBtn.classList.remove('selected');
-  }
-}
-
-// ── HEADER MODE SWITCHER ──
-function switchAiMode(mode) {
-  // Update header switcher UI
-  var localOpt = document.getElementById('mode-local');
-  var cloudOpt = document.getElementById('mode-cloud');
-  var indicator = document.getElementById('mode-indicator');
-
-  if (mode === 'local') {
-    localOpt.classList.add('active');
-    cloudOpt.classList.remove('active');
-    indicator.classList.remove('cloud');
-  } else {
-    cloudOpt.classList.add('active');
-    localOpt.classList.remove('active');
-    indicator.classList.add('cloud');
-  }
-
-  // Save to server
-  fetch('/api/config', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ai_mode: mode })
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(data) {
-    console.log('Mode switched to:', mode, data);
-  })
-  .catch(function(e) {
-    console.error('Failed to switch mode:', e);
-  });
-
-  // Also update settingsData if it exists
-  if (settingsData) settingsData.aiMode = mode;
-}
-
 function selectProvider(pid) {
-  var cards = document.querySelectorAll('.provider-card');
-  for (var i = 0; i < cards.length; i++) { cards[i].classList.remove('selected'); }
+  document.querySelectorAll('.provider-card').forEach(function(el) { el.classList.remove('selected'); });
   document.getElementById('provider-card-' + pid).classList.add('selected');
   settingsData.selectedProvider = pid;
 }
 
 function selectModel(agentName, modelId) {
+  // Deselect all models for this agent
+  var card = document.querySelector('#models-' + agentName);
+  if (card) {
+    card.querySelectorAll('.model-item').forEach(function(el) { el.classList.remove('selected'); });
+  }
+  // Select this model
   var items = document.querySelectorAll('#models-' + agentName + ' .model-item');
-  for (var i = 0; i < items.length; i++) { items[i].classList.remove('selected'); }
-  event.currentTarget.classList.add('selected');
+  items.forEach(function(el) {
+    if (el.onclick && el.onclick.toString().indexOf(modelId) !== -1) {
+      el.classList.add('selected');
+    }
+  });
+  // Store selection
   if (!settingsData.selectedModels) settingsData.selectedModels = {};
   settingsData.selectedModels[agentName] = modelId;
 }
 
+function saveApiKey() {
+  var status = document.getElementById('settings-status');
+  var key = document.getElementById('api-key-input').value;
+  if (!key || key === '••••••••••••') {
+    status.className = 'settings-status error';
+    status.textContent = 'Введи API ключ';
+    return;
+  }
+  status.className = 'settings-status success';
+  status.textContent = 'Сохранение...';
+
+  fetch('/api/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ openrouter_api_key: key })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    status.className = 'settings-status success';
+    status.textContent = '✅ API ключ сохранён';
+  })
+  .catch(function(e) {
+    status.className = 'settings-status error';
+    status.textContent = '❌ Ошибка: ' + e.message;
+  });
+}
+
 function saveConfig() {
   var status = document.getElementById('settings-status');
-  status.textContent = 'Сохранение...';
   var agents = {};
   if (settingsData.selectedModels) {
     for (var a in settingsData.selectedModels) {
       agents[a] = { provider: settingsData.selectedProvider || 'openrouter', model: settingsData.selectedModels[a] };
     }
   }
-  var apiKey = '';
-  var keyInput = document.getElementById('api-key-input');
-  if (keyInput) apiKey = keyInput.value || '';
-  var omnirouteUrl = '';
-  var omnirouteKey = '';
-  var omnirouteUrlInput = document.getElementById('omniroute-url-input');
-  var omnirouteKeyInput = document.getElementById('omniroute-key-input');
-  if (omnirouteUrlInput) omnirouteUrl = omnirouteUrlInput.value || '';
-  if (omnirouteKeyInput) omnirouteKey = omnirouteKeyInput.value || '';
-  fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ openrouter_api_key: apiKey, agents: agents, ai_mode: settingsData.aiMode || 'local', omniroute_url: omnirouteUrl, omniroute_api_key: omnirouteKey }) })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-      var msg = '<span style="color:var(--success);">✅ ' + data.message + '</span>';
-      if (data.applied && data.applied.length > 0) {
-        msg += '<br><span style="color:var(--muted);font-size:11px;">Применено для: ' + data.applied.join(', ') + '</span>';
-      }
-      status.innerHTML = msg;
+
+  status.className = 'settings-status success';
+  status.textContent = 'Сохранение...';
+
+  fetch('/api/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      openrouter_api_key: document.getElementById('api-key-input') ? document.getElementById('api-key-input').value : '',
+      agents: agents,
+      ai_mode: settingsData.aiMode || 'local',
+      selected_provider: settingsData.selectedProvider || 'openrouter'
     })
-    .catch(function(e) { status.innerHTML = '<span style="color:#ef4444;">❌ ' + e.message + '</span>'; });
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    status.className = 'settings-status success';
+    status.textContent = '✅ Настройки сохранены! ' + (data.message || '');
+  })
+  .catch(function(e) {
+    status.className = 'settings-status error';
+    status.textContent = '❌ Ошибка: ' + e.message;
+  });
 }
 
-function testConnection() {
-  var status = document.getElementById('settings-status');
-  status.textContent = 'Проверка...';
-  fetch('/api/status')
+function runAutoSelect() {
+  var btn = document.getElementById('auto-select-btn');
+  btn.classList.add('testing');
+  btn.textContent = '⏳ Подбираем модели...';
+
+  fetch('/api/models/auto-select', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ provider: settingsData.selectedProvider || 'openrouter' })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    btn.classList.remove('testing');
+    btn.textContent = '✨ Авто-выбрать лучшие модели';
+
+    if (data.selections) {
+      // Select each recommended model
+      for (var role in data.selections) {
+        var modelId = data.selections[role].modelId;
+        selectModel(role, modelId);
+      }
+      var status = document.getElementById('settings-status');
+      status.className = 'settings-status success';
+      status.textContent = '✅ Авто-выбрано ' + Object.keys(data.selections).length + ' моделей для агентов';
+    }
+  })
+  .catch(function(e) {
+    btn.classList.remove('testing');
+    btn.textContent = '✨ Авто-выбрать лучшие модели';
+    var status = document.getElementById('settings-status');
+    status.className = 'settings-status error';
+    status.textContent = '❌ Ошибка: ' + e.message;
+  });
+}
+
+function testAllModels() {
+  var btn = document.getElementById('test-models-btn');
+  btn.classList.add('testing');
+  btn.textContent = '⏳ Тестируем...';
+
+  // Get all visible model items
+  var modelItems = document.querySelectorAll('.model-item');
+  var total = modelItems.length;
+  var tested = 0;
+  var passed = 0;
+
+  modelItems.forEach(function(item) {
+    var onclick = item.onclick ? item.onclick.toString() : '';
+    var match = onclick.match(/selectModel\('([^']+)','([^']+)'\)/);
+    if (!match) return;
+
+    var agentName = match[1];
+    var modelId = match[2];
+    var idx = item.id.split('-').pop();
+    var dot = document.getElementById('dot-' + agentName + '-' + idx);
+    var statusEl = document.getElementById('status-' + agentName + '-' + idx);
+
+    if (dot) {
+      dot.className = 'status-dot testing';
+    }
+
+    fetch('/api/models/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model_id: modelId, provider: settingsData.selectedProvider || 'openrouter' })
+    })
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      var r = '<strong>Статус провайдеров:</strong><br>';
-      for (var pid in data.providers) {
-        r += (data.providers[pid].available ? '✅' : '❌') + ' ' + pid + ': ' + data.providers[pid].free_models + ' моделей<br>';
+      tested++;
+      if (data.status === 'ok') {
+        passed++;
+        if (dot) dot.className = 'status-dot online';
+        if (statusEl) {
+          var latency = document.createElement('span');
+          latency.className = 'latency';
+          latency.textContent = data.latency_ms + 'ms';
+          statusEl.appendChild(latency);
+        }
+      } else {
+        if (dot) dot.className = 'status-dot offline';
       }
-      status.innerHTML = r;
+      updateTestProgress();
     })
-    .catch(function(e) { status.innerHTML = '<span style="color:#ef4444;">❌ ' + e.message + '</span>'; });
+    .catch(function() {
+      tested++;
+      if (dot) dot.className = 'status-dot offline';
+      updateTestProgress();
+    });
+  });
+
+  function updateTestProgress() {
+    btn.textContent = '⏳ Тестируем... ' + tested + '/' + total;
+    if (tested >= total) {
+      btn.classList.remove('testing');
+      btn.textContent = '🧪 Протестировать модели';
+      var status = document.getElementById('settings-status');
+      status.className = 'settings-status success';
+      status.textContent = '✅ Готово! ' + passed + ' из ' + total + ' моделей работают';
+    }
+  }
 }
 
 function clearChat() {

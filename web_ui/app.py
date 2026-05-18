@@ -936,6 +936,116 @@ async def get_providers_health():
 
 
 # ══════════════════════════════════════════
+#  MODEL TESTING & AUTO-SELECT API
+# ══════════════════════════════════════════
+
+class TestModelRequest(BaseModel):
+    model_id: str
+    provider: str = "openrouter"
+
+@app.post("/api/models/test")
+async def test_model(req: TestModelRequest):
+    """Протестировать модель — проверить что она живая"""
+    import time
+    try:
+        from core.model_router import ModelRouter
+        router = ModelRouter(profile=os.getenv("HARDWARE_PROFILE", "medium"))
+
+        start = time.time()
+        response = router.generate(
+            prompt="Reply with just 'ok'",
+            model=req.model_id,
+            provider=req.provider,
+        )
+        elapsed = time.time() - start
+
+        return JSONResponse({
+            "status": "ok",
+            "model_id": req.model_id,
+            "latency_ms": round(elapsed * 1000),
+            "response": response[:100] if response else None,
+        })
+    except Exception as e:
+        return JSONResponse({
+            "status": "error",
+            "model_id": req.model_id,
+            "error": str(e)[:200],
+        }, status_code=200)
+
+
+class AutoSelectRequest(BaseModel):
+    provider: str = "openrouter"
+
+@app.post("/api/models/auto-select")
+async def auto_select_models(req: AutoSelectRequest):
+    """Автоматически выбрать лучшие живые модели для каждого агента"""
+    import asyncio
+    from core.model_registry import get_free_models
+
+    # Рекомендации по ролям
+    role_recommendations = {
+        "teamlead": {"prefer": ["reasoning", "general"], "min_context": 32000},
+        "architect": {"prefer": ["reasoning", "strong"], "min_context": 64000},
+        "backend": {"prefer": ["coding", "reasoning"], "min_context": 32000},
+        "frontend": {"prefer": ["coding", "fast"], "min_context": 32000},
+        "devops": {"prefer": ["general", "coding"], "min_context": 16000},
+        "tester": {"prefer": ["coding", "fast"], "min_context": 16000},
+        "documentalist": {"prefer": ["general", "fast"], "min_context": 16000},
+    }
+
+    # Получаем все бесплатные модели провайдера
+    all_models = get_free_models(provider=req.provider, min_context=8000)
+
+    # Группируем по strength
+    by_strength = {}
+    for m in all_models:
+        s = m.get("strength", "general")
+        if s not in by_strength:
+            by_strength[s] = []
+        by_strength[s].append(m)
+
+    # Для каждой роли выбираем лучшую модель
+    selections = {}
+    used_models = set()
+
+    for role, rec in role_recommendations.items():
+        candidates = []
+        for strength in rec["prefer"]:
+            for m in by_strength.get(strength, []):
+                if m["context_length"] >= rec["min_context"]:
+                    candidates.append(m)
+
+        # Сортируем: сначала по контексту (больше лучше), потом по имени
+        candidates.sort(key=lambda x: (-x.get("context_length", 0), x.get("id", "")))
+
+        # Выбираем первую уникальную модель
+        chosen = None
+        for c in candidates:
+            if c["id"] not in used_models:
+                chosen = c
+                used_models.add(c["id"])
+                break
+
+        # Если уникальная не найдена — берём лучшую из кандидатов
+        if not chosen and candidates:
+            chosen = candidates[0]
+
+        if chosen:
+            selections[role] = {
+                "model_id": chosen["id"],
+                "name": chosen.get("name", chosen["id"]),
+                "context_length": chosen.get("context_length", 0),
+                "strength": chosen.get("strength", "general"),
+            }
+
+    return JSONResponse({
+        "provider": req.provider,
+        "selections": selections,
+        "total_models_tested": len(all_models),
+    })
+
+
+# ══════════════════════════════════════════
 #  KANBAN API ENDPOINTS
 # ══════════════════════════════════════════
 

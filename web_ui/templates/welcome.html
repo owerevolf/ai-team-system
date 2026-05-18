@@ -86,68 +86,10 @@
 <!-- TAB: SETTINGS -->
 <div class="tab-content" id="tab-settings">
   <div id="settings-content">
-  <!-- Provider Settings -->
-  <div class="settings-section" id="provider-section">
-    <h2>⚙️ Настройки провайдеров</h2>
-    <p>Выбери провайдера AI моделей и настрой модели для каждого агента. Каждый агент может использовать свой провайдер.</p>
-    <div id="settings-loading">Загрузка...</div>
-    <div style="margin-top:20px;">
-      <button class="btn-save" onclick="saveConfig()">💾 Сохранить настройки</button>
-      <span id="settings-status" style="margin-left:12px;font-size:12px;"></span>
+    <div class="settings-loading">
+      <div class="typing-indicator"><span></span><span></span><span></span></div>
+      <p>Загрузка настроек...</p>
     </div>
-  </div>
-
-  <!-- Webhooks -->
-  <div class="settings-section" id="webhooks-section">
-    <h2>🔗 Webhooks</h2>
-    <p>Настройте автоматическое получение событий из внешних сервисов (GitHub, GitLab и т.д.).</p>
-    <div id="webhooks-section">
-      <div id="webhooks-loading">Загрузка...</div>
-      <div id="webhooks-list"></div>
-      <div id="webhooks-form" style="margin-top:20px;padding:16px;border:1px solid var(--border);border-radius:8px;background:var(--surface);display:none;">
-        <h3>➕ Добавить вебхук</h3>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;">
-          <input type="text" id="webhook-name" placeholder="Название" style="padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);">
-          <input type="text" id="webhook-url" placeholder="URL вебхука" style="padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);">
-          <input type="text" id="webhook-secret" placeholder="Секрет (оставьте пустым для генерации)" style="padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);">
-          <input type="text" id="webhook-events" placeholder="События через запятую (push, pull_request, issues)" style="padding:8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);">
-          <button class="btn-save" onclick="createWebhook()">Создать вебхук</button>
-          <button class="btn-secondary" onclick="toggleWebhookForm(false)">Отмена</button>
-        </div>
-      </div>
-      <button class="btn-secondary" onclick="toggleWebhookForm(true)">➕ Добавить вебхук</button>
-    </div>
-  </div>
-
-  <!-- Analytics -->
-  <div class="settings-section" id="analytics-section">
-    <h2>📊 Аналитика</h2>
-    <p>Просмотр статистики использования агентов и метрик производительности.</p>
-    <div id="analytics-section">
-      <div id="analytics-loading">Загрузка...</div>
-      <div id="analytics-dashboard"></div>
-    </div>
-  </div>
-
-  <!-- i18n -->
-  <div class="settings-section" id="i18n-section">
-    <h2>🌍 Интернационализация (i18n)</h2>
-    <p>Настройка языков и переводов для интерфейса.</p>
-    <div id="i18n-section">
-      <div id="i18n-loading">Загрузка...</div>
-      <div id="i18n-content"></div>
-    </div>
-  </div>
-
-  <!-- Plugins -->
-  <div class="settings-section" id="plugins-section">
-    <h2>🔌 Плагины</h2>
-    <p>Управление расширяемыми инструментами для агентов.</p>
-    <div id="plugins-section">
-      <div id="plugins-loading">Загрузка...</div>
-      <div id="plugins-list"></div>
-    </div>
-  </div>
   </div>
 </div>
 <div class="tab-content" id="tab-instruction">
