@@ -2382,12 +2382,76 @@ document.addEventListener('DOMContentLoaded', function() {
     userMsg.className = 'dev-msg dev-msg-user';
     userMsg.innerHTML = '<div class="dev-msg-avatar">👤</div><div class="dev-msg-body"><div class="dev-msg-name">Ты</div><div class="dev-msg-text">' + escapeHtml(text) + '</div></div>';
     messages.appendChild(userMsg);
+    messages.scrollTop = messages.scrollHeight;
 
-    // AI response (mock)
-    var aiMsg = document.createElement('div');
-    aiMsg.className = 'dev-msg dev-msg-ai';
-    aiMsg.innerHTML = '<div class="dev-msg-avatar">🛠</div><div class="dev-msg-body"><div class="dev-msg-name">Developer Mode</div><div class="dev-msg-text">Понял задачу. Анализирую контекст проекта...<br><br>Это mock-ответ. Полная реализация будет в Phase 19B с подключением к Project Brain и реальным AI orchestration.</div></div>';
-    messages.appendChild(aiMsg);
+    // Show typing indicator
+    var typingMsg = document.createElement('div');
+    typingMsg.className = 'dev-msg dev-msg-ai';
+    typingMsg.id = 'dev-typing';
+    typingMsg.innerHTML = '<div class="dev-msg-avatar">🛠</div><div class="dev-msg-body"><div class="dev-msg-name">Developer Mode</div><div class="dev-msg-text"><div class="typing-indicator"><span></span><span></span><span></span></div></div></div>';
+    messages.appendChild(typingMsg);
+    messages.scrollTop = messages.scrollHeight;
+
+    // Call understanding API
+    fetch('/api/developer/message', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message: text, project_id: ''})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var typing = document.getElementById('dev-typing');
+      if (typing) typing.remove();
+
+      if (data && data.understanding) {
+        var u = data.understanding;
+        var formatted = u.formatted || 'Анализ завершен.';
+
+        // Build understanding response
+        var html = '<div class="dev-msg-avatar">🛠</div><div class="dev-msg-body"><div class="dev-msg-name">Developer Mode — Understanding Phase</div><div class="dev-msg-text">' +
+          '<div class="dev-understanding">' +
+          formatted.replace(/\n/g, '<br>') +
+          '</div>';
+
+        // Add "Начать разработку" button if ready
+        if (u.is_ready) {
+          html += '<br><button class="dev-execute-btn" onclick="devStartExecution()">&#128640; Начать разработку</button>';
+        } else if (u.clarification_questions && u.clarification_questions.length > 0) {
+          html += '<br><span class="dev-waiting-hint">⏳ Ответь на уточняющие вопросы чтобы продолжить</span>';
+        }
+
+        html += '</div></div>';
+
+        var aiMsg = document.createElement('div');
+        aiMsg.className = 'dev-msg dev-msg-ai';
+        aiMsg.innerHTML = html;
+        messages.appendChild(aiMsg);
+      } else {
+        var errMsg = document.createElement('div');
+        errMsg.className = 'dev-msg dev-msg-ai';
+        errMsg.innerHTML = '<div class="dev-msg-avatar">🛠</div><div class="dev-msg-body"><div class="dev-msg-name">Developer Mode</div><div class="dev-msg-text">Ошибка анализа. Попробуй ещё раз.</div></div>';
+        messages.appendChild(errMsg);
+      }
+      messages.scrollTop = messages.scrollHeight;
+    })
+    .catch(function() {
+      var typing = document.getElementById('dev-typing');
+      if (typing) typing.remove();
+      var errMsg = document.createElement('div');
+      errMsg.className = 'dev-msg dev-msg-ai';
+      errMsg.innerHTML = '<div class="dev-msg-avatar">🛠</div><div class="dev-msg-body"><div class="dev-msg-name">Developer Mode</div><div class="dev-msg-text">Ошибка соединения с сервером.</div></div>';
+      messages.appendChild(errMsg);
+      messages.scrollTop = messages.scrollHeight;
+    });
+  };
+
+  window.devStartExecution = function() {
+    var messages = document.getElementById('dev-conv-messages');
+    if (!messages) return;
+    var infoMsg = document.createElement('div');
+    infoMsg.className = 'dev-msg dev-msg-system';
+    infoMsg.innerHTML = '<div class="dev-msg-avatar">🛠</div><div class="dev-msg-body"><div class="dev-msg-name">Developer Mode</div><div class="dev-msg-text">⏳ Execution engine будет реализован в Phase 19C — Safe Orchestration Runtime.</div></div>';
+    messages.appendChild(infoMsg);
     messages.scrollTop = messages.scrollHeight;
   };
 

@@ -2013,3 +2013,39 @@ textarea::placeholder { color: var(--muted); }
   .dev-status-sep { display: none; }
   .dev-status-mode { display: none; }
 }
+
+/* ── UNDERSTANDING PHASE ── */
+.dev-understanding {
+  line-height: 1.7;
+}
+.dev-understanding br {
+  display: block;
+  content: "";
+  margin: 4px 0;
+}
+
+.dev-execute-btn {
+  margin-top: 16px;
+  padding: 12px 24px;
+  background: linear-gradient(135deg, var(--accent), #6366f1);
+  border: none;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 13px;
+  font-family: 'JetBrains Mono', monospace;
+  cursor: pointer;
+  transition: transform .15s, box-shadow .15s;
+  display: inline-block;
+}
+.dev-execute-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(124,110,245,.4);
+}
+
+.dev-waiting-hint {
+  display: inline-block;
+  margin-top: 12px;
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+}

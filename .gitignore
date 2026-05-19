@@ -77,3 +77,5 @@ skill/
 
 # ProjectManager runtime data (snapshots, index cache)
 .agents/
+.server.pid
+.ai-team/
