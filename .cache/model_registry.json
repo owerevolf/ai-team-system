@@ -65,6 +65,15 @@
         "description": "DeepSeek V4 Flash is an efficiency-optimized Mixture-of-Experts model from DeepSeek with 284B total parameters and 13B activated parameters, supporting a 1M-token context window. It is designed for fa"
       },
       {
+        "id": "z-ai/glm-5.1",
+        "name": "Z.ai: GLM 5.1",
+        "provider": "openrouter",
+        "context_length": 202800,
+        "is_free": true,
+        "strength": "strong",
+        "description": "GLM-5.1 delivers a major leap in coding capability, with particularly significant gains in handling long-horizon tasks. Unlike previous models built around minute-level interactions, GLM-5.1 can work "
+      },
+      {
         "id": "google/gemma-4-26b-a4b-it:free",
         "name": "Google: Gemma 4 26B A4B  (free)",
         "provider": "openrouter",
@@ -325,5 +334,5 @@
     "description": "Российский агрегатор AI моделей. Объединяет провайдеров в один API.",
     "models": []
   },
-  "_cached_at": 1778975195.4060037
+  "_cached_at": 1779226104.775693
 }

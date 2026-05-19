@@ -1069,6 +1069,7 @@ function switchTab(tabName) {
   if (tabEl) tabEl.classList.add('active');
   document.getElementById('tab-btn-' + tabName).classList.add('active');
   var isChat = tabName === 'chat';
+  var isDeveloper = tabName === 'developer';
   document.getElementById('agents-bar').style.display = isChat ? 'flex' : 'none';
   document.getElementById('chat').style.display = isChat ? 'flex' : 'none';
   document.querySelector('.input-area').style.display = isChat ? 'block' : 'none';
@@ -1077,6 +1078,10 @@ function switchTab(tabName) {
   if (tabName === 'kanban') loadKanbanTasks();
   if (tabName === 'kanban') renderKanban();
   if (tabName === 'promptarchitect') initPromptArchitectIfNotStarted();
+  if (isDeveloper) {
+    document.getElementById('dev-conversation').style.display = 'flex';
+    document.getElementById('dev-content').classList.remove('visible');
+  }
 }
 
 var settingsData = null;
@@ -2294,12 +2299,10 @@ document.addEventListener('DOMContentLoaded', function() {
       var chip = e.target.closest('.agent-chip');
       if (chip && chip.dataset.agent) {
         var agent = chip.dataset.agent;
-        // Toggle active state
         document.querySelectorAll('.agent-chip').forEach(function(c) {
           c.classList.remove('active');
         });
         chip.classList.add('active');
-        // Update state
         if (typeof state !== 'undefined') {
           state.currentAgent = agent;
         }
@@ -2307,4 +2310,127 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
   }
+
+  // ── DEVELOPER MODE ──
+  var devTabIds = ['developer'];
+  devTabIds.forEach(function(tabName) {
+    var btn = document.getElementById('tab-btn-' + tabName);
+    if (btn) {
+      btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        switchTab(tabName);
+      });
+    }
+  });
+
+  // Dev sidebar navigation
+  window.switchDevSection = function(section) {
+    document.querySelectorAll('.dev-nav-item').forEach(function(el) {
+      el.classList.remove('active');
+    });
+    var navItem = document.getElementById('dev-nav-' + section);
+    if (navItem) navItem.classList.add('active');
+
+    // Toggle panels vs conversation
+    var panels = document.getElementById('dev-content');
+    var conv = document.getElementById('dev-conversation');
+    if (section === 'conversations') {
+      panels.classList.add('visible');
+      conv.style.display = 'none';
+    } else {
+      panels.classList.add('visible');
+      conv.style.display = 'none';
+    }
+
+    document.querySelectorAll('.dev-panel').forEach(function(p) {
+      p.classList.remove('active');
+    });
+    var panel = document.getElementById('dev-panel-' + section);
+    if (panel) panel.classList.add('active');
+  };
+
+  // Toggle sidebar collapse
+  window.toggleDevSidebar = function() {
+    var sidebar = document.getElementById('dev-sidebar');
+    if (sidebar) sidebar.classList.toggle('collapsed');
+  };
+
+  // Dev search
+  window.devSearch = function(query) {
+    var q = query.toLowerCase();
+    document.querySelectorAll('.dev-nav-item').forEach(function(item) {
+      var text = item.textContent.toLowerCase();
+      item.style.display = q && text.indexOf(q) === -1 ? 'none' : 'flex';
+    });
+  };
+
+  // Dev conversation
+  window.sendDevMessage = function() {
+    var input = document.getElementById('dev-input');
+    if (!input) return;
+    var text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    autoResizeTextarea(input);
+
+    var messages = document.getElementById('dev-conv-messages');
+    if (!messages) return;
+
+    // User message
+    var userMsg = document.createElement('div');
+    userMsg.className = 'dev-msg dev-msg-user';
+    userMsg.innerHTML = '<div class="dev-msg-avatar">👤</div><div class="dev-msg-body"><div class="dev-msg-name">Ты</div><div class="dev-msg-text">' + escapeHtml(text) + '</div></div>';
+    messages.appendChild(userMsg);
+
+    // AI response (mock)
+    var aiMsg = document.createElement('div');
+    aiMsg.className = 'dev-msg dev-msg-ai';
+    aiMsg.innerHTML = '<div class="dev-msg-avatar">🛠</div><div class="dev-msg-body"><div class="dev-msg-name">Developer Mode</div><div class="dev-msg-text">Понял задачу. Анализирую контекст проекта...<br><br>Это mock-ответ. Полная реализация будет в Phase 19B с подключением к Project Brain и реальным AI orchestration.</div></div>';
+    messages.appendChild(aiMsg);
+    messages.scrollTop = messages.scrollHeight;
+  };
+
+  window.handleDevKey = function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendDevMessage();
+    }
+  };
+
+  window.devNewConversation = function() {
+    var messages = document.getElementById('dev-conv-messages');
+    if (messages) messages.innerHTML = '';
+    var panels = document.getElementById('dev-content');
+    var conv = document.getElementById('dev-conversation');
+    if (panels) panels.classList.remove('visible');
+    if (conv) conv.style.display = 'flex';
+  };
+
+  window.devSelectConversation = function(el, id) {
+    document.querySelectorAll('.dev-conv-item').forEach(function(i) {
+      i.classList.remove('active');
+    });
+    el.classList.add('active');
+    var panels = document.getElementById('dev-content');
+    var conv = document.getElementById('dev-conversation');
+    if (panels) panels.classList.remove('visible');
+    if (conv) conv.style.display = 'flex';
+  };
+
+  window.devOpenProjectModal = function() {
+    alert('Project Browser будет добавлен в Phase 19B');
+  };
+
+  window.devNewTask = function() {
+    alert('Task Creator будет добавлен в Phase 19C');
+  };
+
+  // Escape HTML helper
+  function escapeHtml(text) {
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
 });

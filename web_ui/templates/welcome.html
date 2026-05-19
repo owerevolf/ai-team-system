@@ -48,6 +48,7 @@
     <button class="tab-btn" id="tab-btn-instruction">📖 Инструкция</button>
     <button class="tab-btn" id="tab-btn-kanban">📋 Канбан</button>
     <button class="tab-btn" id="tab-btn-promptarchitect">🧠 Промт</button>
+    <button class="tab-btn" id="tab-btn-developer">🛠 Developer</button>
   </div>
 </header>
 
@@ -295,6 +296,403 @@
   </div>
 </div>
 
-<script src="/static/js/welcome.js?v=2"></script>
+<!-- TAB: DEVELOPER -->
+<div class="tab-content" id="tab-developer">
+  <div class="dev-layout">
+
+    <!-- Developer Sidebar -->
+    <div class="dev-sidebar" id="dev-sidebar">
+      <div class="dev-sidebar-header">
+        <div class="dev-sidebar-logo">🛠</div>
+        <div class="dev-sidebar-title">Developer</div>
+        <button class="dev-sidebar-toggle" id="dev-sidebar-toggle" onclick="toggleDevSidebar()">◀</button>
+      </div>
+
+      <div class="dev-sidebar-search">
+        <input type="text" placeholder="🔍 Поиск..." id="dev-search" oninput="devSearch(this.value)">
+      </div>
+
+      <div class="dev-sidebar-nav">
+
+        <div class="dev-nav-section">
+          <div class="dev-nav-label">WORKSPACE</div>
+          <div class="dev-nav-item active" id="dev-nav-conversations" onclick="switchDevSection('conversations')">
+            <span class="dev-nav-icon">💬</span> Conversations
+            <span class="dev-nav-badge" id="dev-conv-count">3</span>
+          </div>
+          <div class="dev-nav-item" id="dev-nav-projects" onclick="switchDevSection('projects')">
+            <span class="dev-nav-icon">📁</span> Projects
+            <span class="dev-nav-badge" id="dev-proj-count">2</span>
+          </div>
+          <div class="dev-nav-item" id="dev-nav-tasks" onclick="switchDevSection('tasks')">
+            <span class="dev-nav-icon">✅</span> Tasks
+            <span class="dev-nav-badge" id="dev-task-count">5</span>
+          </div>
+          <div class="dev-nav-item" id="dev-nav-knowledge" onclick="switchDevSection('knowledge')">
+            <span class="dev-nav-icon">📚</span> Knowledge
+          </div>
+        </div>
+
+        <div class="dev-nav-section">
+          <div class="dev-nav-label">RUNTIME</div>
+          <div class="dev-nav-item" id="dev-nav-runtime" onclick="switchDevSection('runtime')">
+            <span class="dev-nav-icon">⚡</span> Runtime
+            <span class="dev-nav-status" id="dev-runtime-status"></span>
+          </div>
+          <div class="dev-nav-item" id="dev-nav-agents" onclick="switchDevSection('agents')">
+            <span class="dev-nav-icon">🤖</span> Agents
+            <span class="dev-nav-badge">7</span>
+          </div>
+          <div class="dev-nav-item" id="dev-nav-memory" onclick="switchDevSection('memory')">
+            <span class="dev-nav-icon">🧠</span> Memory
+          </div>
+        </div>
+
+      </div>
+
+      <div class="dev-sidebar-footer">
+        <div class="dev-user-info">
+          <div class="dev-user-avatar">👤</div>
+          <div class="dev-user-name">Developer</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Developer Main Area -->
+    <div class="dev-main">
+
+      <!-- Status Bar -->
+      <div class="dev-statusbar" id="dev-statusbar">
+        <div class="dev-status-left">
+          <div class="dev-status-project" id="dev-status-project">
+            <span class="dev-status-dot"></span>
+            <span>ai-team-system</span>
+          </div>
+          <div class="dev-status-sep">|</div>
+          <div class="dev-status-mode" id="dev-status-mode">🏠 Local</div>
+          <div class="dev-status-sep">|</div>
+          <div class="dev-status-branch" id="dev-status-branch">⎇ main</div>
+        </div>
+        <div class="dev-status-right">
+          <div class="dev-status-runtime" id="dev-status-runtime">
+            <span class="dev-runtime-dot"></span> Ready
+          </div>
+        </div>
+      </div>
+
+      <!-- Content Panels -->
+      <div class="dev-content" id="dev-content">
+
+        <!-- Conversations Panel -->
+        <div class="dev-panel active" id="dev-panel-conversations">
+          <div class="dev-panel-header">
+            <h2>💬 Conversations</h2>
+            <button class="dev-new-btn" onclick="devNewConversation()">+ New Chat</button>
+          </div>
+          <div class="dev-conv-list" id="dev-conv-list">
+            <div class="dev-conv-item active" onclick="devSelectConversation(this, 1)">
+              <div class="dev-conv-title">Добавить realtime notifications</div>
+              <div class="dev-conv-meta">2 часа назад · 12 сообщений</div>
+            </div>
+            <div class="dev-conv-item" onclick="devSelectConversation(this, 2)">
+              <div class="dev-conv-title">Рефакторинг API endpoints</div>
+              <div class="dev-conv-meta">Вчера · 8 сообщений</div>
+            </div>
+            <div class="dev-conv-item" onclick="devSelectConversation(this, 3)">
+              <div class="dev-conv-title">Настроить CI/CD pipeline</div>
+              <div class="dev-conv-meta">3 дня назад · 24 сообщения</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Projects Panel -->
+        <div class="dev-panel" id="dev-panel-projects">
+          <div class="dev-panel-header">
+            <h2>📁 Projects</h2>
+            <button class="dev-new-btn" onclick="devOpenProjectModal()">+ Open Project</button>
+          </div>
+          <div class="dev-proj-list" id="dev-proj-list">
+            <div class="dev-proj-item active">
+              <div class="dev-proj-icon">🐍</div>
+              <div class="dev-proj-info">
+                <div class="dev-proj-name">ai-team-system</div>
+                <div class="dev-proj-path">~/projects/ai-team-system</div>
+                <div class="dev-proj-stack">Python · FastAPI · SQLite</div>
+              </div>
+              <div class="dev-proj-status active">● Active</div>
+            </div>
+            <div class="dev-proj-item">
+              <div class="dev-proj-icon">🌐</div>
+              <div class="dev-proj-info">
+                <div class="dev-proj-name">web-dashboard</div>
+                <div class="dev-proj-path">~/projects/web-dashboard</div>
+                <div class="dev-proj-stack">React · TypeScript · Vite</div>
+              </div>
+              <div class="dev-proj-status">○ Idle</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tasks Panel -->
+        <div class="dev-panel" id="dev-panel-tasks">
+          <div class="dev-panel-header">
+            <h2>✅ Tasks</h2>
+            <button class="dev-new-btn" onclick="devNewTask()">+ New Task</button>
+          </div>
+          <div class="dev-task-list" id="dev-task-list">
+            <div class="dev-task-item">
+              <div class="dev-task-priority high"></div>
+              <div class="dev-task-info">
+                <div class="dev-task-title">Добавить WebSocket для realtime</div>
+                <div class="dev-task-meta">Backend · High · In Progress</div>
+              </div>
+            </div>
+            <div class="dev-task-item">
+              <div class="dev-task-priority medium"></div>
+              <div class="dev-task-info">
+                <div class="dev-task-title">Написать тесты для API</div>
+                <div class="dev-task-meta">Tester · Medium · Todo</div>
+              </div>
+            </div>
+            <div class="dev-task-item">
+              <div class="dev-task-priority low"></div>
+              <div class="dev-task-info">
+                <div class="dev-task-title">Обновить документацию</div>
+                <div class="dev-task-meta">Docs · Low · Todo</div>
+              </div>
+            </div>
+            <div class="dev-task-item">
+              <div class="dev-task-priority high"></div>
+              <div class="dev-task-info">
+                <div class="dev-task-title">Исправить auth middleware</div>
+                <div class="dev-task-meta">Backend · High · Review</div>
+              </div>
+            </div>
+            <div class="dev-task-item">
+              <div class="dev-task-priority medium"></div>
+              <div class="dev-task-info">
+                <div class="dev-task-title">Оптимизировать запросы к БД</div>
+                <div class="dev-task-meta">Backend · Medium · Done</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Knowledge Panel -->
+        <div class="dev-panel" id="dev-panel-knowledge">
+          <div class="dev-panel-header">
+            <h2>📚 Knowledge</h2>
+          </div>
+          <div class="dev-info-card">
+            <h3>Project Brain</h3>
+            <p>Единый источник правды для всех агентов. Хранит цели, архитектуру, решения и ограничения проекта.</p>
+            <div class="dev-info-status">⚡ Активен</div>
+          </div>
+          <div class="dev-info-card">
+            <h3>Repo Map</h3>
+            <p>Автоматически построенная карта проекта: структура файлов, зависимости, entry points.</p>
+            <div class="dev-info-status">📊 230 файлов · 14000 символов</div>
+          </div>
+          <div class="dev-info-card">
+            <h3>Architecture Decisions</h3>
+            <p>Лог архитектурных решений. Каждое решение с контекстом, альтернативами и последствиями.</p>
+            <div class="dev-info-status">📝 12 записей</div>
+          </div>
+        </div>
+
+        <!-- Runtime Panel -->
+        <div class="dev-panel" id="dev-panel-runtime">
+          <div class="dev-panel-header">
+            <h2>⚡ Runtime</h2>
+          </div>
+          <div class="dev-runtime-grid">
+            <div class="dev-runtime-card">
+              <div class="dev-runtime-icon">🖥</div>
+              <div class="dev-runtime-label">Server</div>
+              <div class="dev-runtime-value online">Online :8000</div>
+            </div>
+            <div class="dev-runtime-card">
+              <div class="dev-runtime-icon">💾</div>
+              <div class="dev-runtime-label">Database</div>
+              <div class="dev-runtime-value online">SQLite OK</div>
+            </div>
+            <div class="dev-runtime-card">
+              <div class="dev-runtime-icon">🧠</div>
+              <div class="dev-runtime-label">Model</div>
+              <div class="dev-runtime-value">qwen3:8b</div>
+            </div>
+            <div class="dev-runtime-card">
+              <div class="dev-runtime-icon">📊</div>
+              <div class="dev-runtime-label">Tests</div>
+              <div class="dev-runtime-value online">949 passed</div>
+            </div>
+          </div>
+          <div class="dev-info-card" style="margin-top:16px">
+            <h3>System Resources</h3>
+            <div class="dev-resource-bar">
+              <span>VRAM</span>
+              <div class="dev-resource-track"><div class="dev-resource-fill" style="width:62%"></div></div>
+              <span>62%</span>
+            </div>
+            <div class="dev-resource-bar">
+              <span>RAM</span>
+              <div class="dev-resource-track"><div class="dev-resource-fill" style="width:45%"></div></div>
+              <span>45%</span>
+            </div>
+            <div class="dev-resource-bar">
+              <span>CPU</span>
+              <div class="dev-resource-track"><div class="dev-resource-fill" style="width:23%"></div></div>
+              <span>23%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Agents Panel -->
+        <div class="dev-panel" id="dev-panel-agents">
+          <div class="dev-panel-header">
+            <h2>🤖 Agents</h2>
+          </div>
+          <div class="dev-agent-list">
+            <div class="dev-agent-card">
+              <div class="dev-agent-avatar">👔</div>
+              <div class="dev-agent-info">
+                <div class="dev-agent-name">TeamLead</div>
+                <div class="dev-agent-role">Orchestrator</div>
+              </div>
+              <div class="dev-agent-status online">● Ready</div>
+            </div>
+            <div class="dev-agent-card">
+              <div class="dev-agent-avatar">🏛</div>
+              <div class="dev-agent-info">
+                <div class="dev-agent-name">Architect</div>
+                <div class="dev-agent-role">System Design</div>
+              </div>
+              <div class="dev-agent-status online">● Ready</div>
+            </div>
+            <div class="dev-agent-card">
+              <div class="dev-agent-avatar">⚙️</div>
+              <div class="dev-agent-info">
+                <div class="dev-agent-name">Backend</div>
+                <div class="dev-agent-role">API & Logic</div>
+              </div>
+              <div class="dev-agent-status busy">● Working</div>
+            </div>
+            <div class="dev-agent-card">
+              <div class="dev-agent-avatar">🎨</div>
+              <div class="dev-agent-info">
+                <div class="dev-agent-name">Frontend</div>
+                <div class="dev-agent-role">UI & UX</div>
+              </div>
+              <div class="dev-agent-status online">● Ready</div>
+            </div>
+            <div class="dev-agent-card">
+              <div class="dev-agent-avatar">🚀</div>
+              <div class="dev-agent-info">
+                <div class="dev-agent-name">DevOps</div>
+                <div class="dev-agent-role">Deploy & CI/CD</div>
+              </div>
+              <div class="dev-agent-status offline">○ Idle</div>
+            </div>
+            <div class="dev-agent-card">
+              <div class="dev-agent-avatar">🧪</div>
+              <div class="dev-agent-info">
+                <div class="dev-agent-name">Tester</div>
+                <div class="dev-agent-role">QA & Tests</div>
+              </div>
+              <div class="dev-agent-status online">● Ready</div>
+            </div>
+            <div class="dev-agent-card">
+              <div class="dev-agent-avatar">📝</div>
+              <div class="dev-agent-info">
+                <div class="dev-agent-name">Documentalist</div>
+                <div class="dev-agent-role">Documentation</div>
+              </div>
+              <div class="dev-agent-status offline">○ Idle</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Memory Panel -->
+        <div class="dev-panel" id="dev-panel-memory">
+          <div class="dev-panel-header">
+            <h2>🧠 Memory</h2>
+          </div>
+          <div class="dev-info-card">
+            <h3>Session Memory</h3>
+            <p>Текущая сессия: <strong>Phase 19A — Developer Mode Skeleton</strong></p>
+            <div class="dev-info-status">📌 Начато: сегодня</div>
+          </div>
+          <div class="dev-info-card">
+            <h3>Project Context</h3>
+            <p>AI Team System v2.0 — мультиагентная платформа разработки на Python/FastAPI. 18+ фаз разработки, 949 тестов.</p>
+            <div class="dev-info-status">🔄 12 файлов изменено</div>
+          </div>
+          <div class="dev-info-card">
+            <h3>Recent Decisions</h3>
+            <div class="dev-memory-item">
+              <div class="dev-memory-time">Сегодня</div>
+              <div class="dev-memory-text">Phase 19: Developer Mode — новая вкладка с sidebar layout</div>
+            </div>
+            <div class="dev-memory-item">
+              <div class="dev-memory-time">Вчера</div>
+              <div class="dev-memory-text">Phase 18: Reduction & Settlement — стабилизация</div>
+            </div>
+            <div class="dev-memory-item">
+              <div class="dev-memory-time">3 дня</div>
+              <div class="dev-memory-text">Phase 8: Workspace modules — project importer, repair, sandbox</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Conversation Area (default view) -->
+      <div class="dev-conversation" id="dev-conversation">
+        <div class="dev-conv-messages" id="dev-conv-messages">
+          <div class="dev-msg dev-msg-system">
+            <div class="dev-msg-avatar">🛠</div>
+            <div class="dev-msg-body">
+              <div class="dev-msg-name">Developer Mode</div>
+              <div class="dev-msg-text">Добро пожаловать в Developer Mode! Это твой AI Engineering Workspace. Выбери раздел в боковой панели или начни разговор.</div>
+            </div>
+          </div>
+          <div class="dev-msg dev-msg-user">
+            <div class="dev-msg-avatar">👤</div>
+            <div class="dev-msg-body">
+              <div class="dev-msg-name">Ты</div>
+              <div class="dev-msg-text">Добавь realtime notifications через WebSocket</div>
+            </div>
+          </div>
+          <div class="dev-msg dev-msg-ai">
+            <div class="dev-msg-avatar">🛠</div>
+            <div class="dev-msg-body">
+              <div class="dev-msg-name">Developer Mode</div>
+              <div class="dev-msg-text">Понял. Прежде чем начать, уточню:<br><br>
+                <b>1.</b> Что я понял: нужен WebSocket для realtime уведомлений<br>
+                <b>2.</b> Нужно проверить: текущую архитектуру FastAPI, наличие WebSocket зависимостей<br>
+                <b>3.</b> Риски: совместимость с существующим API, нужно ли fallback для polling<br>
+                <b>4.</b> Уточнения: какие события должны быть realtime? Только прогресс агентов или всё?<br><br>
+                Жми <b>Начать разработку</b> когда подтвердишь.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="dev-input-area">
+          <div class="dev-input-row">
+            <textarea id="dev-input" placeholder="Опиши задачу, задай вопрос или обсуди архитектуру..." rows="1"
+              onkeydown="handleDevKey(event)" oninput="autoResizeTextarea(this)"></textarea>
+            <button class="dev-send-btn" onclick="sendDevMessage()" title="Отправить">➤</button>
+          </div>
+          <div class="dev-input-hint">Enter — отправить · Shift+Enter — новая строка · / — команды</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/welcome.js?v=3"></script>
 </body>
 </html>
