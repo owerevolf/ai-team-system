@@ -2448,11 +2448,93 @@ document.addEventListener('DOMContentLoaded', function() {
   window.devStartExecution = function() {
     var messages = document.getElementById('dev-conv-messages');
     if (!messages) return;
-    var infoMsg = document.createElement('div');
-    infoMsg.className = 'dev-msg dev-msg-system';
-    infoMsg.innerHTML = '<div class="dev-msg-avatar">🛠</div><div class="dev-msg-body"><div class="dev-msg-name">Developer Mode</div><div class="dev-msg-text">⏳ Execution engine будет реализован в Phase 19C — Safe Orchestration Runtime.</div></div>';
-    messages.appendChild(infoMsg);
+
+    // Show typing
+    var typingMsg = document.createElement('div');
+    typingMsg.className = 'dev-msg dev-msg-ai';
+    typingMsg.id = 'dev-exec-typing';
+    typingMsg.innerHTML = '<div class="dev-msg-avatar">🛠</div><div class="dev-msg-body"><div class="dev-msg-name">Developer Mode — Orchestration</div><div class="dev-msg-text"><div class="typing-indicator"><span></span><span></span><span></span></div></div></div>';
+    messages.appendChild(typingMsg);
     messages.scrollTop = messages.scrollHeight;
+
+    // Get the last user message
+    var userMsgs = messages.querySelectorAll('.dev-msg-user');
+    var lastMsg = userMsgs[userMsgs.length - 1];
+    var messageText = lastMsg ? lastMsg.querySelector('.dev-msg-text').textContent : '';
+
+    // Call orchestrate API
+    fetch('/api/developer/orchestrate', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message: messageText, project_id: ''})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var typing = document.getElementById('dev-exec-typing');
+      if (typing) typing.remove();
+
+      if (data && data.status === 'planned') {
+        var plan = data.plan || '';
+        var html = '<div class="dev-msg-avatar">🛠</div><div class="dev-msg-body"><div class="dev-msg-name">Developer Mode — Orchestration Complete</div><div class="dev-msg-text">' +
+          '<div class="dev-understanding">';
+
+        if (data.understanding && data.understanding.formatted) {
+          html += data.understanding.formatted.replace(/\n/g, '<br>');
+        }
+
+        html += '</div>';
+
+        if (plan) {
+          html += '<br><div class="dev-pipeline">';
+          html += '<h4>📋 Execution Plan: ' + (plan.plan_id || '') + '</h4>';
+          html += '<p>Phases: ' + (plan.phases_created || 0) + ' | Tasks: ' + (plan.tasks_created || 0) + ' | Assigned: ' + (plan.tasks_assigned || 0) + '</p>';
+          html += '</div>';
+        }
+
+        if (data.events && data.events.length > 0) {
+          html += '<div class="dev-timeline"><h4>📡 Events</h4>';
+          data.events.slice(-5).forEach(function(evt) {
+            html += '<div class="dev-timeline-event"><span class="dev-timestamp">' + (evt.timestamp || '').substring(11, 19) + '</span> ' + (evt.message || '') + '</div>';
+          });
+          html += '</div>';
+        }
+
+        html += '<br><span class="dev-waiting-hint">✅ Planning complete. Phase 19D will add real execution.</span>';
+        html += '</div></div>';
+
+        var aiMsg = document.createElement('div');
+        aiMsg.className = 'dev-msg dev-msg-ai';
+        aiMsg.innerHTML = html;
+        messages.appendChild(aiMsg);
+      } else if (data && data.status === 'clarification_needed') {
+        var html = '<div class="dev-msg-avatar">🛠</div><div class="dev-msg-body"><div class="dev-msg-name">Developer Mode — Clarification Needed</div><div class="dev-msg-text">';
+        if (data.understanding && data.understanding.clarification_questions) {
+          data.understanding.clarification_questions.forEach(function(q) {
+            html += '❓ ' + q + '<br>';
+          });
+        }
+        html += '</div></div>';
+        var aiMsg = document.createElement('div');
+        aiMsg.className = 'dev-msg dev-msg-ai';
+        aiMsg.innerHTML = html;
+        messages.appendChild(aiMsg);
+      } else {
+        var errMsg = document.createElement('div');
+        errMsg.className = 'dev-msg dev-msg-ai';
+        errMsg.innerHTML = '<div class="dev-msg-avatar">🛠</div><div class="dev-msg-body"><div class="dev-msg-name">Developer Mode</div><div class="dev-msg-text">Orchestration error: ' + (data.error || data.status || 'unknown') + '</div></div>';
+        messages.appendChild(errMsg);
+      }
+      messages.scrollTop = messages.scrollHeight;
+    })
+    .catch(function() {
+      var typing = document.getElementById('dev-exec-typing');
+      if (typing) typing.remove();
+      var errMsg = document.createElement('div');
+      errMsg.className = 'dev-msg dev-msg-ai';
+      errMsg.innerHTML = '<div class="dev-msg-avatar">🛠</div><div class="dev-msg-body"><div class="dev-msg-name">Developer Mode</div><div class="dev-msg-text">Ошибка соединения с сервером.</div></div>';
+      messages.appendChild(errMsg);
+      messages.scrollTop = messages.scrollHeight;
+    });
   };
 
   window.handleDevKey = function(e) {

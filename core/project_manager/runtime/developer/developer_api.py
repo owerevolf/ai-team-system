@@ -8,6 +8,9 @@ Endpoints:
     POST /api/developer/understand     — analyze a request (understanding phase)
     GET  /api/developer/projects       — list all projects
     POST /api/developer/snapshot       — create a brain snapshot
+    POST /api/developer/orchestrate    — full orchestration flow
+    GET  /api/developer/timeline       — get event timeline
+    GET  /api/developer/agents         — list agents
 """
 
 from __future__ import annotations
@@ -21,6 +24,7 @@ from pydantic import BaseModel
 
 from loguru import logger
 
+from .orchestrator import Orchestrator
 from .project_brain import ProjectBrain, RuntimeState, brain_to_dict
 from .brain_store import BrainStore
 from .understanding_engine import UnderstandingEngine
@@ -287,3 +291,80 @@ def _build_token_usage(brain: ProjectBrain) -> Dict[str, Any]:
     layers.set_system_identity("AI Team System Developer Mode")
     layers.set_project_brain(brain_dict)
     return layers.get_token_usage()
+
+
+# ── Orchestration state (per-project) ──
+
+_orchestrators: Dict[str, Orchestrator] = {}
+
+
+def _get_orchestrator(project_id: str) -> Orchestrator:
+    """Get or create an orchestrator for a project."""
+    if project_id not in _orchestrators:
+        orch = Orchestrator(project_id=project_id)
+        orch.initialize(project_id)
+        _orchestrators[project_id] = orch
+    return _orchestrators[project_id]
+
+
+# ── Orchestration endpoints ──
+
+class OrchestrateRequest(BaseModel):
+    project_id: str = ""
+    message: str = ""
+
+
+@router.post("/orchestrate")
+async def orchestrate(req: OrchestrateRequest) -> Dict[str, Any]:
+    """
+    Full orchestration flow: understanding → planning → task assignment.
+
+    This is the main endpoint for Developer Mode execution.
+    Currently: PLANNING ONLY. No actual code execution.
+    """
+    if not req.message:
+        raise HTTPException(status_code=400, detail="message is required")
+
+    project_id = req.project_id or "default"
+    orch = _get_orchestrator(project_id)
+
+    result = orch.process_message(req.message)
+    return result
+
+
+@router.get("/timeline")
+async def get_timeline(project_id: str = "", limit: int = 20) -> Dict[str, Any]:
+    """Get the event timeline for a project."""
+    project_id = project_id or "default"
+    orch = _get_orchestrator(project_id)
+    timeline = orch.get_timeline(limit=limit)
+    return {
+        "status": "ok",
+        "timeline": timeline,
+        "count": len(timeline),
+    }
+
+
+@router.get("/agents")
+async def list_agents(project_id: str = "") -> Dict[str, Any]:
+    """List all registered agents."""
+    project_id = project_id or "default"
+    orch = _get_orchestrator(project_id)
+    agents = orch.get_agent_status()
+    return {
+        "status": "ok",
+        "agents": agents,
+        "count": len(agents),
+    }
+
+
+@router.get("/status")
+async def get_orchestrator_status(project_id: str = "") -> Dict[str, Any]:
+    """Get the current orchestrator status."""
+    project_id = project_id or "default"
+    orch = _get_orchestrator(project_id)
+    return {
+        "status": "ok",
+        "orchestrator": orch.status.to_dict(),
+        "plan": orch.get_plan_status(),
+    }

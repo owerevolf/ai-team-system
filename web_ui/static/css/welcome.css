@@ -2049,3 +2049,45 @@ textarea::placeholder { color: var(--muted); }
   color: var(--muted);
   font-style: italic;
 }
+
+/* ── PIPELINE & TIMELINE ── */
+.dev-pipeline {
+  margin-top: 12px;
+  padding: 12px 16px;
+  background: rgba(124,110,245,.08);
+  border: 1px solid rgba(124,110,245,.2);
+  border-radius: 10px;
+}
+.dev-pipeline h4 {
+  font-size: 12px;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.dev-pipeline p {
+  font-size: 11px;
+  color: var(--muted);
+  margin: 0;
+}
+
+.dev-timeline {
+  margin-top: 12px;
+}
+.dev-timeline h4 {
+  font-size: 12px;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.dev-timeline-event {
+  font-size: 10px;
+  color: var(--muted);
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+.dev-timeline-event:last-child {
+  border-bottom: none;
+}
+.dev-timestamp {
+  color: var(--accent2);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+}
