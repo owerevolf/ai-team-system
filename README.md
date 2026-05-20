@@ -1,11 +1,12 @@
-# 🤖 AI Team System v2.2
+# 🤖 AI Team System v2.0
 
-**Мультиагентная платформа разработки ПО** — 8 AI-агентов создают проекты с нуля, объясняя каждый шаг.
+**AI Engineering Workspace** — мультиагентная платформа разработки с controlled execution runtime.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688.svg)
-![Tests](https://img.shields.io/badge/Tests-193%20passed-brightgreen.svg)
+![Tests](https://img.shields.io/badge/Tests-1140%20passed-brightgreen.svg)
+![Phases](https://img.shields.io/badge/Phases-19A--19D-blue.svg)
 
 ---
 
@@ -15,8 +16,8 @@
 ```bash
 git clone https://github.com/owerevolf/ai-team-system.git
 cd ai-team-system
-chmod +x scripts/install.sh
-./scripts/install.sh
+chmod +x scripts/launcher.sh
+./scripts/launcher.sh
 ```
 
 ### Windows
@@ -32,133 +33,144 @@ scripts\install.ps1
 
 | Фича | Описание |
 |------|----------|
-| 🎓 Режим обучения | 5-шаговый тур с аналогиями из жизни |
-|| 🤖 8 AI-агентов | TeamLead, Architect, Backend, Frontend, DevOps, Tester, Documentalist, Prompt Architect |
-|| 🧠 Обучалка промтов | Prompt Architect учит собирать мысли, контекст, ТЗ и промты |
-|| 🧠 Авто-детект железа | Выбор модели по VRAM/RAM (4b/8b/14b) |
+| 🎓 Learn Mode | 5-шаговый тур с аналогиями из жизни |
+| 🛠 Developer Mode | AI Engineering Workspace с orchestration runtime |
+| 🤖 7 AI-агентов | TeamLead, Architect, Backend, Frontend, DevOps, Tester, Documentalist |
+| 🧠 Project Brain | Единый источник правды для всех агентов |
+| 📋 Patch Engine | Изменения ТОЛЬКО через patches (никаких direct writes) |
+| 🔒 Safe Review | Validation layer: forbidden files, scope, dangerous patterns |
+| 👤 Approval Flow | Human approval для всех изменений |
+| 🏗 Workspace Runtime | Isolated workspaces с snapshots и rollback |
+| 🔍 Repo Scanner | Автоматическое понимание проекта |
+| 📚 Knowledge Index | Context compression для LLM |
+| 🧪 Execution Sandbox | Governed execution boundary |
+| 💻 Safe Terminal | Whitelist команд, blacklist опасных операций |
+| 🧠 Обучалка промтов | Prompt Architect учит собирать мысли, контекст, ТЗ |
+| 🧠 Авто-детект железа | Выбор модели по VRAM/RAM |
 | 💬 Оффлайн-первый | Работает через Ollama без интернета |
 | ☁️ Мульти-провайдер | OpenRouter, Ollama, OmniRoute — fallback цепочки |
 | 📥 Экспорт уроков | Markdown-гайды с примерами |
-| 🛡️ Безопасность | Песочница, whitelist команд, логирование |
 | ⚡ SSE-стриминг | Ответы в реальном времени |
-| 💬 Живой диалог | TeamLead ведёт диалог, уточняет детали, предлагает идеи |
 | 🎭 4 уровня сложности | zero / beginner / advanced / standard |
-| 🎨 Цветные агенты | Каждый агент имеет свой цвет в баре |
-| 🔀 Hot-swap моделей | Переключение моделей без перезагрузки сервера |
-| 📖 Интерактивная инструкция | Вкладка с пошаговым гайдом |
+| 📋 Канбан доска | Отслеживание задач агентов |
+| ⚙️ Настройки | Тестирование моделей, авто-выбор, рекомендации |
 
 ---
 
-## 🆕 v2.2 — Что нового
+## 🆕 Phase 19A-19D — Developer Mode Foundation
 
-### Новый агент
-- ✅ **Prompt Architect** — обучалка промтов. Учит правильно собирать мысли, контекст, ТЗ и промты для AI-агентов. 5 слоёв промта: Роль, Контекст, Задача, Ограничения, Формат. Режимы: обучение, помощь с задачей, критика и улучшение.
+### Developer Mode UI (Phase 19A)
+- 🛠 Новая вкладка **Developer** с sidebar layout (ChatGPT/Claude-style)
+- Sidebar: Conversations, Projects, Tasks, Knowledge, Runtime, Agents, Memory
+- Status bar: project, mode, branch, runtime status
+- Conversation panel с message bubbles
+- Responsive dark UI
 
-### Исправлено
-- ✅ Удалено дублирование JS кода в welcome.js (CoderChat блок был продублирован)
-- ✅ Удалены незакоммиченные backup файлы
+### Project Brain & Understanding (Phase 19B)
+- **Project Brain** — единый источник правды (goals, tasks, decisions, constraints, risks)
+- **Understanding Engine** — understand-before-execution philosophy
+- **Task Contracts** — scoped execution contracts для агентов
+- **Context Layers** — layered context system (<150k tokens)
+- JSON persistence для brain state
 
-### Тесты
-- ✅ 22 новых теста для Prompt Architect (193 всего)
+### Safe Orchestration (Phase 19C)
+- **TeamLead Runtime** — центральный orchestrator
+- **Agent Registry** — 7 агентов с capabilities, limits, risk levels
+- **Skill Router** — explicit skill-to-agent routing
+- **Execution Plan** — structured plan с phases, tasks, dependencies
+- **Safe Review** — validation layer (forbidden files, scope, contracts)
+- **Runtime Events** — structured event system (EventBus, timeline)
+- **NO FREE AGENTS** — все задачи через TeamLead
 
----
-
-## 🆕 v2.1 — Что нового
-
-### Исправлено
-- ✅ Удалено дублирование JS кода (welcome.html: 2290→1924 строк)
-- ✅ Исправлен тест `test_init_light_profile` (groq больше нет в priority)
-- ✅ `fallbackBuild` вызывал несуществующий `/api/agent_response` → `/api/agent/query`
-- ✅ Обновлена Ollama модель на `qwen3-coder:480b-cloud`
-
-### Улучшено
-- ✅ Цветные индикаторы для каждого агента в баре
-- ✅ Читаемые имена моделей в настройках (ID мелким шрифтом)
-- ✅ Цветные бейджи типа модели (FREE/REASONING/CODING/STRONG/FAST)
-- ✅ Читаемый формат контекста (256K, 1.0M)
-- ✅ Разные иконки для кнопок (🔌 Проверить, 🔄 Обновить)
-- ✅ Анимация появления табов
-- ✅ Переключение моделей в реальном времени без перезагрузки
-
-### Архитектура
-- ✅ Приоритет конфигурации из `config/agent_models.json` над model_registry
-- ✅ Поддержка `agent_models.json` для пользовательских настроек моделей
-- ✅ SSH ключ для GitHub
-
----
-
-## 📸 Скриншоты
-
-Скриншоты UI: папка `screenshots/` (24 PNG)
-
----
-
-## 📦 Таблица моделей по железу
-
-| Профиль | VRAM | RAM | Модель | Агенты |
-|---------|------|-----|--------|--------|
-| Light | <6 ГБ | <16 ГБ | qwen3:4b | 2 |
-| Medium | 6-12 ГБ | 16-32 ГБ | qwen3:8b | 4 |
-| Heavy | >12 ГБ | >32 ГБ | qwen3:14b | 8 |
+### Controlled Execution (Phase 19D)
+- **PATCHES > DIRECT WRITES** — никаких write_file(), только patches
+- **Patch Engine** — generate, validate, apply, rollback
+- **Workspace Runtime** — isolated workspaces per task
+- **Repo Scanner** — project understanding (frameworks, entrypoints, risky zones)
+- **Knowledge Index** — context compression для LLM
+- **Execution Sandbox** — governed execution boundary
+- **Approval Runtime** — human approval flow (LOW auto-approve, MEDIUM+/needs human)
+- **Task Executor** — controlled worker runtime
+- **Safe Terminal** — whitelist/blacklist команд
 
 ---
 
 ## 🏗️ Архитектура
 
 ```
-User → Welcome UI (чат) → TeamLead диалог → Подтверждение → 7 Агентов → Проект + Markdown Lesson
-                              ↓
-                       Hardware Detect → Model Selection
-                              ↓
-              ┌───────────────┴───────────────┐
-              ↓                               ↓
-         Local (Ollama)              Cloud (через API)
-         - qwen3:4b/8b/14b           - OpenRouter (29+ бесплатных)
-         - Работает оффлайн          - OmniRoute (опционально)
-                                     - Google, Anthropic, OpenAI
+User → Developer Mode UI → Orchestrator → TeamLead → Agents → Patches → Review → Apply
+                              ↓              ↓          ↓
+                         Project Brain   Contracts   Sandbox
+                              ↓              ↓          ↓
+                         Brain Store   Skill Router  Workspace
 ```
 
-### Поток данных:
+### Поток выполнения (Execution Flow):
 ```
-welcome.html (JS) → POST /api/teamlead_query (SSE) → agent_manager.py
-→ model_router.py → Ollama/OpenRouter → SSE stream → welcome.html
+1. User: "Добавь кнопку logout"
+2. Understanding Engine → анализ запроса
+3. Orchestrator → создание execution plan
+4. TeamLead → назначение агентов + task contracts
+5. TaskExecutor → создание workspace + scoped context
+6. PatchEngine → генерация patch
+7. SafeReview → validation (forbidden files, scope, dangerous patterns)
+8. ApprovalRuntime → human approve/reject
+9. PatchEngine → apply patch
+10. Tests → validation
+11. Timeline update
 ```
 
-### API Endpoints:
+### Принципы:
+- **NO direct file writes** — только через patches
+- **NO hidden execution** — все patches требуют approval
+- **Main branch protected** — workspaces isolated
+- **Rollback works** — каждый patch имеет reverse
+- **Agents cannot bypass** — contracts enforced
+
+---
+
+## 📦 API Endpoints
+
+### Developer Mode:
 ```
-GET  /api/status          — статус сервера и провайдеров
-GET  /api/config          — текущая конфигурация
-POST /api/config          — сохранение конфигурации (hot-reload)
-GET  /api/providers       — список провайдеров
-GET  /api/models          — список моделей
-GET  /api/agents/config   — конфигурация агентов
-GET  /api/hardware        — информация о железе
-POST /api/teamlead_query  — запрос к TeamLead (SSE)
-POST /api/create_project_stream — сборка проекта (SSE)
-POST /api/agent/query     — запрос к агенту
-POST /api/stop_build      — остановка сборки
-POST /api/promptarchitect/init     — инициализация сессии Prompt Architect
-POST /api/promptarchitect/message  — отправить сообщение
-GET  /api/promptarchitect/history  — история диалога
-POST /api/promptarchitect/clear    — очистить историю
+POST /api/developer/create_project  — создать project brain
+POST /api/developer/message         — сообщение (understanding phase)
+POST /api/developer/understand      — анализ запроса
+GET  /api/developer/project/{id}    — получить brain state
+GET  /api/developer/projects        — список проектов
+POST /api/developer/snapshot/{id}   — snapshot brain
+POST /api/developer/orchestrate     — полный orchestration flow
+GET  /api/developer/timeline        — event timeline
+GET  /api/developer/agents          — список агентов
+GET  /api/developer/status          — статус orchestrator
+POST /api/developer/execute         — execute task (patch flow)
+GET  /api/developer/approvals       — approval queue
+POST /api/developer/approvals/action — approve/reject patch
+GET  /api/developer/repo/scan       — scan repository
+GET  /api/developer/knowledge       — knowledge index
+POST /api/developer/terminal        — safe terminal command
+```
+
+### Repo:
+```
+POST /api/repo/open                 — открыть проект
+GET  /api/repo/files                — список файлов
+GET  /api/repo/file/{path}          — содержимое файла
 ```
 
 ---
 
 ## 👥 Агенты
 
-| Агент | Роль | Температура | Цвет |
-|-------|------|-------------|------|
-| 👑 TeamLead | Координатор, анализ требований, диалог с пользователем | 0.7 | 🟣 |
-| 🏗️ Architect | Архитектура, структура проекта, выбор технологий | 0.5 | 🔵 |
-| ⚙️ Backend | Серверный код, API, базы данных | 0.3 | 🩷 |
-| 🎨 Frontend | Интерфейс, HTML/CSS/JS, дизайн | 0.7 | 🟠 |
-| 🚀 DevOps | Docker, CI/CD, инфраструктура | 0.3 | 🟢 |
-| 🧪 Tester | Тесты, проверка качества, QA | 0.2 | 🟡 |
-| 📝 Documentalist | Документация, README, комментарии | 0.7 | 🟪 |
-| 🧠 Prompt Architect | Обучалка промтов — учит собирать мысли, контекст, ТЗ | 0.7 | 🟤 |
-
-Каждый агент имеет свой цвет в баре и в сообщениях чата.
+| Агент | Роль | Risk Level | Can Write | Needs Review |
+|-------|------|------------|-----------|--------------|
+| 👔 TeamLead | Orchestrator, координация | CRITICAL | ❌ | ❌ |
+| 🏛 Architect | Архитектура, дизайн | HIGH | ✅ | ✅ |
+| ⚙️ Backend | API, логика, БД | MEDIUM | ✅ | ✅ |
+| 🎨 Frontend | UI, CSS, компоненты | MEDIUM | ✅ | ✅ |
+| 🚀 DevOps | Docker, CI/CD | HIGH | ✅ | ✅ |
+| 🧪 Tester | Тесты, QA | LOW | ✅ (tests) | ❌ |
+| 📝 Documentalist | Документация | LOW | ✅ (docs) | ❌ |
 
 ---
 
@@ -166,32 +178,41 @@ POST /api/promptarchitect/clear    — очистить историю
 
 ### API ключи (.env)
 ```env
-# OpenRouter — агрегатор (29+ бесплатных моделей)
 OPENROUTER_API_KEY=sk-or-v1-...
-
-# Ollama — локальные модели
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=qwen3-coder:480b-cloud
-
-# Режим: local (Ollama-first) или cloud (OpenRouter-first)
 AI_MODE=local
 ```
 
-### Переключение моделей в реальном времени
-1. Откройте вкладку **⚙️ Настройки**
-2. Выберите провайдера
-3. Выберите модель для каждого агента
-4. Нажмите **💾 Сохранить** — конфигурация применится без перезагрузки
+### Desktop Launcher
+```bash
+# Запуск
+./scripts/launcher.sh
+
+# Остановка
+./scripts/stop.sh
+
+# Диагностика
+./scripts/doctor.sh
+
+# Установка .desktop entry
+./scripts/install_desktop_entry.sh
+```
 
 ---
 
 ## 🧪 Тесты
 
 ```bash
-# Запуск всех тестов
-OLLAMA_BASE_URL="" AI_MODE=cloud HARDWARE_PROFILE=light PYTHONPATH=. pytest tests/ -v
+# Все тесты
+./venv/bin/python3 -m pytest tests/ -v
 
-# Результат: 171 passed ✅
+# Результат: 1140 passed ✅
+
+# По фазам
+./venv/bin/python3 -m pytest tests/test_phase19b_developer.py -v  # 63 tests
+./venv/bin/python3 -m pytest tests/test_phase19c_orchestration.py -v  # 76 tests
+./venv/bin/python3 -m pytest tests/test_phase19d_execution.py -v  # 52 tests
 ```
 
 ---
@@ -200,37 +221,69 @@ OLLAMA_BASE_URL="" AI_MODE=cloud HARDWARE_PROFILE=light PYTHONPATH=. pytest test
 
 ```
 ai-team-system/
-├── core/                   # Ядро системы
-│   ├── model_router.py     # Мульти-провайдер маршрутизация v5.0
-│   ├── agent_manager.py    # Управление агентами
-│   ├── model_registry.py   # Реестр моделей
-│   ├── agent_skills.py     # Скиллы агентов
-│   ├── hardware_detector.py # Детектор железа
-│   ├── export_lesson.py    # Экспорт уроков
-│   ├── prompt_architect.py  # Агент-обучалка промтов
-│   └── skills/             # Промпты скиллов (LVL99)
-├── web_ui/                 # Веб-интерфейс
-│   ├── app.py              # FastAPI приложение
-│   ├── static/             # CSS, JS
+├── core/
+│   ├── project_manager/
+│   │   ├── workspace/           # Phase 8: project_importer, repair, sandbox
+│   │   └── runtime/
+│   │       ├── developer/       # Phase 19A-19D: Developer Mode
+│   │       │   ├── project_brain.py       # Single source of truth
+│   │       │   ├── brain_store.py        # JSON persistence
+│   │       │   ├── understanding_engine.py # Understand before execute
+│   │       │   ├── task_contracts.py     # Scoped agent contracts
+│   │       │   ├── context_layers.py     # Layered context (<150k tokens)
+│   │       │   ├── orchestrator.py       # Main orchestration runtime
+│   │       │   ├── teamlead_runtime.py   # TeamLead orchestrator
+│   │       │   ├── agent_registry.py     # 7 agents with capabilities
+│   │       │   ├── skill_router.py       # Skill-to-agent routing
+│   │       │   ├── execution_plan.py     # Structured execution plan
+│   │       │   ├── execution_memory.py   # Execution timeline
+│   │       │   ├── safe_review.py        # Validation layer
+│   │       │   ├── patch_engine.py       # Patch-based changes
+│   │       │   ├── workspace_runtime.py  # Isolated workspaces
+│   │       │   ├── repo_scanner.py       # Project understanding
+│   │       │   ├── knowledge_index.py    # Context compression
+│   │       │   ├── execution_sandbox.py  # Governed execution
+│   │       │   ├── approval_runtime.py   # Human approval flow
+│   │       │   ├── task_executor.py      # Controlled worker
+│   │       │   ├── developer_terminal.py # Safe terminal
+│   │       │   └── developer_api.py      # FastAPI endpoints
+│   │       ├── coherence/       # Coherence engine
+│   │       ├── compression/     # Context compression
+│   │       ├── durability/      # Durability patterns
+│   │       ├── ecosystem/       # Ecosystem patterns
+│   │       ├── ergonomics/      # Ergonomics patterns
+│   │       ├── reality/         # Reality checks
+│   │       ├── stabilization/   # Stabilization
+│   │       ├── stewardship/     # Stewardship
+│   │       ├── trust/           # Trust calibration
+│   │       └── workflows.py     # Workflow templates
+│   ├── model_router.py          # Multi-provider routing
+│   ├── agent_manager.py         # Agent management
+│   └── main.py                  # AITeamSystem orchestrator
+├── web_ui/
+│   ├── app.py                   # FastAPI application
+│   ├── repo_endpoints.py        # Repo API endpoints
+│   ├── static/
+│   │   ├── css/welcome.css      # Dark theme styles
+│   │   └── js/welcome.js        # Frontend logic
 │   └── templates/
-│       └── welcome.html    # Главная страница
-├── tests/                  # Тесты (193 passed)
-├── config/                 # Конфигурация
-│   ├── agent_models.json   # Пользовательские модели
-│   └── profiles.yaml       # Профили железа
-├── scripts/                # Скрипты установки
-├── docs/                   # Документация
-└── screenshots/            # Скриншоты UI
+│       └── welcome.html         # Main UI
+├── tests/                       # 1140 tests
+├── config/                      # Configuration
+├── scripts/                     # Launcher, doctor, installer
+└── docs/                        # Documentation
 ```
 
 ---
 
-## 🚀 Планы (v2.2+)
+## 🚀 Планы (Phase 19E+)
 
-- [ ] Webhooks для интеграции с GitHub/GitLab
-- [ ] Расширенная аналитика использования агентов
-- [ ] Поддержка пользовательских плагинов через UI
-- [ ] Мульти-языковая поддержка (i18n)
+- [ ] Real Tooling Integration (LLM calls, real patch generation)
+- [ ] Git integration (branches, commits, PRs)
+- [ ] Webhooks для GitHub/GitLab
+- [ ] Multi-language support (i18n)
+- [ ] Plugin system
+- [ ] Advanced analytics
 
 ---
 
