@@ -2572,6 +2572,21 @@ document.addEventListener('DOMContentLoaded', function() {
     alert('Task Creator будет добавлен в Phase 19C');
   };
 
+  // ── Agent Status Management ──
+  window.setAgentStatus = function(agentId, status, text) {
+    var el = document.getElementById('agent-status-' + agentId);
+    if (!el) return;
+    el.className = 'dev-agent-status ' + status;
+    var dot = status === 'busy' ? '●' : (status === 'online' ? '●' : '○');
+    var label = text || (status === 'busy' ? 'Working' : (status === 'online' ? 'Ready' : 'Idle'));
+    el.textContent = dot + ' ' + label;
+  };
+
+  window.setAllAgentsIdle = function() {
+    var agents = ['teamlead', 'architect', 'backend', 'frontend', 'devops', 'tester', 'documentalist'];
+    agents.forEach(function(a) { setAgentStatus(a, 'offline', 'Idle'); });
+  };
+
   // Escape HTML helper
   function escapeHtml(text) {
     var div = document.createElement('div');
