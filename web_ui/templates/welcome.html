@@ -256,12 +256,12 @@
 
     <!-- Chat Area (hidden until init) -->
     <div id="pa-chat-container" style="display:none;">
-      <div style="display:flex;gap:16px;margin-bottom:16px;">
-        <!-- Sidebar: Tips -->
-        <div style="width:280px;flex-shrink:0;">
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;">
-            <h4 style="font-size:12px;color:var(--text);margin-bottom:8px;">📐 5 слоёв промта</h4>
-            <div style="font-size:10px;color:var(--muted);line-height:1.8;">
+      <div style="display:flex;gap:12px;margin-bottom:16px;align-items:flex-start;">
+        <!-- Sidebar: Tips — узкий, слева -->
+        <div style="width:200px;flex-shrink:0;display:flex;flex-direction:column;gap:8px;">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:left;">
+            <h4 style="font-size:11px;color:var(--text);margin-bottom:6px;text-align:left;">📐 5 слоёв промта</h4>
+            <div style="font-size:9px;color:var(--muted);line-height:1.6;text-align:left;">
               <b>1. РОЛЬ</b> — Кто агент?<br>
               <b>2. КОНТЕКСТ</b> — Что уже есть?<br>
               <b>3. ЗАДАЧА</b> — Что сделать?<br>
@@ -269,18 +269,16 @@
               <b>5. ФОРМАТ</b> — Что получить на выходе?
             </div>
           </div>
-          <div style="margin-top:12px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;">
-            <h4 style="font-size:12px;color:var(--text);margin-bottom:8px;">📊 Статус</h4>
-            <div id="pa-stats" style="font-size:10px;color:var(--muted);line-height:1.8;">Нет активной сессии</div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:left;">
+            <h4 style="font-size:11px;color:var(--text);margin-bottom:6px;text-align:left;">📊 Статус</h4>
+            <div id="pa-stats" style="font-size:9px;color:var(--muted);line-height:1.6;text-align:left;">Нет активной сессии</div>
           </div>
-          <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px;">
-            <button class="btn-secondary" onclick="clearPAChat()" style="width:100%;">🗑 Новый диалог</button>
-          </div>
+          <button class="btn-secondary" onclick="clearPAChat()" style="width:100%;font-size:11px;padding:6px;">🗑 Новый диалог</button>
         </div>
 
-        <!-- Chat Messages -->
-        <div style="flex:1;display:flex;flex-direction:column;">
-          <div id="pa-messages" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;min-height:400px;max-height:500px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;">
+        <!-- Chat Messages — расширенное основное окно -->
+        <div style="flex:1;display:flex;flex-direction:column;min-width:0;">
+          <div id="pa-messages" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;min-height:500px;max-height:600px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;">
             <p style="color:var(--muted);font-size:12px;text-align:center;">Нажми "Начать обучение" чтобы начать...</p>
           </div>
 

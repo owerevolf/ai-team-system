@@ -541,6 +541,12 @@ textarea::placeholder { color: var(--muted); }
   max-width: 700px;
   margin: 0 auto;
 }
+
+/* Prompt Architect — расширенная секция */
+#tab-promptarchitect .settings-section {
+  max-width: 100%;
+  margin: 0;
+}
 .settings-section h2 {
   font-family: 'Unbounded', sans-serif;
   font-size: 18px;
