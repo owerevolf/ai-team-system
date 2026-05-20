@@ -25,6 +25,14 @@ from pydantic import BaseModel
 from loguru import logger
 
 from .orchestrator import Orchestrator
+from .task_executor import TaskExecutor, ExecutionResult
+from .approval_runtime import ApprovalRuntime
+from .patch_engine import PatchEngine, Patch, PatchStatus, RiskLevel
+from .repo_scanner import RepoScanner
+from .knowledge_index import KnowledgeIndex
+from .workspace_runtime import WorkspaceRuntime
+from .execution_sandbox import ExecutionSandbox, SandboxPolicy
+from .developer_terminal import DeveloperTerminal
 from .project_brain import ProjectBrain, RuntimeState, brain_to_dict
 from .brain_store import BrainStore
 from .understanding_engine import UnderstandingEngine
@@ -291,6 +299,147 @@ def _build_token_usage(brain: ProjectBrain) -> Dict[str, Any]:
     layers.set_system_identity("AI Team System Developer Mode")
     layers.set_project_brain(brain_dict)
     return layers.get_token_usage()
+
+
+# ── Shared instances ──
+
+_approval_runtime = ApprovalRuntime()
+_patch_engine = PatchEngine()
+_workspace_runtime = WorkspaceRuntime()
+_knowledge_index = KnowledgeIndex()
+_terminal = DeveloperTerminal()
+
+
+# ── Execution endpoints ──
+
+class ExecuteTaskRequest(BaseModel):
+    project_id: str = ""
+    task_id: str = ""
+    agent_id: str = ""
+    title: str = ""
+    objective: str = ""
+    allowed_files: List[str] = []
+    forbidden_files: List[str] = []
+
+
+class ApprovalActionRequest(BaseModel):
+    request_id: str = ""
+    action: str = ""
+    comments: str = ""
+
+
+@router.post("/execute")
+async def execute_task(req: ExecuteTaskRequest) -> Dict[str, Any]:
+    """Execute a task: contract → workspace → patch → validation → approval queue."""
+    if not req.title or not req.objective:
+        raise HTTPException(status_code=400, detail="title and objective required")
+
+    project_id = req.project_id or "default"
+    orch = _get_orchestrator(project_id)
+    brain = orch.brain
+    if not brain:
+        raise HTTPException(status_code=404, detail="Project brain not initialized")
+
+    builder = TaskContractBuilder(req.title, req.objective)
+    builder.with_agent(req.agent_id or "backend")
+    if req.allowed_files:
+        builder.with_allowed_files(req.allowed_files)
+    if req.forbidden_files:
+        builder.with_forbidden_files(req.forbidden_files)
+    contract = builder.build()
+
+    executor = TaskExecutor(
+        project_brain=brain,
+        workspace_runtime=_workspace_runtime,
+        patch_engine=_patch_engine,
+        approval_runtime=_approval_runtime,
+        knowledge_index=_knowledge_index,
+    )
+
+    result = executor.execute_task(contract)
+
+    return {
+        "status": result.status,
+        "result": result.to_dict(),
+        "approval_queue_size": _approval_runtime.get_queue_size(),
+    }
+
+
+@router.get("/approvals")
+async def get_approval_queue() -> Dict[str, Any]:
+    """Get all pending approval requests."""
+    pending = _approval_runtime.get_pending()
+    return {
+        "status": "ok",
+        "pending": [r.to_dict() for r in pending],
+        "count": len(pending),
+    }
+
+
+@router.post("/approvals/action")
+async def approval_action(req: ApprovalActionRequest) -> Dict[str, Any]:
+    """Approve or reject a pending patch."""
+    if req.action == "approve":
+        success = _approval_runtime.approve(req.request_id, comments=req.comments)
+        if success:
+            for h in _approval_runtime.get_history():
+                if h.request_id == req.request_id:
+                    patch = _patch_engine.get_patch(h.patch_id)
+                    if patch:
+                        patch.approved = True
+                        _patch_engine.apply_patch(patch)
+                    break
+        return {"status": "approved", "success": success}
+    elif req.action == "reject":
+        success = _approval_runtime.reject(req.request_id, comments=req.comments)
+        return {"status": "rejected", "success": success}
+    else:
+        raise HTTPException(status_code=400, detail="action must be 'approve' or 'reject'")
+
+
+@router.get("/repo/scan")
+async def scan_repo(project_root: str = ".") -> Dict[str, Any]:
+    """Scan the project repository."""
+    scanner = RepoScanner(project_root)
+    repo_map = scanner.scan()
+    return {
+        "status": "ok",
+        "repo_map": {
+            "total_files": repo_map.total_files,
+            "total_lines": repo_map.total_lines,
+            "languages": repo_map.languages,
+            "frameworks": repo_map.frameworks,
+            "entrypoints": repo_map.entrypoints,
+            "has_docker": repo_map.has_docker,
+            "has_ci": repo_map.has_ci,
+        },
+        "summary": scanner.get_summary(repo_map),
+    }
+
+
+@router.get("/knowledge")
+async def get_knowledge() -> Dict[str, Any]:
+    """Get the knowledge index."""
+    return {
+        "status": "ok",
+        "knowledge": _knowledge_index.build_context(),
+        "entries": _knowledge_index.to_dict()["entries"],
+    }
+
+
+@router.post("/terminal")
+async def terminal_command(command: str = "") -> Dict[str, Any]:
+    """Execute a safe terminal command."""
+    if not command:
+        raise HTTPException(status_code=400, detail="command is required")
+    result = _terminal.execute(command)
+    return {
+        "status": "ok" if result.allowed else "blocked",
+        "allowed": result.allowed,
+        "block_reason": result.block_reason,
+        "output": result.output[:1000] if result.output else "",
+        "exit_code": result.exit_code,
+    }
 
 
 # ── Orchestration state (per-project) ──
