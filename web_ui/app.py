@@ -33,6 +33,9 @@ from web_ui.repo_endpoints import router as repo_router
 # Import developer router
 from core.project_manager.runtime.developer.developer_api import router as developer_router
 
+# Import tooling router
+from core.project_manager.tooling.tooling_api import router as tooling_router
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
@@ -51,6 +54,9 @@ app.include_router(repo_router)
 
 # Include developer router
 app.include_router(developer_router)
+
+# Include tooling router
+app.include_router(tooling_router)
 
 STATIC_DIR = BASE_DIR / "web_ui" / "static"
 TEMPLATES_DIR = BASE_DIR / "web_ui" / "templates"
