@@ -759,7 +759,6 @@ async def save_config(request: Request):
     
     Формат:
     {
-        "openrouter_api_key": "sk-...",
         "ollama_model": "qwen3:8b",
         "agents": {
             "teamlead": {"provider": "openrouter", "model": "deepseek/deepseek-r1:free"},
@@ -777,13 +776,14 @@ async def save_config(request: Request):
         env_content = ""
 
     # Обновляем ключи
-    key_mappings = {
-        "openrouter_api_key": "OPENROUTER_API_KEY",
+    from core.provider_probe import PROVIDER_KEY_ENV
+
+    key_mappings = {f"{pid}_api_key": env for pid, env in PROVIDER_KEY_ENV.items()}
+    key_mappings.update({
         "ollama_base_url": "OLLAMA_BASE_URL",
         "ollama_model": "OLLAMA_MODEL",
-        "omniroute_api_key": "OMNIROUTE_API_KEY",
         "omniroute_url": "OMNIROUTE_URL",
-    }
+    })
 
     for json_key, env_key in key_mappings.items():
         value = body.get(json_key)
