@@ -1,44 +1,43 @@
-# SESSION_HANDOFF — Phase 18 + Desktop Launcher Complete
+# SESSION_HANDOFF — состояние проекта
 
-## Status: Desktop launcher added (post-Phase 18)
+## Status: Phase 25 в main, проект оживлён после паузы
 
-- **Phase**: 18 complete + desktop launcher feature
-- **Commit**: 5a943bb
-- **Tests**: 949 passing
-- **Date**: May 2026
+- **Phase**: 25 (последний коммит фазы — `2d4c834`, 21.05.2026)
+- **Тесты**: 1516 passed, 1 failed (платформенный, см. ограничения ниже)
+- **Обновлено**: октябрь 2026
+- **Репозиторий**: github.com/owerevolf/ai-team-system, ветка `main`
 
-## What was built (this session)
+## Что изменилось в этой сессии
 
-### Desktop Launch System
-1. **scripts/launcher.sh** — Start server, wait for health, open browser
-   - Checks if already running (PID file)
-   - Checks port availability
-   - Checks venv exists
-   - Waits up to 30s for /api/health
-   - Opens browser automatically (xdg-open / open / gtk-launch)
+1. **Живые модели.** `config/agent_models.json` переведён с удалённых из каталога
+   OpenRouter free-моделей (`qwen3-coder:free`, `deepseek-r1:free`,
+   `nvidia/nemotron-3-nano-30b-a3b:free`, `openrouter/owl-alpha` и др.) на
+   локальные `ollama / qwen3:8b`. Профили железа: light → `qwen3:4b`,
+   medium → `qwen3:8b`, heavy → `qwen3:14b`.
+2. **Конфиг окружения.** `.env.example` переписан: локальный блок, блок
+   `OPENAI_COMPAT_*` для OpenAI-совместимых агрегаторов, все облачные ключи пустые
+   (никаких плейсхолдеров, похожих на настоящие ключи).
+3. **Гигиена.** Из индекса убраны `venv_new/` и `.cache/` (28 файлов, на диске
+   остались), оба пути добавлены в `.gitignore`; добавлен `LICENSE` (MIT).
+4. **Правила для агентов.** `AGENTS.md` + `scripts/agent_commit.ps1`: коммиты идут
+   от владельца репозитория, вклад агента фиксируется трейлером `Co-authored-by`.
 
-2. **scripts/stop.sh** — Graceful server shutdown
-   - Reads PID from .server.pid
-   - Falls back to port-based detection
+## Известные ограничения
 
-3. **scripts/doctor.sh** — 8-point diagnostics + auto-repair
-   - Python, Git, venv, dependencies, .env, DB, port, health
-   - Auto-fixes: empty SECRET_KEY, missing venv, stale PID
-   - Uses venv Python for all checks (not system python3)
+- `test_install.py::TestInstallScript::test_install_sh_executable` падает на
+  Windows: у `install.sh` нет exec-бита в NTFS. В CI на Linux проходит, это не
+  регрессия.
+- OpenRouter с 27.06.2026 не обслуживает российские аккаунты и IP.
+- Патч `core/model_router.py` (провайдер `openai_compat`, чтение `provider` из
+  конфига агента, дефолтная модель под каждого провайдера) **не применён**: запись
+  в файл блокирует фильтр содержимого. Текст патча сохранён в переписке сессии.
+- `README.md` не обновлён по той же причине: в файле есть строка с
+  ключом-заглушкой OpenRouter, на которую реагирует фильтр.
 
-4. **scripts/install_desktop_entry.sh** — Create .desktop shortcut
-   - Places on Desktop + ~/.local/share/applications/
-   - Double-click to launch
+## Что дальше
 
-## System state
-- 18 phases completed
-- 949 tests passing
-- Desktop shortcut: ~/Desktop/ai-team-system.desktop
-- Server: http://localhost:8000
-- Pushed to github.com/owerevolf/ai-team-system
-
-## How to use
-- Double-click "AI Team System" on Desktop
-- Or: ./scripts/launcher.sh
-- Stop: ./scripts/stop.sh
-- Fix issues: ./scripts/doctor.sh
+1. Применить патч ядра → заработают облачные РФ-провайдеры через
+   `OPENAI_COMPAT_BASE_URL` / `_API_KEY` / `_MODEL`.
+2. Обновить README (бейджи Phase 25, 1516 тестов, блок провайдеров).
+3. «Учебная полка»: мультиязычный Learn Mode; промпты лежат в `prompts/`
+   (39 файлов, 4 уровня сложности), модели агентов — в `config/agent_models.json`.
