@@ -41,10 +41,19 @@ load_dotenv(BASE_DIR / ".env")
 
 app = FastAPI(title="AI Team System", version="2.0.0")
 
+# CORS: только локальные адреса. Раньше стояло ["*"] вместе с credentials —
+# это позволяло любой открытой в браузере странице отправлять запросы на локальный сервер.
+_allowed_origins = [
+    o.strip() for o in os.getenv(
+        "AITEAM_ALLOWED_ORIGINS",
+        "http://127.0.0.1:8000,http://localhost:8000",
+    ).split(",") if o.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_allowed_origins,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -561,6 +570,7 @@ async def create_project_stream(req: CreateProjectRequest):
 
         # Инициализируем AgentManager и ModelRouter один раз
         from core.model_router import ModelRouter
+        from core.agent_manager import AgentManager
         router = ModelRouter(profile=os.getenv("HARDWARE_PROFILE", "medium"))
         manager = AgentManager(model_router=router)
         # Передаём папку проекта — теперь агенты сами пишут файлы
@@ -1479,4 +1489,6 @@ async def delete_pa_session(session_id: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("web_ui.app:app", host="0.0.0.0", port=8000, reload=False)
+    # По умолчанию слушаем только локальный интерфейс: выход в сеть приложению не нужен.
+    # Нужен доступ с других устройств — задай AITEAM_HOST=0.0.0.0 осознанно.
+    uvicorn.run("web_ui.app:app", host=os.getenv("AITEAM_HOST", "127.0.0.1"), port=8000, reload=False)
