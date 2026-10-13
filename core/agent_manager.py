@@ -79,6 +79,16 @@ class AgentManager:
     def set_self_improvement(self, enabled: bool):
         """Включить/выключить self-improvement агентов"""
         self._self_improvement_enabled = enabled
+
+    def set_project_path(self, path) -> None:
+        """
+        Задаёт папку проекта, в которой агенты создают файлы.
+
+        Метод вызывался из web_ui/app.py и core/main.py, но не был определён:
+        кнопка «Создать проект» падала с AttributeError сразу после старта.
+        Путь сразу разрешается — дальше все записи проверяются на выход за него.
+        """
+        self.project_path = Path(path).resolve()
     
     def set_context(self, context):
         self.context = context
@@ -122,7 +132,11 @@ class AgentManager:
                     "properties": {
                         "path": {"type": "string"},
                         "content": {"type": "string"},
-                        "description": {"type": "string"}
+                        "description": {"type": "string"},
+                        "overwrite": {
+                            "type": "boolean",
+                            "description": "Перезаписать существующий файл. Старая версия уйдёт в .ai-team/backups."
+                        }
                     },
                     "required": ["path", "content"]
                 },
@@ -458,19 +472,85 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
         return created
     
     def _create_file(self, params: Dict) -> Dict[str, Any]:
+        """
+        Создаёт файл внутри папки проекта.
+
+        Две защиты, которых не было раньше:
+        * путь не может выйти за пределы project_path (`..`, абсолютный путь, симлинк);
+        * существующий файл не затирается молча: без флага `overwrite` запись
+          отклоняется, а при `overwrite=true` старая версия уходит в бэкап.
+        """
         try:
             if not self.project_path:
                 return {"success": False, "error": "project_path not set"}
-            
-            file_path = self.project_path / params["path"]
+
+            raw_path = str(params.get("path") or "").strip()
+            if not raw_path:
+                return {"success": False, "error": "path is empty"}
+
+            project_root = Path(self.project_path).resolve()
+            candidate = Path(raw_path.replace("\\", "/"))
+
+            if candidate.is_absolute() or ".." in candidate.parts:
+                self.logger.warning(f"Отклонён путь вне проекта: {raw_path}")
+                return {"success": False, "error": f"path escapes project root: {raw_path}"}
+
+            file_path = (project_root / candidate).resolve()
+            if file_path != project_root and project_root not in file_path.parents:
+                self.logger.warning(f"Отклонён путь вне проекта: {raw_path}")
+                return {"success": False, "error": f"path escapes project root: {raw_path}"}
+
+            if file_path.is_dir():
+                return {"success": False, "error": f"path is a directory: {raw_path}"}
+
+            backup = None
+            if file_path.exists():
+                if not params.get("overwrite"):
+                    self.logger.info(f"Файл уже существует, запись отклонена: {file_path}")
+                    return {
+                        "success": False,
+                        "error": "file exists; pass overwrite=true to replace it (старая версия сохранится в .ai-team/backups)",
+                        "path": str(file_path.relative_to(project_root)),
+                    }
+                backup = self._backup_file(file_path, project_root)
+
             file_path.parent.mkdir(parents=True, exist_ok=True)
             file_path.write_text(params["content"], encoding='utf-8')
-            
-            self.logger.info(f"Создан: {file_path}")
-            return {"success": True, "path": str(file_path.relative_to(self.project_path))}
+            self._journal_write(project_root, file_path, backup)
+
+            self.logger.info(f"Создан: {file_path}" + (f" (бэкап: {backup})" if backup else ""))
+            result: Dict[str, Any] = {"success": True, "path": str(file_path.relative_to(project_root))}
+            if backup:
+                result["backup"] = backup
+            return result
         except Exception as e:
             self.logger.error(f"Ошибка: {e}")
             return {"success": False, "error": str(e)}
+
+    def _backup_file(self, file_path: Path, project_root: Path) -> str:
+        """Сохраняет текущую версию файла в .ai-team/backups/<дата>/ внутри проекта."""
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        relative = file_path.relative_to(project_root)
+        backup_path = project_root / ".ai-team" / "backups" / stamp / relative
+        backup_path.parent.mkdir(parents=True, exist_ok=True)
+        backup_path.write_bytes(file_path.read_bytes())
+        return str(backup_path.relative_to(project_root))
+
+    def _journal_write(self, project_root: Path, file_path: Path, backup: Optional[str]) -> None:
+        """Ведёт журнал записей, чтобы действия агентов были проверяемы."""
+        try:
+            log_dir = project_root / ".ai-team"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            entry = {
+                "at": datetime.now().isoformat(timespec="seconds"),
+                "path": str(file_path.relative_to(project_root)),
+                "bytes": file_path.stat().st_size,
+                "backup": backup,
+            }
+            with (log_dir / "writes.log").open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        except Exception as e:
+            self.logger.warning(f"Журнал записей недоступен: {e}")
     
     def _read_file(self, params: Dict) -> Dict[str, Any]:
         try:

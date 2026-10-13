@@ -1,9 +1,10 @@
-# Правка безопасности, которую должен внести владелец
+# Правки в `web_ui/app.py`, которые вносит владелец
 
 **Зачем этот файл:** аудит 14.10.2026 нашёл, что локальный сервер был доступен для
-постороннего кода. Часть дыр уже закрыта в коде (см. «Что уже сделано»), но
-`web_ui/app.py` агент записать не может — файл блокирует фильтр записи, потому что
-в нём есть строки с `api_key`. Правку нужно внести руками: она маленькая и точная.
+постороннего кода, а дымовой тест потока «Создать проект» — что эта кнопка падала.
+Часть правок уже в репозитории (см. «Что уже сделано»), но `web_ui/app.py` агент
+записать не может — файл блокирует фильтр записи (в нём есть строки с `api_key`).
+Три правки ниже нужно внести руками: они маленькие и точные.
 
 ---
 
@@ -76,14 +77,46 @@ if __name__ == "__main__":
 
 ---
 
+## Правка №3 — кнопка «Создать проект» (без неё роут падает)
+
+**Почему:** в `event_stream` роута `/api/create_project_stream` вызывается
+`AgentManager(...)`, но в этом файле он нигде не импортирован (в чат-роуте импорт
+локальный, отдельно). В результате поток обрывался с `NameError: name 'AgentManager'
+is not defined` — кнопка «Создать проект» не работала.
+
+**Найди:**
+```python
+        # Инициализируем AgentManager и ModelRouter один раз
+        from core.model_router import ModelRouter
+        router = ModelRouter(profile=os.getenv("HARDWARE_PROFILE", "medium"))
+        manager = AgentManager(model_router=router)
+```
+
+**Замени на:**
+```python
+        # Инициализируем AgentManager и ModelRouter один раз
+        from core.model_router import ModelRouter
+        from core.agent_manager import AgentManager
+        router = ModelRouter(profile=os.getenv("HARDWARE_PROFILE", "medium"))
+        manager = AgentManager(model_router=router)
+```
+
+**Проверка:** `python -m pytest tests/test_create_project_flow.py -q` — тест должен
+стать зелёным (он помечен `xfail(strict=True)`, маркер надо снять).
+
+---
+
 ## После правки
 
 1. Проверить, что тест CORS стал зелёным, и **снять маркер** `xfail` с
    `tests/test_security_hardening.py::TestCorsIsLocalOnly::test_cors_origins_are_local`
    (маркер специально `strict`: пока он стоит, зелёный тест даёт ошибку).
-2. Прогнать полный набор:
+2. Проверить, что зелёным стал дымовой тест
+   `tests/test_create_project_flow.py::test_create_project_stream_smoke`, и **снять маркер**
+   `xfail` и с него (тот же принцип).
+3. Прогнать полный набор:
    `python -m pytest tests -q --ignore=tests/test_integration.py`
-3. Коммит: `pwsh scripts/agent_commit.ps1 -Message "fix: harden CORS and bind address" -Push`
+4. Коммит: `pwsh scripts/agent_commit.ps1 -Message "fix: harden CORS and bind address, restore project creation" -Push`
 
 ---
 
