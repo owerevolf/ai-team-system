@@ -212,19 +212,40 @@ class AgentManager:
             tools_desc.append(f"## {tool.name}\n{tool.description}\nParameters: {params}")
         return "\n\n".join(tools_desc)
     
+    # Порядок уровней: от максимального объяснения к минимальному
+    LEVEL_ORDER = ("zero", "beginner", "standard", "advanced")
+
     def get_agent_prompt(self, agent_name: str, level: str = "advanced") -> str:
         """
-        Загружает промт агента с учётом уровня пользователя.
-        Приоритет: core/skills/ (LVL99) > prompts/roles/ (level-specific) > _get_default_prompt
-        level: zero | beginner | advanced
+        Загружает промпт агента с учётом уровня пользователя.
+
+        Компетенция роли и стиль объяснения разделены:
+        * компетенция — `prompts/roles/<роль>_<уровень>.md`, иначе `core/skills/<РОЛЬ>_SKILL.md`,
+          иначе `prompts/roles/<роль>.md`;
+        * стиль — надстройка `prompts/levels/<уровень>.md`, добавляемая к компетенции.
+
+        Так четыре уровня дают четыре разных промпта. Раньше `standard` совпадал с `advanced`,
+        а файлы `<роль>_advanced.md` не загружались вообще.
+        level: zero | beginner | standard | advanced
         """
-        # Для zero и beginner уровней используем специальные промпты
+        level = str(level or "advanced").strip().lower()
+        if level not in self.LEVEL_ORDER:
+            level = "advanced"
+
+        base = self._load_role_prompt(agent_name, level)
+        overlay = self._load_level_overlay(level)
+        if overlay:
+            return f"{base}\n\n---\n\n{overlay}"
+        return base
+
+    def _load_role_prompt(self, agent_name: str, level: str) -> str:
+        """Компетенция роли: уровень-специфичный файл → скилл роли → базовый промпт."""
         if level in ("zero", "beginner"):
             level_file = self.prompts_dir / f"{agent_name}_{level}.md"
             if level_file.exists():
                 return level_file.read_text(encoding='utf-8')
 
-        # Для advanced/standard используем LVL99 skill-промпты из core/skills/
+        # Для standard/advanced используем LVL99 skill-промпты из core/skills/
         skills_dir = Path(__file__).parent / "skills"
         skill_file = skills_dir / f"{agent_name.upper()}_SKILL.md"
         if skill_file.exists():
@@ -237,6 +258,13 @@ class AgentManager:
 
         self.logger.warning(f"Промпт для {agent_name} не найден")
         return self._get_default_prompt(agent_name)
+
+    def _load_level_overlay(self, level: str) -> str:
+        """Стиль объяснения уровня: prompts/levels/<уровень>.md (пусто, если файла нет)."""
+        overlay_file = self.prompts_dir.parent / "levels" / f"{level}.md"
+        if overlay_file.exists():
+            return overlay_file.read_text(encoding='utf-8')
+        return ""
     def _get_default_prompt(self, agent_name: str) -> str:
         return f"""Ты - {agent_name} agent в AI Team System.
 Создавай РЕАЛЬНЫЙ рабочий код.
