@@ -65,7 +65,7 @@ cd "$INSTALL_DIR"
 source venv/bin/activate
 
 nohup "$INSTALL_DIR/venv/bin/python3" -m uvicorn web_ui.app:app \
-    --host 0.0.0.0 \
+    --host "${AITEAM_HOST:-127.0.0.1}" \
     --port "$PORT" \
     > "$LOG_FILE" 2>&1 &
 

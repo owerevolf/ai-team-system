@@ -60,7 +60,7 @@ class DeveloperTerminal:
         "docker", "docker-compose", "kubectl", "helm",
         "apt-get", "yum", "dnf", "pacman",
         "systemctl", "service",
-        "crontab", "at ",
+        "crontab",
         "nc ", "ncat", "netcat",
         "python -c 'import os; os.system",
         "eval(", "exec(",
@@ -71,18 +71,87 @@ class DeveloperTerminal:
         self._timeout = timeout
         self._history: List[TerminalCommand] = []
 
+    # Символы, которые ломают правило «одна команда — без цепочек»: с ними shell=True
+    # позволяет выполнить что угодно вторым действием
+    SHELL_METACHARS = [";", "&&", "||", "|", "&", "`", "$(", "${", ">", "<", "^", "\n", "\r"]
+
+    # Для команд, которые могут выполнить чужой код или изменить систему,
+    # разрешаем только безопасные формы
+    GIT_READONLY_SUBCOMMANDS = {
+        "status", "log", "diff", "show", "branch", "ls-files",
+        "rev-parse", "describe", "shortlog", "blame", "grep",
+    }
+    PYTHON_ALLOWED_MODULES = {"pytest", "pip"}
+
+    def _validate_arguments(self, command: str) -> Optional[str]:
+        """Проверяет аргументы команд, которые сами по себе могут быть опасны."""
+        parts = command.strip().split()
+        if not parts:
+            return None
+
+        base = parts[0].lower()
+        args = [p.lower() for p in parts[1:]]
+
+        # find: запрещаем удаление и запуск команд
+        if base == "find":
+            for token in ("-delete", "-exec", "-execdir", "-ok", "-okdir"):
+                if token in args:
+                    return f"Dangerous pattern: 'find {token}'"
+
+        # python: только --version и -m pytest|pip
+        if base in ("python", "python3"):
+            if not args:
+                return "Argument not allowed: bare python"
+            if args[0] in ("--version", "-v"):
+                return None
+            if args[0] == "-m" and len(args) > 1 and args[1] in self.PYTHON_ALLOWED_MODULES:
+                return None
+            return f"Argument not allowed: python {args[0]}"
+
+        # git: только чтение
+        if base == "git":
+            if not args:
+                return "Argument not allowed: bare git"
+            sub = args[0]
+            if sub == "remote":
+                allowed_flags = {"-v", "--verbose", "show"}
+                return None if set(args[1:]) <= allowed_flags else "Argument not allowed: git remote (только -v)"
+            if sub == "branch":
+                for token in ("-d", "-D", "--delete", "-m", "-M"):
+                    if token in args[1:]:
+                        return f"Argument not allowed: git branch {token}"
+            if sub not in self.GIT_READONLY_SUBCOMMANDS:
+                return f"Argument not allowed: git {sub}"
+
+        # пакетные менеджеры: установка запускает чужой код
+        if base in ("pip", "pip3") and "install" in args:
+            return "Argument not allowed: pip install"
+        if base in ("npm", "yarn") and ({"install", "i", "add", "exec", "create"} & set(args)):
+            return "Argument not allowed: package install/exec"
+        if base == "npx":
+            return "Argument not allowed: npx выполняет чужой код"
+
+        return None
+
     def validate_command(self, command: str) -> TerminalCommand:
         """Validate a command against whitelist/blacklist."""
         cmd = TerminalCommand(command=command)
 
-        # Check dangerous patterns
+        # 1. Запрет цепочек, пайпов и перенаправлений: только одна команда
+        for meta in self.SHELL_METACHARS:
+            if meta in command:
+                cmd.block_reason = f"Dangerous pattern: shell metacharacter '{meta}'"
+                self._history.append(cmd)
+                return cmd
+
+        # 2. Check dangerous patterns
         for pattern in self.DANGEROUS_PATTERNS:
             if pattern.lower() in command.lower():
                 cmd.block_reason = f"Dangerous pattern: '{pattern}'"
                 self._history.append(cmd)
                 return cmd
 
-        # Check whitelist
+        # 3. Check whitelist
         cmd_base = command.strip().split()[0] if command.strip() else ""
         whitelisted_bases = {"ls", "cat", "grep", "find", "head", "tail",
                             "wc", "sort", "uniq", "git", "pytest", "python",
@@ -91,6 +160,13 @@ class DeveloperTerminal:
 
         if cmd_base not in whitelisted_bases:
             cmd.block_reason = f"Command '{cmd_base}' not in whitelist"
+            self._history.append(cmd)
+            return cmd
+
+        # 4. Аргументы опасных команд
+        arg_reason = self._validate_arguments(command)
+        if arg_reason:
+            cmd.block_reason = arg_reason
             self._history.append(cmd)
             return cmd
 

@@ -331,6 +331,11 @@ class ApprovalActionRequest(BaseModel):
 @router.post("/execute")
 async def execute_task(req: ExecuteTaskRequest) -> Dict[str, Any]:
     """Execute a task: contract → workspace → patch → validation → approval queue."""
+    if not _dev_exec_enabled():
+        raise HTTPException(
+            status_code=403,
+            detail="Исполнение задач выключено. Включи AITEAM_DEV_EXEC=1 в .env, если понимаешь риск.",
+        )
     if not req.title or not req.objective:
         raise HTTPException(status_code=400, detail="title and objective required")
 
@@ -427,9 +432,24 @@ async def get_knowledge() -> Dict[str, Any]:
     }
 
 
+def _dev_exec_enabled() -> bool:
+    """
+    Опасные роуты (терминал и исполнение задач) по умолчанию выключены.
+
+    Они запускают команды и патчи от имени пользователя, поэтому включаются
+    осознанно: AITEAM_DEV_EXEC=1 в .env.
+    """
+    return os.getenv("AITEAM_DEV_EXEC", "0").strip().lower() in ("1", "true", "yes", "on")
+
+
 @router.post("/terminal")
 async def terminal_command(command: str = "") -> Dict[str, Any]:
-    """Execute a safe terminal command."""
+    """Execute a safe terminal command (только при AITEAM_DEV_EXEC=1)."""
+    if not _dev_exec_enabled():
+        raise HTTPException(
+            status_code=403,
+            detail="Терминал выключен. Включи AITEAM_DEV_EXEC=1 в .env, если понимаешь риск.",
+        )
     if not command:
         raise HTTPException(status_code=400, detail="command is required")
     result = _terminal.execute(command)
