@@ -1,38 +1,38 @@
 {
   "teamlead": {
-    "provider": "openrouter",
-    "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
+    "provider": "ollama",
+    "model": "qwen3:8b"
   },
   "architect": {
-    "provider": "openrouter",
-    "model": "openrouter/owl-alpha"
+    "provider": "ollama",
+    "model": "qwen3:8b"
   },
   "backend": {
-    "provider": "openrouter",
-    "model": "qwen/qwen3-coder:free"
+    "provider": "ollama",
+    "model": "qwen3:8b"
   },
   "frontend": {
-    "provider": "openrouter",
-    "model": "nvidia/nemotron-3-nano-30b-a3b:free"
+    "provider": "ollama",
+    "model": "qwen3:8b"
   },
   "devops": {
-    "provider": "openrouter",
-    "model": "baidu/cobuddy:free"
+    "provider": "ollama",
+    "model": "qwen3:8b"
   },
   "tester": {
-    "provider": "openrouter",
-    "model": "qwen/qwen3-coder:free"
+    "provider": "ollama",
+    "model": "qwen3:8b"
   },
   "documentalist": {
-    "provider": "openrouter",
-    "model": "minimax/minimax-m2.5:free"
+    "provider": "ollama",
+    "model": "qwen3:8b"
   },
   "prompt_architect": {
-    "provider": "openrouter",
-    "model": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"
+    "provider": "ollama",
+    "model": "qwen3:8b"
   },
   "repo_explorer": {
-    "provider": "openrouter",
-    "model": "qwen/qwen3-coder:free"
+    "provider": "ollama",
+    "model": "qwen3:8b"
   }
 }
