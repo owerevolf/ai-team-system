@@ -33,8 +33,60 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-if (-not (Get-Command curl.exe -ErrorAction SilentlyContinue)) {
-    throw "Нужен curl.exe (входит в Windows 10/11). Установи curl или используй обычный ollama pull."
+# Скачивание идёт через System.Net.Http пофрагментно: клиент Ollama и curl
+# на части сетей получают обрыв соединения, а короткие Range-запросы проходят.
+function Save-BlobChunked {
+    param(
+        [string]$Url,
+        [string]$Target,
+        [int64]$Expected,
+        [int]$ChunkMB = 8,
+        [int]$MaxRetries = 6
+    )
+
+    $client = [System.Net.Http.HttpClient]::new()
+    $client.Timeout = [TimeSpan]::FromMinutes(5)
+
+    if (-not (Test-Path $Target)) { New-Item -ItemType File -Path $Target -Force | Out-Null }
+
+    $chunk = [int64]$ChunkMB * 1MB
+    $offset = (Get-Item $Target).Length
+    $failures = 0
+    $lastReport = 0
+
+    while ($offset -lt $Expected) {
+        $end = [Math]::Min($offset + $chunk - 1, $Expected - 1)
+        try {
+            $req = [System.Net.Http.HttpRequestMessage]::new([System.Net.Http.HttpMethod]::Get, $Url)
+            $req.Headers.Range = [System.Net.Http.Headers.RangeHeaderValue]::new($offset, $end)
+            $resp = $client.Send($req)
+            if (-not $resp.IsSuccessStatusCode) { throw "HTTP $([int]$resp.StatusCode)" }
+
+            $bytes = $resp.Content.ReadAsByteArrayAsync().GetAwaiter().GetResult()
+            if ($bytes.Length -eq 0) { throw "пустой ответ" }
+
+            $fs = [System.IO.File]::Open($Target, [System.IO.FileMode]::Append, [System.IO.FileAccess]::Write)
+            try { $fs.Write($bytes, 0, $bytes.Length) } finally { $fs.Dispose() }
+
+            $offset += $bytes.Length
+            $failures = 0
+            if (($offset - $lastReport) -ge 250MB) {
+                $lastReport = $offset
+                Write-Output ("   {0:N2} / {1:N2} GB" -f ($offset / 1GB), ($Expected / 1GB))
+            }
+        }
+        catch {
+            $failures++
+            if ($failures -ge $MaxRetries) {
+                $client.Dispose()
+                throw "Не удалось скачать $Url после $MaxRetries попыток. Запусти скрипт ещё раз — докачка продолжится."
+            }
+            Start-Sleep -Seconds 2
+            $offset = if (Test-Path $Target) { (Get-Item $Target).Length } else { 0 }
+        }
+    }
+
+    $client.Dispose()
 }
 
 $registry = "https://registry.ollama.ai/v2/library"
@@ -88,16 +140,7 @@ foreach ($item in $items) {
     $url = "$registry/$Model/blobs/$digest"
     Write-Output ("2. Качаю sha256-{0}... ({1:N2} GB)" -f $hex.Substring(0, 12), ($expected / 1GB))
 
-    for ($i = 1; $i -le $MaxRetries; $i++) {
-        # -C - продолжает файл с текущего размера, --retry-* повторяет обрывы
-        & curl.exe -L --http1.1 -sS --retry 3 --retry-delay 2 --retry-all-errors `
-            -C - -o "$target" "$url" 2>&1 | Out-Null
-
-        $size = if (Test-Path $target) { (Get-Item $target).Length } else { 0 }
-        if ($size -eq $expected) { break }
-        Write-Output ("   попытка {0}: {1:N2} / {2:N2} GB" -f $i, ($size / 1GB), ($expected / 1GB))
-        Start-Sleep -Seconds 3
-    }
+    Save-BlobChunked -Url $url -Target $target -Expected $expected -MaxRetries $MaxRetries
 
     $size = if (Test-Path $target) { (Get-Item $target).Length } else { 0 }
     if ($size -ne $expected) {

@@ -46,3 +46,25 @@ python -m pytest tests -q --ignore=tests/test_integration.py
 
 Не коммитить `venv*/`, `.cache/`, `*.log`, `.env` — они перечислены в
 `.gitignore`. Ключи и токены живут только в `.env` (в репозиторий не попадают).
+
+## Windows: запуск и модели
+
+Одна команда поднимает всё: виртуальное окружение, зависимости, Ollama,
+веб-сервер и браузер.
+
+```powershell
+pwsh scripts/launcher.ps1                 # обычный запуск, порт 8000
+pwsh scripts/launcher.ps1 -Port 8010 -NoBrowser
+```
+
+Если `ollama pull` рвёт соединение с реестром (типовая ситуация в РФ —
+`An existing connection was forcibly closed`), модель ставится напрямую
+по HTTP пофрагментной докачкой:
+
+```powershell
+pwsh scripts/pull_model_via_http.ps1 -Model qwen3 -Tag 8b
+```
+
+Скрипт сам раскладывает манифест и слои в локальное хранилище Ollama,
+после чего `ollama list` видит модель как обычно установленную. Повторный
+запуск продолжает недокачанное.
