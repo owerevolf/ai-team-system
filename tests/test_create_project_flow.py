@@ -13,7 +13,6 @@
 
 import pathlib
 
-import pytest
 from fastapi.testclient import TestClient
 
 
@@ -27,13 +26,6 @@ class _FakeRouter:
         return '{"status": "success", "files_created": [], "summary": "заглушка"}'
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "В web_ui/app.py не хватает импорта AgentManager — поток падает с NameError. "
-        "Файл блокирует фильтр записи; правку вносит владелец по docs/SECURITY_FIX.md, после чего маркер снять."
-    ),
-)
 def test_create_project_stream_smoke(tmp_path, monkeypatch):
     import core.model_router as model_router
     from web_ui.app import app

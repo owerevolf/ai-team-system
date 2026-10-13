@@ -90,14 +90,6 @@ class TestDangerousRoutesDisabled:
 class TestCorsIsLocalOnly:
     """CORS не должен разрешать все источники и не должен слать credentials."""
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "Правка web_ui/app.py (CORS и адрес прослушивания) не применена: файл блокирует "
-            "фильтр записи (в нём есть строки с api_key). Правку вносит владелец по "
-            "docs/SECURITY_FIX.md. После применения — снять маркер xfail."
-        ),
-    )
     def test_cors_origins_are_local(self):
         from starlette.middleware.cors import CORSMiddleware
         from web_ui.app import app
