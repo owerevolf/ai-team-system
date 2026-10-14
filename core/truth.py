@@ -183,6 +183,41 @@ class CodeIndex:
         return index
 
 
+# Русские слова → английские корни, которые встречаются в именах кода.
+# Нужно, чтобы вопрос новичка «где создаётся файл проекта» находил `_create_file`,
+# а не упирался в честное «нет данных».
+RU_HINTS: Dict[str, List[str]] = {
+    "файл": ["file"],
+    "созда": ["create"],
+    "удал": ["delete", "remove"],
+    "чит": ["read"],
+    "запис": ["write", "save"],
+    "проект": ["project"],
+    "промпт": ["prompt"],
+    "уровн": ["level"],
+    "агент": ["agent"],
+    "модел": ["model"],
+    "провайдер": ["provider"],
+    "маршрут": ["route", "router"],
+    "эндпоинт": ["route", "router", "api"],
+    "тест": ["test"],
+    "ошибк": ["error"],
+    "логи": ["log"],
+    "база": ["database"],
+    "память": ["memory"],
+    "конфиг": ["config"],
+    "настройк": ["config", "settings"],
+    "безопасн": ["security", "safe"],
+    "проверк": ["check", "verify", "review"],
+    "индекс": ["index"],
+    "подключ": ["include", "connect"],
+    "запуск": ["run", "start", "launch"],
+    "словар": ["glossary"],
+    "термин": ["glossary"],
+    "источник": ["source"],
+}
+
+
 def ask(question: str, index: CodeIndex, limit: int = 5) -> List[Fact]:
     """
     Ищет в индексе факты по вопросу.
@@ -191,7 +226,14 @@ def ask(question: str, index: CodeIndex, limit: int = 5) -> List[Fact]:
     так и сказать пользователю, а не додумывать.
     """
     words = [w.strip(".,?!:;()[]{}\"'`") for w in (question or "").split()]
+    words = [w for w in words if w]
+    # длинные слова ищем как есть, короткие — только если это подсказки из RU_HINTS
+    hints = set()
+    for stem, values in RU_HINTS.items():
+        if any(stem in w.lower() for w in words):
+            hints.update(values)
     candidates = [w for w in words if len(w) >= 4]
+    candidates += [hint for hint in hints if hint not in candidates]
 
     facts: List[Fact] = []
     seen = set()

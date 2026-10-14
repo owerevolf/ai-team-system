@@ -54,6 +54,13 @@ class TestAsk:
     def test_empty_result_for_unknown_question(self, index):
         assert truth.ask("расскажи про квазар и бозон Хиггса", index) == []
 
+    def test_russian_question_maps_to_code_names(self, index):
+        """Новичок спрашивает по-русски, а имена в коде — английские."""
+        facts = truth.ask("где создаётся файл проекта", index)
+        assert facts, "русский вопрос должен находить английские имена"
+        names = {fact.symbol.name.lower() for fact in facts}
+        assert any("create" in name or "file" in name for name in names)
+
     def test_no_duplicate_facts(self, index):
         facts = truth.ask("ModelRouter ModelRouter ModelRouter", index)
         keys = [(f.symbol.name, f.symbol.path, f.symbol.line) for f in facts]
