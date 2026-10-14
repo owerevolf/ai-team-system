@@ -1,0 +1,47 @@
+Правки welcome.js к применению владельцем.
+
+1) Выбор уровня ПЕРЕД Туром: по кнопке «ТУР» сначала спрашивается уровень объяснения,
+   и только потом идут девять шагов. Формулировки уровней взяты из askLevel(), чтобы не разъезжались.
+2) Загрузка шагов Тура без кэша браузера: иначе правки текста Тура не видны до жёсткого обновления.
+
+Применение:
+    git apply docs/owner_fixes_4.patch
+
+Проверка без применения:
+    git apply --check docs/owner_fixes_4.patch
+
+--- a/web_ui/static/js/welcome.js
++++ b/web_ui/static/js/welcome.js
+@@ -121,4 +121,4 @@
+ function loadTourSteps() {
+-    return fetch('/api/tour?lang=' + tourLanguage())
++    return fetch('/api/tour?lang=' + tourLanguage(), {cache: 'no-store'})
+         .then(function (response) {
+             return response.ok ? response.json() : {steps: []};
+@@ -143,7 +143,23 @@
+ function startTour() {
+   state.phase = 'tour';
+   state.tourStep = 0;
+-  showTourStep();
++  addAiMsg('system',
++    'Сначала — как мне объяснять? От этого зависит, сколько я буду разжёвывать.',
++    null,
++    [
++      { label: '🐣 Знания: ноль — объясняй всё', value: 'zero' },
++      { label: '📚 Начинающий — знаю основы', value: 'beginner' },
++      { label: '🚀 Продвинутый — только суть', value: 'advanced' },
++      { label: '➡️ Просто показать Тур', value: 'skip' },
++    ],
++    onTourLevelSelect
++  );
+ }
+ 
++function onTourLevelSelect(value, label) {
++  if (value !== 'skip') { state.level = value; addUserMsg(label); }
++  else { addUserMsg('Просто показать Тур'); }
++  showTourStep();
++}
++
+ function showTourStep() {
+   const step = TOUR_STEPS[state.tourStep];
+   const isLast = state.tourStep === TOUR_STEPS.length - 1;
