@@ -229,7 +229,13 @@ class TaskExecutor:
         return patch
 
     def approve_patch(self, request_id: str) -> bool:
-        """Approve a pending patch and apply it."""
+        """
+        Одобряет патч и применяет его.
+
+        Решение человека нужно перенести в сам патч: `patch_engine.apply_patch`
+        отказывается применять изменения, пока не выставлен флаг `approved`.
+        Без этой строки подтверждённый патч не применялся никогда.
+        """
         request = self._approval.approve(request_id)
         if not request:
             return False
@@ -238,6 +244,7 @@ class TaskExecutor:
         if not patch:
             return False
 
+        patch.approved = True
         return self._patches.apply_patch(patch)
 
     def reject_patch(self, request_id: str) -> bool:
