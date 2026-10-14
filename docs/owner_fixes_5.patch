@@ -1,23 +1,33 @@
-Расширение каталога провайдеров к применению владельцем.
+Расширение каталога провайдеров: Qwen (DashScope) и Kimi (Moonshot).
 
-Добавляет Qwen (DashScope) и Kimi (Moonshot) — двух провайдеров из списка владельца.
-DeepSeek в каталоге уже есть, его не трогаем.
+ИСПРАВЛЕННАЯ ВЕРСИЯ. Прежняя вставка была без строк контекста и на копии с другим
+переводом строк уехала в конец файла — теперь есть 3 строки контекста до и после.
 
-Доступность из РФ НЕ проставлена утверждением, а помечена как "unknown":
-её должна измерить живая проба (provider_probe), а не предположение.
+Порядок применения (по шагам):
 
-Применение:
-    git apply docs/owner_fixes_5.patch
+1) Откатить сломанный файл к состоянию из git:
+       git checkout -- core/provider_probe.py
 
-Проверка без применения:
-    git apply --check docs/owner_fixes_5.patch
+2) Получить исправленный патч:
+       git pull
 
-Проверка после применения (одной строкой):
-    .\.venv\Scripts\python.exe -c "from core.provider_probe import PROVIDER_CATALOG as c; print(len(c), sorted(c))"
+3) Применить (флаг прощает разницу LF/CRLF между патчем и файлом):
+       git apply --ignore-whitespace docs/owner_fixes_5.patch
+
+4) Проверить, что модуль цел и провайдеры на месте:
+       .\.venv\Scripts\python.exe -c "from core.provider_probe import PROVIDER_CATALOG as c; print(len(c), sorted(c))"
+
+Ожидается 12 и список с qwen и kimi.
+
+Доступность из РФ у обоих помечена "unknown" намеренно: её измеряет живая проба,
+а не предположение.
 
 --- a/core/provider_probe.py
 +++ b/core/provider_probe.py
-@@ -105,0 +106,22 @@
+@@ -103,6 +103,28 @@
+         "base_url": "https://generativelanguage.googleapis.com/v1beta",
+         "models_url": "/models",
+     },
 +    "qwen": {
 +        "name": "Qwen (DashScope)",
 +        "kind": "cloud",
@@ -40,3 +50,6 @@ DeepSeek в каталоге уже есть, его не трогаем.
 +        "base_url": "https://api.moonshot.cn/v1",
 +        "models_url": "/models",
 +    },
+     "deepseek": {
+         "name": "DeepSeek",
+         "kind": "cloud",
