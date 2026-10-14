@@ -361,6 +361,16 @@ async def execute_task(req: ExecuteTaskRequest) -> Dict[str, Any]:
         knowledge_index=_knowledge_index,
     )
 
+    # Подключаем модель: правку предлагает она, а генератор проверяет её по файлам.
+    # Без модели исполнитель возвращается к прежнему пути — роут не падает.
+    try:
+        from core.model_router import ModelRouter
+
+        router = ModelRouter(profile=os.getenv("HARDWARE_PROFILE", "medium"))
+        executor._model_call = lambda prompt: router.generate(prompt=prompt, agent="backend")
+    except Exception as exc:  # noqa: BLE001 — недоступная модель не должна ломать запуск
+        logger.warning(f"Модель для генерации патча недоступна: {exc}")
+
     result = executor.execute_task(contract)
 
     return {
