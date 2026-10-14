@@ -17,6 +17,7 @@
 «в коде этого нет», а не повод догадываться.
 """
 
+import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -93,3 +94,24 @@ async def truth_verify(request: Request):
 
     issues = [issue.to_dict() for issue in verify_text(text, get_index())]
     return JSONResponse({"unverified": len(issues), "issues": issues})
+
+
+@router.get("/api/tour")
+async def tour_steps(lang: str = "ru"):
+    """
+    Шаги обучающего Тура из ресурса `config/tour/<язык>.json`.
+
+    Тексты вынесены из JavaScript: добавить язык — значит добавить файл,
+    код при этом не меняется. Если файла языка нет — отдаём русский.
+    """
+    base = Path(__file__).resolve().parent.parent / "config" / "tour"
+    for candidate in (base / f"{str(lang).strip().lower()}.json", base / "ru.json"):
+        if candidate.exists():
+            data = json.loads(candidate.read_text(encoding="utf-8"))
+            steps = data.get("steps", [])
+            return JSONResponse({
+                "language": data.get("language", lang),
+                "total": len(steps),
+                "steps": steps,
+            })
+    return JSONResponse({"language": lang, "total": 0, "steps": []})

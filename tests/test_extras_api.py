@@ -67,3 +67,16 @@ class TestTruthEndpoints:
 
     def test_verify_requires_text(self, client):
         assert client.post("/api/truth/verify", json={}).status_code == 400
+
+
+class TestTourEndpoint:
+    def test_returns_steps_from_resource(self, client):
+        response = client.get("/api/tour", params={"lang": "ru"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] >= 9
+        assert data["steps"][0]["title"]
+
+    def test_missing_language_falls_back_to_russian(self, client):
+        data = client.get("/api/tour", params={"lang": "de"}).json()
+        assert data["total"] >= 9
