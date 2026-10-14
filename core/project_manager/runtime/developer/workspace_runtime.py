@@ -114,12 +114,20 @@ class WorkspaceRuntime:
         snapshot = WorkspaceSnapshot(description=description)
         ws_path = Path(ws.base_path)
 
+        # Храним и хэши (для сравнения), и само содержимое — иначе откат нечем делать
+        store = getattr(self, "_snapshot_contents", None)
+        if store is None:
+            store = {}
+            self._snapshot_contents = store
+        store[snapshot.snapshot_id] = {}
+
         for f in ws_path.rglob("*"):
             if f.is_file() and not f.name.startswith('.'):
                 rel = str(f.relative_to(ws_path))
                 content = f.read_bytes()
                 import hashlib
                 snapshot.files_hash[rel] = hashlib.md5(content).hexdigest()
+                store[snapshot.snapshot_id][rel] = content
 
         ws.snapshots.append(snapshot)
         return snapshot
@@ -140,8 +148,23 @@ class WorkspaceRuntime:
         if not snapshot:
             return False
 
-        # In a real implementation, this would restore file contents
-        # For now, we mark the state
+        # Возвращаем содержимое файлов, снятое при создании снапшота
+        stored = getattr(self, "_snapshot_contents", {}).get(snapshot.snapshot_id, {})
+        ws_path = Path(ws.base_path)
+
+        for relative, content in stored.items():
+            target = ws_path / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(content)
+
+        # Файлы, появившиеся после снапшота, убираем: состояние должно совпасть с прежним
+        if stored:
+            for f in ws_path.rglob("*"):
+                if f.is_file() and not f.name.startswith('.'):
+                    rel = str(f.relative_to(ws_path))
+                    if rel not in stored:
+                        f.unlink()
+
         ws.state = WorkspaceState.ROLLED_BACK.value
         return True
 
