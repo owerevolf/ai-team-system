@@ -36,6 +36,9 @@ from core.project_manager.runtime.developer.developer_api import router as devel
 # Import tooling router
 from core.project_manager.tooling.tooling_api import router as tooling_router
 
+# Import extras router (словарь терминов и агент истины)
+from web_ui.extras_api import router as extras_router
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
@@ -60,6 +63,9 @@ app.add_middleware(
 
 # Include repo router
 app.include_router(repo_router)
+
+# Include extras router: словарь терминов и агент истины
+app.include_router(extras_router)
 
 # Include developer router
 app.include_router(developer_router)
