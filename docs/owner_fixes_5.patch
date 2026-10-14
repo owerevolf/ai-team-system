@@ -1,0 +1,42 @@
+Расширение каталога провайдеров к применению владельцем.
+
+Добавляет Qwen (DashScope) и Kimi (Moonshot) — двух провайдеров из списка владельца.
+DeepSeek в каталоге уже есть, его не трогаем.
+
+Доступность из РФ НЕ проставлена утверждением, а помечена как "unknown":
+её должна измерить живая проба (provider_probe), а не предположение.
+
+Применение:
+    git apply docs/owner_fixes_5.patch
+
+Проверка без применения:
+    git apply --check docs/owner_fixes_5.patch
+
+Проверка после применения (одной строкой):
+    .\.venv\Scripts\python.exe -c "from core.provider_probe import PROVIDER_CATALOG as c; print(len(c), sorted(c))"
+
+--- a/core/provider_probe.py
++++ b/core/provider_probe.py
+@@ -105,0 +106,22 @@
++    "qwen": {
++        "name": "Qwen (DashScope)",
++        "kind": "cloud",
++        "cost": "paid",
++        "needs_key": True,
++        "reachable_from_ru": "unknown",
++        "how": "Ключ в .env как DASHSCOPE_API_KEY; режим, совместимый с OpenAI-клиентами",
++        "signup": "https://bailian.console.aliyun.com",
++        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
++        "models_url": "/models",
++    },
++    "kimi": {
++        "name": "Kimi (Moonshot)",
++        "kind": "cloud",
++        "cost": "paid",
++        "needs_key": True,
++        "reachable_from_ru": "unknown",
++        "how": "Ключ в .env как MOONSHOT_API_KEY",
++        "signup": "https://platform.moonshot.cn",
++        "base_url": "https://api.moonshot.cn/v1",
++        "models_url": "/models",
++    },
