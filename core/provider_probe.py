@@ -48,6 +48,8 @@ class ProviderProbe:
 # ── Каталог источников ───────────────────────────────────────────────────────
 # kind: local | aggregator | cloud     cost: free | paid
 # reachable_from_ru: yes | no | unknown — это НЕ гарантия, а подсказка для человека
+AUTH_HEADER_NAME = "Authorization"
+
 PROVIDER_CATALOG: Dict[str, Dict] = {
     "ollama": {
         "name": "Ollama (локально)",

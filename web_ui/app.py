@@ -784,7 +784,8 @@ async def save_config(request: Request):
     # Обновляем ключи
     from core.provider_probe import PROVIDER_KEY_ENV
 
-    key_mappings = {f"{pid}_api_key": env for pid, env in PROVIDER_KEY_ENV.items()}
+    KEY_FIELD_SUFFIX = "_api_key"
+    key_mappings = {pid + KEY_FIELD_SUFFIX: env for pid, env in PROVIDER_KEY_ENV.items()}
     key_mappings.update({
         "ollama_base_url": "OLLAMA_BASE_URL",
         "ollama_model": "OLLAMA_MODEL",
