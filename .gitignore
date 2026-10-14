@@ -31,6 +31,9 @@ venv.bak/
 # Рантайм-кэши (например .cache/model_registry.json)
 .cache/
 
+# Резервные копии, которые создают скрипты правки
+*.bak-*
+
 *.log
 logs/
 .logs/
