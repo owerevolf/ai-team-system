@@ -200,24 +200,27 @@ class TaskExecutor:
     def _generate_patch(self, task_contract: TaskContract,
                         context: str, workspace: Workspace) -> Optional[Patch]:
         """
-        Generate a patch for the task.
+        Собирает патч для задачи.
 
-        In a real implementation, this would call the LLM with the scoped context.
-        For now, we create a mock patch.
+        Если исполнителю передали вызов модели (`_model_call`), правку предлагает
+        модель, а генератор её проверяет: фрагмент обязан найтись в файле ровно
+        один раз. Без модели остаётся прежний мок — нужен только для того, чтобы
+        проверить поток, содержимое файлов он не меняет.
         """
-        # This is where the LLM would generate the actual code changes
-        # For Phase 19D, we create a placeholder patch
-        file_changes = {}
+        current = {}
 
-        # Read allowed files from workspace
         for allowed_file in (task_contract.allowed_files or [])[:3]:
             read_result = self._sandbox.read_file(allowed_file)
             if read_result.success:
-                # In real implementation, LLM would modify this content
-                file_changes[allowed_file] = read_result.output
+                current[allowed_file] = read_result.output
 
-        if not file_changes:
+        if not current:
             return None
+
+        file_changes = self._propose_changes(task_contract, context, current)
+        if not file_changes:
+            # Мок-путь: полезен только для проверки потока, файлы не меняет
+            file_changes = dict(current)
 
         patch = self._patches.generate_patch(
             task_id=task_contract.task_id,
@@ -227,6 +230,32 @@ class TaskExecutor:
         )
 
         return patch
+
+    def _propose_changes(self, task_contract: TaskContract, context: str,
+                         files: Dict[str, str]) -> Dict[str, str]:
+        """
+        Просит модель о правке и проверяет её генератором.
+
+        Пустой словарь означает «правку получить не удалось» — например, модель не
+        подключена или предложенный фрагмент не найден в файле. Вызывающий код
+        увидит это как отсутствие изменений, а не как молчаливую правку наугад.
+        """
+        model_call = getattr(self, "_model_call", None)
+        if model_call is None:
+            return {}
+
+        from .patch_generator import generate_changes
+
+        result = generate_changes(
+            task=f"{task_contract.title}\n\n{context}",
+            files=files,
+            model_call=model_call,
+        )
+
+        if not result.ok:
+            return {}
+
+        return {change.path: change.new_content for change in result.changes}
 
     def approve_patch(self, request_id: str) -> bool:
         """
