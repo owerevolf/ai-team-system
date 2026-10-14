@@ -215,7 +215,7 @@ class AgentManager:
     # Порядок уровней: от максимального объяснения к минимальному
     LEVEL_ORDER = ("zero", "beginner", "standard", "advanced")
 
-    def get_agent_prompt(self, agent_name: str, level: str = "advanced") -> str:
+    def get_agent_prompt(self, agent_name: str, level: str = "advanced", lang: Optional[str] = None) -> str:
         """
         Загружает промпт агента с учётом уровня пользователя.
 
@@ -233,7 +233,7 @@ class AgentManager:
             level = "advanced"
 
         base = self._load_role_prompt(agent_name, level)
-        overlay = self._load_level_overlay(level)
+        overlay = self._load_level_overlay(level, lang)
         if overlay:
             return f"{base}\n\n---\n\n{overlay}"
         return base
@@ -259,11 +259,23 @@ class AgentManager:
         self.logger.warning(f"Промпт для {agent_name} не найден")
         return self._get_default_prompt(agent_name)
 
-    def _load_level_overlay(self, level: str) -> str:
-        """Стиль объяснения уровня: prompts/levels/<уровень>.md (пусто, если файла нет)."""
-        overlay_file = self.prompts_dir.parent / "levels" / f"{level}.md"
-        if overlay_file.exists():
-            return overlay_file.read_text(encoding='utf-8')
+    def _load_level_overlay(self, level: str, lang: Optional[str] = None) -> str:
+        """
+        Стиль объяснения уровня: prompts/levels[/<язык>]/<уровень>.md.
+
+        Сначала ищется файл языка (`prompts/levels/en/zero.md`), потом общий
+        (`prompts/levels/zero.md`). Так добавляется новый язык: папка + файлы,
+        без правок кода.
+        """
+        levels_dir = self.prompts_dir.parent / "levels"
+        candidates = []
+        if lang:
+            candidates.append(levels_dir / str(lang).strip().lower() / f"{level}.md")
+        candidates.append(levels_dir / f"{level}.md")
+
+        for overlay_file in candidates:
+            if overlay_file.exists():
+                return overlay_file.read_text(encoding='utf-8')
         return ""
     def _get_default_prompt(self, agent_name: str) -> str:
         return f"""Ты - {agent_name} agent в AI Team System.

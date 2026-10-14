@@ -49,3 +49,16 @@ class TestExplanationLadder:
         with patch.object(AgentManager, "_load_level_overlay", return_value=""):
             prompt = manager.get_agent_prompt(ROLE, "standard")
         assert prompt.strip()
+
+    def test_language_specific_overlay_is_used(self, manager):
+        """Английская надстройка берётся для lang="en", русская — по умолчанию."""
+        english = manager.get_agent_prompt(ROLE, "zero", lang="en")
+        russian = manager.get_agent_prompt(ROLE, "zero")
+        assert "Level ZERO" in english
+        assert "Уровень ZERO" in russian
+        assert english != russian
+
+    def test_unknown_language_falls_back_to_common_overlay(self, manager):
+        """Если файлов языка нет, работает общая надстройка."""
+        prompt = manager.get_agent_prompt(ROLE, "zero", lang="de")
+        assert "Уровень ZERO" in prompt
