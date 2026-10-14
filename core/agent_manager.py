@@ -554,6 +554,18 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
                     }
                 backup = self._backup_file(file_path, project_root)
 
+            # Если подключён движок патчей — правка идёт через него и ждёт подтверждения
+            sink = getattr(self, "_patch_sink", None)
+            if sink is not None:
+                routed = sink(file_path, params["content"])
+                if routed:
+                    return {
+                        "success": False,
+                        "pending": True,
+                        "error": "изменение отправлено на подтверждение",
+                        "path": str(file_path.relative_to(project_root)),
+                    }
+
             file_path.parent.mkdir(parents=True, exist_ok=True)
             file_path.write_text(params["content"], encoding='utf-8')
             self._journal_write(project_root, file_path, backup)
