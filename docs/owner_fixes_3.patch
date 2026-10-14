@@ -1,0 +1,39 @@
+diff --git a/web_ui/app.py b/web_ui/app.py
+--- a/web_ui/app.py
++++ b/web_ui/app.py
+@@ -566,4 +566,35 @@
+         # Передаём папку проекта — теперь агенты сами пишут файлы
+         manager.set_project_path(project_dir)
+ 
++        # Правки агентов идут через движок патчей и очередь подтверждений:
++        # файл меняется только после решения человека в панели «Подтверждения».
++        try:
++            from core.project_manager.runtime.developer.patch_engine import PatchEngine, RiskLevel
++            from core.project_manager.runtime.developer.approval_runtime import ApprovalRuntime
++
++            engine = PatchEngine(project_root=project_dir)
++            approvals = ApprovalRuntime()
++
++            def submit_for_approval(file_path, content, engine=engine, approvals=approvals):
++                patch = engine.generate_patch(
++                    task_id="agent-write",
++                    file_changes={str(file_path): content},
++                    created_by="agent",
++                    summary=f"Правка файла {file_path.name}",
++                )
++                approvals.create_request(
++                    patch_id=patch.patch_id,
++                    task_id="agent-write",
++                    agent_id="agent",
++                    summary=f"Запись файла {file_path.name}",
++                    risk_level=RiskLevel.MEDIUM.value,
++                    files_changed=[str(file_path)],
++                )
++                return True
++
++            manager._patch_sink = submit_for_approval
++            logger.info("Правки агентов пойдут через очередь подтверждений")
++        except Exception as exc:  # noqa: BLE001
++            logger.warning(f"Очередь подтверждений недоступна, агенты пишут напрямую: {exc}")
++
+         for agent in agents:
