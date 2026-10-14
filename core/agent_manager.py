@@ -557,7 +557,13 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
             # Если подключён движок патчей — правка идёт через него и ждёт подтверждения
             sink = getattr(self, "_patch_sink", None)
             if sink is not None:
-                routed = sink(file_path, params["content"])
+                try:
+                    routed = sink(file_path, params["content"])
+                except Exception as exc:  # noqa: BLE001 — сломанный сток не должен ломать запись
+                    self.logger.warning(
+                        f"Очередь подтверждений не приняла правку, сохраняю напрямую: {exc}"
+                    )
+                    routed = False
                 if routed:
                     return {
                         "success": False,
