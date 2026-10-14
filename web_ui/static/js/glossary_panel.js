@@ -15,6 +15,37 @@
 
     var state = {terms: null, loading: false, open: false, tab: 'glossary'};
 
+    // Подписи берём из общего модуля проекта (/api/i18n), чтобы не переводить их в JS.
+    var translations = {};
+
+    function t(key, fallback) {
+        var value = translations[key];
+        return value === undefined || value === null ? fallback : value;
+    }
+
+    function detectLanguage() {
+        var lang = (navigator.language || 'ru').toLowerCase();
+        return lang.indexOf('ru') === 0 ? 'ru' : 'en';
+    }
+
+    function loadTranslations(done) {
+        fetch('/api/i18n?lang=' + detectLanguage())
+            .then(function (response) {
+                return response.ok ? response.json() : {};
+            })
+            .then(function (data) {
+                translations = (data && data.translations) || {};
+            })
+            .catch(function () {
+                translations = {};
+            })
+            .then(function () {
+                if (typeof done === 'function') {
+                    done();
+                }
+            });
+    }
+
     var CSS = [
         '#glossaryFab{position:fixed;right:22px;bottom:22px;z-index:9998;border:none;cursor:pointer;',
         'padding:12px 18px;border-radius:999px;font:600 14px Segoe UI,system-ui,sans-serif;',
@@ -91,7 +122,7 @@
             return;
         }
 
-        var search = h('input', {class: 'gp-input', type: 'text', placeholder: 'Найти термин (например: коммит)'});
+        var search = h('input', {class: 'gp-input', type: 'text', placeholder: t('widget_search_placeholder', 'Найти термин (например: коммит)')});
         body.appendChild(search);
 
         var list = h('div', {});
@@ -150,13 +181,13 @@
     // ── вкладка «Проверить факты» ────────────────────────────────────────────
     function renderTruth(body) {
         body.innerHTML = '';
-        body.appendChild(h('div', {class: 'gp-hint'}, 'Спроси что-нибудь о коде проекта — ответ придёт со ссылкой файл:строка.'));
+        body.appendChild(h('div', {class: 'gp-hint'}, t('widget_truth_hint', 'Спроси что-нибудь о коде проекта — ответ придёт со ссылкой файл:строка.')));
 
-        var input = h('textarea', {class: 'gp-input', rows: '3', placeholder: 'например: где выбирается промпт агента по уровню?'});
+        var input = h('textarea', {class: 'gp-input', rows: '3', placeholder: t('widget_search_placeholder', 'Найти термин (например: коммит)')});
         body.appendChild(input);
 
-        var askBtn = h('button', {class: 'gp-btn'}, 'Найти факты');
-        var verifyBtn = h('button', {class: 'gp-btn secondary'}, 'Проверить текст на выдумки');
+        var askBtn = h('button', {class: 'gp-btn'}, t('widget_btn_find_facts', 'Найти факты'));
+        var verifyBtn = h('button', {class: 'gp-btn secondary'}, t('widget_btn_verify', 'Проверить текст на выдумки'));
         body.appendChild(askBtn);
         body.appendChild(verifyBtn);
 
@@ -266,20 +297,26 @@
             return;
         }
         style();
+        loadTranslations(buildUi);
+    }
 
-        var fab = h('button', {id: 'glossaryFab', title: 'Словарь терминов и агент истины'}, '📖 Словарь');
+    function buildUi() {
+        var fab = h('button', {
+            id: 'glossaryFab',
+            title: t('widget_glossary_btn_title', 'Словарь терминов и агент истины')
+        }, t('widget_glossary_btn', '📖 Словарь'));
         var panel = h('div', {id: 'glossaryPanel'});
 
         var head = h('div', {class: 'gp-head'});
-        head.appendChild(h('div', {class: 'gp-title'}, 'Словарь и факты'));
+        head.appendChild(h('div', {class: 'gp-title'}, t('widget_glossary_title', 'Словарь и факты')));
         var close = h('button', {class: 'gp-close', title: 'Закрыть'}, '×');
         head.appendChild(close);
         panel.appendChild(head);
 
         var tabBar = h('div', {class: 'gp-tabs'});
-        var tabGlossary = h('button', {class: 'gp-tab active'}, 'Словарь терминов');
+        var tabGlossary = h('button', {class: 'gp-tab active'}, t('widget_tab_glossary', 'Словарь терминов'));
         tabGlossary.dataset.tab = 'glossary';
-        var tabTruth = h('button', {class: 'gp-tab'}, 'Проверить факты');
+        var tabTruth = h('button', {class: 'gp-tab'}, t('widget_tab_truth', 'Проверить факты'));
         tabTruth.dataset.tab = 'truth';
         tabs = [tabGlossary, tabTruth];
         tabBar.appendChild(tabGlossary);
