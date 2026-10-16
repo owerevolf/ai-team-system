@@ -1,0 +1,29 @@
+Кнопка старта честно сообщает, что уточняющие ответы будут пропущены.
+
+Патч собран автоматически по фактическому содержимому файла.
+
+Применение:
+       git pull
+       git apply --check --ignore-whitespace docs/owner_fixes_13.patch
+       git apply --ignore-whitespace docs/owner_fixes_13.patch
+       node --check web_ui\static\js\welcome.js
+
+--- a/web_ui/static/js/welcome.js
++++ b/web_ui/static/js/welcome.js
+@@ -358,10 +358,15 @@
+                     onTeamleadChoice
+                   );
+                 } else {
++                  // TeamLead только что задал вопросы — кнопка говорит прямо,
++                  // что нажатие их пропустит: иначе человек сам себе перекрывает уточнения.
++                  const asksQuestions = /\?/.test(summary || '');
+                   addAiMsg('TeamLead', summary, null,
+                     [
+                       { label: '❓ Есть вопросы', value: 'questions' },
+-                      { label: '✅ Делаем!', value: 'start_build' }
++                      asksQuestions
++                        ? { label: '⏭ Делаем без ответов', value: 'start_build' }
++                        : { label: '✅ Делаем!', value: 'start_build' }
+                     ],
+                     onTeamleadChoice
+                   );
