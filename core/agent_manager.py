@@ -540,6 +540,14 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
     def _extract_and_create_files(self, response: str) -> List[str]:
         created = []
         tool_pattern = r'<tool_call>\s*(.*?)\s*</tool_call>'
+        # Одни модели отдают вызов в широких скобках (U+FF1C/U+FF1E), другие — в обычных:
+        # раньше распознавалась только широкая форма, и готовые вызовы молча пропадали.
+        open_mark = "[" + "\uff1c" + "<]"
+        close_mark = "[" + "\uff1e" + ">]"
+        tool_pattern = (
+            open_mark + r"\s*tool_call\s*" + close_mark + r"\s*(.*?)\s*"
+            + open_mark + r"\s*/\s*tool_call\s*" + close_mark
+        )
         matches = re.findall(tool_pattern, response, re.DOTALL)
         
         for match in matches:
