@@ -414,6 +414,29 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
 
             if not is_coordinator:
                 created_files = self._extract_and_create_files(response)
+
+                # Агент, который только рассказал, но не вызвал инструмент, — самая
+                # частая потеря: снаружи работа выглядит сделанной, а файлов нет.
+                # Даём ровно одну попытку с прямым требованием формата.
+                if not created_files:
+                    retry_prompt = (
+                        full_prompt
+                        + "\n\nВАЖНО: в прошлый раз ты описал работу словами, но не вызвал инструмент. "
+                        "Сейчас верни ТОЛЬКО вызов в формате ＜tool_call＞…＜/tool_call＞, "
+                        "без рассуждений и пояснений. Если файлы действительно не нужны — напиши об этом одной строкой."
+                    )
+                    retry_response = self.model_router.generate(
+                        prompt=retry_prompt,
+                        agent=agent_name,
+                    )
+                    retry_files = self._extract_and_create_files(retry_response)
+                    if retry_files:
+                        created_files = retry_files
+                        response = retry_response
+                    else:
+                        self.logger.warning(
+                            f"{agent_name}: после повторной попытки вызов инструмента так и не пришёл"
+                        )
             
             result = {
             "agent": agent_name,
