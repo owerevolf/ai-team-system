@@ -65,6 +65,30 @@ def get_ui_language() -> Dict[str, Any]:
 _SESSIONS_DIR = Path(os.getenv("USERPROFILE") or Path.home()) / "ai-team-projects"
 
 
+@router.get("/api/file")
+def read_project_file(path: str) -> Dict[str, Any]:
+    """Отдаёт содержимое файла для панели кода — только внутри папки проектов.
+
+    Границы проверяются: иначе панель кода стала бы дырой наружу.
+    """
+    root = _SESSIONS_DIR.resolve()
+    target = Path(path).resolve()
+    if root != target and root not in target.parents:
+        raise HTTPException(status_code=403, detail="файл вне папки проектов")
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="файла нет")
+    try:
+        content = target.read_text(encoding="utf-8", errors="replace")
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail=f"не прочитать: {exc}")
+    return {
+        "path": str(target),
+        "name": target.name,
+        "content": content[:20000],
+        "truncated": len(content) > 20000,
+    }
+
+
 @router.get("/api/sessions")
 def list_sessions() -> Dict[str, Any]:
     """Прошлые проекты: имя, когда делали, сколько файлов внутри.

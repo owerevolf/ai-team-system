@@ -1,11 +1,14 @@
-// Боковая панель «Проекты»: список прошлых сборок и то, что в них лежит.
+// Три колонки: слева прошлые проекты, справа код выбранного файла, в центре — разговор.
 //
-// Зачем: история живёт на диске рядом с приложением, поэтому разговор и результат
-// не исчезают вместе с вкладкой браузера. Панель можно свернуть, она не мешает чату.
+// Зачем: история и результат должны быть видны постоянно, а не прятаться за кнопкой.
+// Панели можно свернуть; при сворачивании экран возвращается к прежнему виду.
 (function () {
   'use strict';
 
-  const PANEL_WIDTH = '320px';
+  const LEFT_WIDTH = 300;
+  const RIGHT_WIDTH = 420;
+
+  const state = { left: true, right: true, current: null };
 
   function h(tag, style, text) {
     const node = document.createElement(tag);
@@ -14,90 +17,139 @@
     return node;
   }
 
-  function render(session, host) {
-    host.innerHTML = '';
-    host.append(h('div', 'font-weight:600;margin-bottom:6px', session.name));
-    host.append(h('div', 'opacity:.65;font-size:12px;margin-bottom:10px',
-      session.modified + ' • файлов: ' + session.file_count));
-    (session.files || []).forEach(function (name) {
-      host.append(h('div', 'font-size:12px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.06)', name));
-    });
-    if (!session.file_count) {
-      host.append(h('div', 'opacity:.6;font-size:12px;margin-top:6px',
-        'Файлов нет: правки не подтверждены.'));
-    }
-    const open = h('button', 'margin-top:12px;padding:6px 10px;border-radius:8px;border:1px solid #444;' +
-      'background:#1b1b26;color:#eee;cursor:pointer', '📂 Открыть папку');
-    open.addEventListener('click', function () {
-      open.disabled = true;
-      fetch('/api/open_folder', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: session.path })
-      }).then(function (response) {
-        open.disabled = false;
-        open.textContent = response.ok ? '📂 Открыть папку' : 'Не удалось открыть ✗';
-      }).catch(function () {
-        open.disabled = false;
-        open.textContent = 'Не удалось открыть ✗';
-      });
-    });
-    host.append(open);
+  function applyBodyShift() {
+    document.body.style.marginLeft = state.left ? LEFT_WIDTH + 'px' : '0';
+    document.body.style.marginRight = state.right ? RIGHT_WIDTH + 'px' : '0';
+    document.body.style.transition = 'margin .15s ease';
   }
 
-  function load(body, detail) {
-    body.innerHTML = 'Загружаю…';
+  const CODE_STYLE = 'margin:8px 0 0;padding:10px;border-radius:10px;background:#0f0f16;' +
+    'white-space:pre-wrap;word-break:break-word;font:12px/1.45 ui-monospace,Consolas,monospace';
+
+  function showFile(path, panel) {
+    const body = panel.querySelector('[data-role="code-body"]');
+    const title = panel.querySelector('[data-role="code-title"]');
+    state.current = path;
+    body.textContent = 'Загружаю…';
+    fetch('/api/file?path=' + encodeURIComponent(path), { cache: 'no-store' })
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        if (data.detail) {
+          title.textContent = 'Код';
+          body.textContent = 'Не открыть: ' + data.detail;
+          return;
+        }
+        title.textContent = data.name + (data.truncated ? ' (первые 20 000 символов)' : '');
+        body.textContent = data.content;
+      })
+      .catch(function (error) { body.textContent = 'Не удалось прочитать: ' + error; });
+  }
+
+  function renderSession(session, list, panel) {
+    list.innerHTML = '';
+    const back = h('button', 'margin-bottom:8px;padding:4px 8px;border-radius:6px;border:1px solid #444;' +
+      'background:#1b1b26;color:#eee;cursor:pointer;font-size:12px', '← ко всем проектам');
+    back.addEventListener('click', function () { loadSessions(list, panel); });
+    list.append(back, h('div', 'font-weight:600;margin-bottom:4px', session.name));
+    list.append(h('div', 'opacity:.6;font-size:11px;margin-bottom:8px',
+      session.modified + ' • файлов: ' + session.file_count));
+
+    if (!session.files || !session.files.length) {
+      list.append(h('div', 'opacity:.65;font-size:12px',
+        'Файлов нет: правки ещё не подтверждены в панели «Подтверждения».'));
+      return;
+    }
+    session.files.forEach(function (name) {
+      const item = h('div', 'padding:6px 8px;border-radius:6px;cursor:pointer;font-size:12px', '📄 ' + name);
+      item.addEventListener('mouseenter', function () { item.style.background = 'rgba(255,255,255,.06)'; });
+      item.addEventListener('mouseleave', function () { item.style.background = 'transparent'; });
+      item.addEventListener('click', function () { showFile(session.path + '/' + name, panel); });
+      list.append(item);
+    });
+  }
+
+  function loadSessions(list, panel) {
+    list.textContent = 'Загружаю…';
     fetch('/api/sessions', { cache: 'no-store' })
       .then(function (response) { return response.json(); })
       .then(function (data) {
-        body.innerHTML = '';
         const sessions = data.sessions || [];
+        list.innerHTML = '';
         if (!sessions.length) {
-          body.append(h('div', 'opacity:.65;font-size:13px',
-            'Пока пусто: проекты появятся после первой сборки.'));
+          list.append(h('div', 'opacity:.65;font-size:12px', 'Пока пусто: проекты появятся после первой сборки.'));
           return;
         }
         sessions.forEach(function (session) {
-          const item = h('div', 'padding:8px;border-radius:8px;margin-bottom:4px;cursor:pointer;font-size:13px',
-            session.name);
-          item.addEventListener('mouseenter', function () { item.style.background = 'rgba(255,255,255,.06)'; });
+          const item = h('div', 'padding:7px 8px;border-radius:8px;cursor:pointer;font-size:13px', session.name);
+          item.addEventListener('mouseenter', function () { item.style.background = 'rgba(255,255,255,.07)'; });
           item.addEventListener('mouseleave', function () { item.style.background = 'transparent'; });
-          item.addEventListener('click', function () { render(session, detail); });
-          body.append(item);
-          body.append(h('div', 'opacity:.5;font-size:11px;margin:0 0 6px 8px',
+          item.addEventListener('click', function () { renderSession(session, list, panel); });
+          list.append(item);
+          list.append(h('div', 'opacity:.5;font-size:11px;margin:0 0 6px 8px',
             session.modified + ' • файлов: ' + session.file_count));
         });
+        // Сразу показываем код свежего проекта, чтобы правая колонка не пустовала.
+        const newest = sessions.find(function (s) { return s.file_count > 0; });
+        if (newest && !state.current) showFile(newest.path + '/' + newest.files[0], panel);
       })
-      .catch(function (error) {
-        body.innerHTML = 'Не удалось получить список: ' + error;
-      });
+      .catch(function (error) { list.textContent = 'Не удалось получить список: ' + error; });
+  }
+
+  function panelBox(side, width) {
+    return h('aside', 'position:fixed;top:0;bottom:0;' + side + ':0;width:' + width + 'px;z-index:80;' +
+      'padding:14px;background:#15151d;color:#eee;overflow-y:auto;font:13px/1.45 system-ui;' +
+      'box-shadow:' + (side === 'left' ? '8px 0 24px rgba(0,0,0,.45)' : '-8px 0 24px rgba(0,0,0,.45)'));
+  }
+
+  function header(title, onToggle) {
+    const head = h('div', 'display:flex;justify-content:space-between;align-items:center;margin-bottom:10px');
+    head.append(h('div', 'font-weight:600', title));
+    const button = h('button', 'border:none;background:transparent;color:#9aa;font-size:16px;cursor:pointer', '⤢');
+    button.title = 'Свернуть панель';
+    button.addEventListener('click', onToggle);
+    head.append(button);
+    return head;
   }
 
   function mount() {
-    const toggler = h('button', 'position:fixed;left:14px;bottom:16px;z-index:60;padding:8px 12px;' +
-      'border-radius:10px;border:1px solid #444;background:#1b1b26;color:#eee;cursor:pointer;' +
-      'font:13px/1.4 system-ui', '📁 Проекты');
-    const panel = h('aside', 'position:fixed;left:0;top:0;bottom:0;z-index:80;width:' + PANEL_WIDTH + ';' +
-      'display:none;padding:16px;background:#15151d;color:#eee;box-shadow:8px 0 24px rgba(0,0,0,.45);' +
-      'font:13px/1.4 system-ui;overflow-y:auto');
-    const head = h('div', 'display:flex;justify-content:space-between;align-items:center;margin-bottom:12px');
-    head.append(h('div', 'font-weight:600', 'Проекты'));
-    const close = h('button', 'border:none;background:transparent;color:#eee;font-size:18px;cursor:pointer', '×');
-    close.addEventListener('click', function () { panel.style.display = 'none'; });
-    head.append(close);
-    panel.append(head);
-
-    const body = h('div');
-    const detail = h('div', 'margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.12)');
-    panel.append(body, detail);
-
-    toggler.addEventListener('click', function () {
-      const hidden = panel.style.display === 'none';
-      panel.style.display = hidden ? 'block' : 'none';
-      if (hidden) { load(body, detail); detail.innerHTML = ''; }
+    // ── левая колонка: диалоги и проекты
+    const left = panelBox('left', LEFT_WIDTH);
+    const list = h('div');
+    left.append(header('Проекты', function () { state.left = false; left.style.display = 'none'; applyBodyShift(); }),
+      list);
+    const leftToggle = h('button', 'position:fixed;left:10px;bottom:16px;z-index:81;padding:8px 12px;' +
+      'border-radius:10px;border:1px solid #444;background:#1b1b26;color:#eee;cursor:pointer;font:13px system-ui',
+      '📁 Проекты');
+    leftToggle.addEventListener('click', function () {
+      state.left = true;
+      left.style.display = 'block';
+      applyBodyShift();
+      loadSessions(list, right);
     });
 
-    document.body.append(panel, toggler);
+    // ── правая колонка: код
+    const right = panelBox('right', RIGHT_WIDTH);
+    right.append(header('Код', function () { state.right = false; right.style.display = 'none'; applyBodyShift(); }));
+    right.append(h('div', 'opacity:.6;font-size:12px;margin-bottom:6px', 'Выбери файл в левой панели'));
+    const codeTitle = h('div', 'font-weight:600;margin:6px 0 2px', 'Файл не выбран');
+    codeTitle.dataset.role = 'code-title';
+    right.append(codeTitle);
+    const codeBody = h('pre', CODE_STYLE, 'Здесь появится код выбранного файла.');
+    codeBody.dataset.role = 'code-body';
+    right.append(codeBody);
+
+    const rightToggle = h('button', 'position:fixed;right:10px;bottom:16px;z-index:81;padding:8px 12px;' +
+      'border-radius:10px;border:1px solid #444;background:#1b1b26;color:#eee;cursor:pointer;font:13px system-ui',
+      '</> Код');
+    rightToggle.addEventListener('click', function () {
+      state.right = true;
+      right.style.display = 'block';
+      applyBodyShift();
+    });
+
+    document.body.append(left, leftToggle, right, rightToggle);
+    applyBodyShift();
+    loadSessions(list, right);
   }
 
   document.addEventListener('DOMContentLoaded', mount);
