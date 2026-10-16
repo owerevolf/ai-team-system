@@ -26,6 +26,30 @@ from fastapi.responses import JSONResponse
 
 router = APIRouter()
 
+
+@router.get("/api/providers")
+def providers_status(request: Request) -> Dict[str, Any]:
+    """Каталог облачных провайдеров и результат живой пробы.
+
+    Ключи не читаются и не отдаются: проба сообщает только «доступно / нет ключа / не отвечает».
+    Без параметра отдаётся последний сохранённый результат, с `?refresh=1` — свежая проверка.
+    """
+    from core import provider_probe as probe
+
+    refresh = str(request.query_params.get("refresh", "")).lower() in {"1", "true", "yes"}
+    if refresh:
+        state = probe.probe_all()
+        probe.save_state(state)
+    else:
+        state = probe.load_state()
+
+    return {
+        "providers": probe.catalogue_for_ui(),
+        "probe": state,
+        "free_available": probe.free_available(state),
+        "checked_now": refresh,
+    }
+
 _index = None
 
 
