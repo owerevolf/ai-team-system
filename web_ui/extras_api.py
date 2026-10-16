@@ -61,9 +61,8 @@ def get_ui_language() -> Dict[str, Any]:
     return {"language": language}
 
 
-_SESSIONS_DIR = Path(
-    os.getenv("PROJECTS_DIR") or (Path(os.getenv("USERPROFILE") or Path.home()) / "ai-team-projects")
-)
+# Тот же адрес, куда пишет сборка проекта: иначе список сеансов окажется пустым.
+_SESSIONS_DIR = Path(os.getenv("USERPROFILE") or Path.home()) / "ai-team-projects"
 
 
 @router.get("/api/sessions")
