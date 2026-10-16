@@ -1,0 +1,31 @@
+Сборка стартует только по явной команде, а не по слову «да» внутри фразы.
+
+Патч собран автоматически по фактическому содержимому файла.
+
+Применение:
+       git pull
+       git apply --check --ignore-whitespace docs/owner_fixes_11.patch
+       git apply --ignore-whitespace docs/owner_fixes_11.patch
+       node --check web_ui\static\js\welcome.js
+
+--- a/web_ui/static/js/welcome.js
++++ b/web_ui/static/js/welcome.js
+@@ -246,10 +246,15 @@
+     state.phase = 'teamlead_wait';
+     await callTeamLead();
+   } else if (state.phase === 'teamlead_wait') {
+-    // Пользователь отвечает после первого ответа TeamLead
+-    // Если это согласие на сборку — сразу начинаем
++    // Пользователь отвечает после первого ответа TeamLead.
++    // Согласием считается только явная команда: раньше хватало слова «да»
++    // внутри любой фразы, и сборка стартовала, когда человек просто уточнял детали.
+     const lowText = text.toLowerCase().trim();
+-    if (['делаем', 'погнали', 'готов', 'да', 'давай', 'ок', 'окей', 'конечно', 'yes', 'start'].some(w => lowText.includes(w))) {
++    const yesWords = ['да', 'ок', 'окей', 'конечно', 'давай', 'yes', 'ok'];
++    const commandWords = ['делаем', 'погнали', 'старт', 'начинаем', 'начинай', 'запускай', 'start'];
++    const isConsent = yesWords.includes(lowText)
++      || commandWords.some(w => lowText === w || lowText.startsWith(w + ' ') || lowText.startsWith(w + '!'));
++    if (isConsent) {
+       // Пользователь хочет начать сборку
+       await startBuilding();
+     } else {
