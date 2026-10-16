@@ -304,6 +304,16 @@ def _build_token_usage(brain: ProjectBrain) -> Dict[str, Any]:
 # ── Shared instances ──
 
 _approval_runtime = ApprovalRuntime()
+
+
+def approvals_runtime() -> ApprovalRuntime:
+    """Единая очередь подтверждений на процесс.
+
+    Панель «Подтверждения» и правки агентов обязаны видеть одни и те же запросы:
+    раньше сборка проекта создавала собственный ApprovalRuntime, и запросы
+    уходили в объект, который никто не мог открыть.
+    """
+    return _approval_runtime
 _patch_engine = PatchEngine()
 _workspace_runtime = WorkspaceRuntime()
 _knowledge_index = KnowledgeIndex()

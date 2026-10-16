@@ -1,0 +1,38 @@
+Единая очередь подтверждений между сборкой проекта и панелью «Подтверждения».
+
+ЧТО БЫЛО НЕ ТАК (найдено живой сборкой, а не тестами):
+панель читает общий объект `_approval_runtime` из developer_api.py,
+а маршрут сборки проекта создавал СВОЙ `ApprovalRuntime()` — правки агентов
+уходили в невидимую очередь: файлов на диске нет (это правильно), но и в панели
+их не видно, потому что панель смотрит в другой объект.
+
+Теперь маршрут сборки берёт ту же очередь через `approvals_runtime()`.
+
+Порядок применения:
+
+1) Забрать патч:
+       git pull
+
+2) Проверить и применить:
+       git apply --check --ignore-whitespace docs/owner_fixes_6.patch
+       git apply --ignore-whitespace docs/owner_fixes_6.patch
+
+Флаг --ignore-whitespace нужен из-за разницы переводов строк у патча и файла.
+
+--- a/web_ui/app.py
++++ b/web_ui/app.py
+@@ -586,12 +586,12 @@
+         # файл меняется только после решения человека в панели «Подтверждения».
+         try:
+             from core.project_manager.runtime.developer.patch_engine import PatchEngine, RiskLevel
+-            from core.project_manager.runtime.developer.approval_runtime import ApprovalRuntime
++            from core.project_manager.runtime.developer.developer_api import approvals_runtime
+ 
+             engine = PatchEngine(project_root=project_dir)
+-            approvals = ApprovalRuntime()
++            approvals = approvals_runtime()
+ 
+             def submit_for_approval(file_path, content, engine=engine, approvals=approvals):
+                 patch = engine.generate_patch(
+                     task_id="agent-write",
+                     file_changes={str(file_path): content},
