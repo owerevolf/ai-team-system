@@ -19,7 +19,8 @@ from typing import Callable, Dict, List, Optional
 
 PROMPT = """Ты вносишь минимальную правку в файлы проекта.
 
-Верни СТРОГО JSON без пояснений:
+Не рассуждай вслух: ни размышлений, ни пояснений до или после ответа.
+Верни СТРОГО JSON:
 {{"changes": [{{"path": "<путь>", "find": "<точный фрагмент из файла>", "replace": "<чем заменить>"}}]}}
 
 Правила:
@@ -60,13 +61,45 @@ class GenerationResult:
 
 
 def _extract_json(text: str) -> Optional[dict]:
-    match = re.search(r"\{.*\}", text or "", re.S)
-    if not match:
-        return None
-    try:
-        return json.loads(match.group(0))
-    except json.JSONDecodeError:
-        return None
+    """Последний разбираемый JSON-объект в ответе модели.
+
+    Модели рассуждают вслух и показывают примеры до финального ответа: прежний
+    жадный шаблон склеивал пример с ответом, и разбор падал. Теперь скобки считаются
+    с учётом строк и экранирования, а из найденных объектов берётся последний — он и есть ответ.
+    """
+    source = text or ""
+    found: Optional[dict] = None
+    start = 0
+    depth = 0
+    in_string = False
+    escaped = False
+
+    for index, char in enumerate(source):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char == "{":
+            if depth == 0:
+                start = index
+            depth += 1
+        elif char == "}" and depth:
+            depth -= 1
+            if depth == 0:
+                try:
+                    parsed = json.loads(source[start : index + 1])
+                except json.JSONDecodeError:
+                    parsed = None
+                if isinstance(parsed, dict):
+                    found = parsed
+
+    return found
 
 
 def generate_changes(
