@@ -1,0 +1,36 @@
+TeamLead отвечает на выбранном языке — как и просил владелец.
+
+Патч собран автоматически по фактическому содержимому файла.
+
+Применение:
+       git pull
+       git apply --check --ignore-whitespace docs/owner_fixes_10.patch
+       git apply --ignore-whitespace docs/owner_fixes_10.patch
+       node --check web_ui\static\js\welcome.js
+
+--- a/web_ui/static/js/welcome.js
++++ b/web_ui/static/js/welcome.js
+@@ -305,9 +305,21 @@
+ 
+   try {
+     // Формируем запрос в зависимости от того, первый раз или нет
+-    const query = isFirst
++    // Язык ответа выбирает человек на первом экране: без этой строки модель
++    // уходила в английский, потому что её роль написана по-английски.
++    let answerLanguage = 'ru';
++    try {
++      answerLanguage = localStorage.getItem('aiTeamLang') || 'ru';
++    } catch (error) {
++      answerLanguage = 'ru';   // приватный режим браузера
++    }
++    const languageRule = answerLanguage === 'en'
++      ? 'ANSWER LANGUAGE: answer in English. Code and identifiers stay as code.\n\n'
++      : 'ЯЗЫК ОТВЕТА: отвечай по-русски. Код, имена файлов и команд остаются как есть.\n\n';
++
++    const query = languageRule + (isFirst
+       ? `Ты впервые общаешься с пользователем. Идея проекта: ${state.projectIdea}\n\nПредставься кратко и предложи помощь.`
+-      : `КОНТЕКСТ: Ты уже представился пользователю.\nИдея проекта: ${state.projectIdea}\n\nПользователь написал: ${state.lastUserMsg}\n\nОТВЕТЬ НА ЗАПРОС — не представляйся снова.`;
++      : `КОНТЕКСТ: Ты уже представился пользователю.\nИдея проекта: ${state.projectIdea}\n\nПользователь написал: ${state.lastUserMsg}\n\nОТВЕТЬ НА ЗАПРОС — не представляйся снова.`);
+ 
+     const response = await fetch('/api/teamlead_query', {
+       method: 'POST',

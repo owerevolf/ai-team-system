@@ -571,6 +571,26 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
         found.setdefault("tool", "create_file")
         return found
 
+    @staticmethod
+    def _reply_language_rule() -> str:
+        """Строка про язык ответа: русский по умолчанию, английский — если так выбрал человек.
+
+        Роли агентов написаны по-английски, и без этой строки модель уходила
+        в английский посреди русского диалога.
+        """
+        try:
+            settings = Path(__file__).resolve().parent.parent / ".cache" / "ui_settings.json"
+            language = str(json.loads(settings.read_text(encoding="utf-8")).get("language", "ru"))
+        except Exception:  # noqa: BLE001 — нет файла или испорчен: считаем русский
+            language = "ru"
+
+        if language.lower().startswith("en"):
+            return "ANSWER LANGUAGE: answer in English. Code and identifiers stay as code.\n\n"
+        return (
+            "ЯЗЫК ОТВЕТА: отвечай по-русски. "
+            "Код, имена файлов и команд остаются как есть.\n\n"
+        )
+
     def _extract_and_create_files(self, response: str) -> List[str]:
         created = []
         tool_pattern = r'<tool_call>\s*(.*?)\s*</tool_call>'
