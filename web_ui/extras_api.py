@@ -18,6 +18,8 @@
 """
 
 import json
+import os
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -57,6 +59,41 @@ def get_ui_language() -> Dict[str, Any]:
     except Exception:  # noqa: BLE001 — нет файла или испорчен: считаем русский
         language = "ru"
     return {"language": language}
+
+
+_SESSIONS_DIR = Path(
+    os.getenv("PROJECTS_DIR") or (Path(os.getenv("USERPROFILE") or Path.home()) / "ai-team-projects")
+)
+
+
+@router.get("/api/sessions")
+def list_sessions() -> Dict[str, Any]:
+    """Прошлые проекты: имя, когда делали, сколько файлов внутри.
+
+    История лежит рядом с приложением, поэтому не исчезает вместе с вкладкой
+    браузера — можно вернуться к любому проекту и посмотреть, что в нём.
+    """
+    items = []
+    if _SESSIONS_DIR.exists():
+        folders = sorted(
+            (p for p in _SESSIONS_DIR.iterdir() if p.is_dir()),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )[:50]
+        for folder in folders:
+            files = [f for f in folder.rglob("*") if f.is_file()]
+            items.append(
+                {
+                    "name": folder.name,
+                    "path": str(folder),
+                    "modified": datetime.fromtimestamp(folder.stat().st_mtime).isoformat(
+                        timespec="minutes"
+                    ),
+                    "file_count": len(files),
+                    "files": [str(f.relative_to(folder)) for f in files[:20]],
+                }
+            )
+    return {"sessions": items}
 
 
 @router.get("/api/providers")
