@@ -483,6 +483,37 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
                 "timestamp": datetime.now().isoformat()
             }
     
+    @staticmethod
+    def _parse_tool_call(raw: str):
+        """Разбирает вызов инструмента из ответа модели.
+
+        Сначала честный JSON. Если модель не заэкранировала кавычки внутри кода —
+        частая беда локальных моделей — поля достраиваются по известной схеме,
+        чтобы правка не терялась молча. Содержимое всё равно проверяют движок
+        патчей и человек в панели «Подтверждения».
+        """
+        try:
+            return json.loads(raw, strict=False)
+        except json.JSONDecodeError:
+            pass
+
+        found = {}
+        for key in ("tool", "path"):
+            item = re.search(rf'"{key}"\s*:\s*"([^"]*)"', raw)
+            if item:
+                found[key] = item.group(1)
+
+        content = re.search(r'"content"\s*:\s*"(.*)"', raw, re.S)
+        if not content or not found.get("path"):
+            return None
+
+        text = content.group(1)
+        for escaped, plain in (('\\"', '"'), ("\\n", "\n"), ("\\t", "\t"), ("\\\\", "\\")):
+            text = text.replace(escaped, plain)
+        found["content"] = text
+        found.setdefault("tool", "create_file")
+        return found
+
     def _extract_and_create_files(self, response: str) -> List[str]:
         created = []
         tool_pattern = r'<tool_call>\s*(.*?)\s*</tool_call>'
@@ -492,7 +523,10 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
             try:
                 # strict=False: модели пишут код с настоящими переносами строк внутри JSON-строк,
                 # и строгий разбор на них падает — вызов инструмента молча терялся.
-                tool_data = json.loads(match, strict=False)
+                # Разбор вызова: сначала честный JSON, потом терпимый — см. _parse_tool_call.
+                tool_data = self._parse_tool_call(match)
+                if tool_data is None:
+                    raise json.JSONDecodeError("вызов инструмента не разобран", match, 0)
                 tool_name = tool_data.get("tool", "create_file")
                 
                 if tool_name in self.tools and self.tools[tool_name].handler:
