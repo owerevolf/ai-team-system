@@ -540,6 +540,7 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
 
         return candidates
 
+    @staticmethod
     def _parse_tool_call(raw: str):
         """Разбирает вызов инструмента из ответа модели.
 
