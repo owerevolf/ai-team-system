@@ -47,5 +47,11 @@ def test_unescaped_quotes_inside_code_are_recovered():
     assert "привет" in parsed["content"]
 
 
+def test_bare_json_without_wrapper_is_recognised():
+    manager = make_manager()
+    response = '{"tool": "create_file", "path": "bare.py", "content": "print(3)"}'
+    assert manager._extract_and_create_files(response) == ["bare.py"]
+
+
 def test_garbage_returns_nothing_instead_of_raising():
     assert AgentManager._parse_tool_call("просто текст без вызова") is None

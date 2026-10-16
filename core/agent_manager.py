@@ -511,6 +511,35 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
             }
     
     @staticmethod
+    @staticmethod
+    def _json_candidates(text: str) -> List[str]:
+        """Куски текста, похожие на JSON-объекты: скобки считаются с учётом строк и экранирования."""
+        candidates: List[str] = []
+        start = depth = 0
+        in_string = escaped = False
+
+        for index, char in enumerate(text or ""):
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == '"':
+                    in_string = False
+                continue
+            if char == '"':
+                in_string = True
+            elif char == "{":
+                if depth == 0:
+                    start = index
+                depth += 1
+            elif char == "}" and depth:
+                depth -= 1
+                if depth == 0:
+                    candidates.append(text[start : index + 1])
+
+        return candidates
+
     def _parse_tool_call(raw: str):
         """Разбирает вызов инструмента из ответа модели.
 
@@ -553,6 +582,15 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
             + open_mark + r"\s*/\s*tool_call\s*" + close_mark
         )
         matches = re.findall(tool_pattern, response, re.DOTALL)
+
+        if not matches:
+            # Модель часто отдаёт вызов вообще без обёртки — просто JSON-объект.
+            # Раньше такой ответ пропадал целиком, хотя правка в нём была готова.
+            matches = [
+                candidate
+                for candidate in self._json_candidates(response)
+                if '"content"' in candidate and ('"path"' in candidate or '"file"' in candidate)
+            ]
         
         for match in matches:
             if not match.rstrip().endswith("}"):
