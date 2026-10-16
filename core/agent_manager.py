@@ -398,6 +398,10 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
 {{"status": "success", "files_created": ["file1.py"], "summary": "что сделано"}}
 
 ## TOOL CALL FORMAT
+
+Правило размера: один файл — не больше 60 строк. Если код больше, раздели его на
+несколько файлов и вызывай инструмент отдельно для каждого. Длинный ответ обрывается
+на лимите длины у модели — и тогда не создаётся вообще ничего.
 <tool_call>
 {{"tool": "create_file", "path": "file.py", "content": "# код"}}
 </tool_call>
@@ -551,6 +555,12 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
         matches = re.findall(tool_pattern, response, re.DOTALL)
         
         for match in matches:
+            if not match.rstrip().endswith("}"):
+                # Самая частая причина потери правки: модель упёрлась в лимит длины ответа.
+                self.logger.warning(
+                    f"Вызов обрезан лимитом модели ({len(match)} симв.) — правку не применить, "
+                    f"нужен файл короче"
+                )
             try:
                 # strict=False: модели пишут код с настоящими переносами строк внутри JSON-строк,
                 # и строгий разбор на них падает — вызов инструмента молча терялся.
@@ -568,7 +578,7 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
             except json.JSONDecodeError as exc:
                 # В журнал — причина и хвост: без них непонятно, обрезан ответ или испорчен разбор.
                 self.logger.warning(
-                    f"Bad tool_call ({exc}, {len(match)} симв., хвост …{match[-70:]!r})"
+                    f"Bad tool_call ({exc}, {len(match)} симв., начало {match[:90]!r}, хвост …{match[-70:]!r})"
                 )
         
         if not created and self.project_path:

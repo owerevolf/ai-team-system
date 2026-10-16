@@ -57,7 +57,37 @@
     overlay.append(card);
   }
 
+  // Выбранный язык можно поменять позже: блок живёт во вкладке «Настройки».»
+  function attachSettings() {
+    const host = document.getElementById('settings-content');
+    if (!host || host.querySelector('[data-role="language-block"]')) return;
+
+    const current = chosen() || 'ru';
+    const block = document.createElement('section');
+    block.dataset.role = 'language-block';
+    block.style.cssText = 'margin-top:18px;padding:14px;border-radius:12px;background:rgba(255,255,255,.04)';
+    block.innerHTML = '<div style="font-weight:600;margin-bottom:8px">Язык интерфейса и ответов</div>' +
+      '<div style="opacity:.7;margin-bottom:8px">Сейчас: ' +
+      (current === 'ru' ? '🇷🇺 Русский' : '🇬🇧 English') + '</div>';
+
+    LANGUAGES.forEach(function (item) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.disabled = item.code === current;
+      button.textContent = item.flag + ' ' + item.title;
+      button.style.cssText = 'margin:4px 6px 0 0;padding:6px 10px;border-radius:8px;border:1px solid #444;' +
+        'background:#1b1b26;color:#eee;cursor:pointer';
+      button.addEventListener('click', function () { save(item.code).then(function () { location.reload(); }); });
+      block.append(button);
+    });
+
+    host.append(block);
+  }
+
   function start() {
+    attachSettings();
+    new MutationObserver(attachSettings).observe(document.body, { childList: true, subtree: true });
+
     if (chosen()) return;           // язык уже выбран — первый экран не мешает
     const overlay = document.createElement('div');
     build(overlay);
