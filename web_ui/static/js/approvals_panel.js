@@ -72,6 +72,16 @@
         return item.description || item.summary || item.title || item.patch_id || 'правка без описания';
     }
 
+    function formatTime(value) {
+        // Сервер отдаёт время в UTC: показываем в местном, чтобы было понятно,
+        // когда именно появилась правка.
+        const date = new Date(value);
+        if (isNaN(date.getTime())) return String(value);
+        return date.toLocaleString('ru-RU', {
+            day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+        });
+    }
+
     function render(body) {
         body.innerHTML = '';
 
@@ -91,6 +101,9 @@
 
             var meta = [];
             if (item.risk_level) {
+                if (item.created_at) {
+                    meta.push('создан: ' + formatTime(item.created_at));
+                }
                 meta.push('риск: ' + item.risk_level);
             }
             if (item.patch_id) {
