@@ -150,6 +150,13 @@
     document.body.append(left, leftToggle, right, rightToggle);
     applyBodyShift();
     loadSessions(list, right);
+
+    // После подтверждения правки список и код обновляются сами: человеку не нужно
+    // ничего искать — только что записанный файл появляется справа.
+    document.addEventListener('aiteam:applied', function () {
+      state.current = null;
+      loadSessions(list, right);
+    });
   }
 
   document.addEventListener('DOMContentLoaded', mount);

@@ -154,6 +154,10 @@
             state.status = action === 'approve'
                 ? (result.data.success ? 'Правка применена.' : 'Применить не удалось — патч не прошёл проверку.')
                 : (result.data.success ? 'Правка отклонена.' : 'Отклонить не удалось.');
+            if (action === 'approve' && result.data.success) {
+                // Соседняя панель кода обновляется сама: сообщаем ей, что появилась правка.
+                document.dispatchEvent(new CustomEvent('aiteam:applied'));
+            }
             return refresh();
         }).catch(function (error) {
             state.busy = false;
