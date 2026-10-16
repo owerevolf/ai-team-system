@@ -314,6 +314,15 @@ def approvals_runtime() -> ApprovalRuntime:
     уходили в объект, который никто не мог открыть.
     """
     return _approval_runtime
+
+
+def patch_engine() -> PatchEngine:
+    """Единый движок патчей на процесс.
+
+    Сборка проекта создавала свой PatchEngine — и панель не находила по номеру
+    ни одного патча: применение отвечало «успех», не записав ничего.
+    """
+    return _patch_engine
 _patch_engine = PatchEngine()
 _workspace_runtime = WorkspaceRuntime()
 _knowledge_index = KnowledgeIndex()
@@ -406,15 +415,33 @@ async def approval_action(req: ApprovalActionRequest) -> Dict[str, Any]:
     """Approve or reject a pending patch."""
     if req.action == "approve":
         success = _approval_runtime.approve(req.request_id, comments=req.comments)
+        applied = False
+        note = ""
         if success:
             for h in _approval_runtime.get_history():
-                if h.request_id == req.request_id:
-                    patch = _patch_engine.get_patch(h.patch_id)
-                    if patch:
-                        patch.approved = True
-                        _patch_engine.apply_patch(patch)
+                if h.request_id != req.request_id:
+                    continue
+                patch = _patch_engine.get_patch(h.patch_id)
+                if not patch:
+                    note = "патч недоступен: он создан в другом экземпляре движка, файлы не записаны"
                     break
-        return {"status": "approved", "success": success}
+                # Проверка обязана быть здесь: без неё применение молча отказывает.
+                passed, errors, _ = _patch_engine.validate_patch(patch)
+                patch.validation_passed = passed
+                if not passed:
+                    note = "патч не прошёл проверку: " + "; ".join(errors[:2])
+                    break
+                patch.approved = True
+                applied = bool(_patch_engine.apply_patch(patch))
+                if not applied:
+                    note = "применение не удалось — правка не записана"
+                break
+        return {
+            "status": "approved",
+            "success": success and applied,
+            "applied": applied,
+            "note": note,
+        }
     elif req.action == "reject":
         success = _approval_runtime.reject(req.request_id, comments=req.comments)
         return {"status": "rejected", "success": success}

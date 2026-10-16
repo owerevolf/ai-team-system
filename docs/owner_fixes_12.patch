@@ -1,0 +1,28 @@
+Единый движок патчей: панель «Подтверждения» находит патчи сборки.
+
+Патч собран по фактическому содержимому файла владельца.
+
+Применение (в D:\Projekt Ai Teem):
+       git pull
+       git apply --check --ignore-whitespace docs/owner_fixes_12.patch
+       git apply --ignore-whitespace docs/owner_fixes_12.patch
+
+--- a/web_ui/app.py
++++ b/web_ui/app.py
+@@ -586,9 +586,13 @@
+         # файл меняется только после решения человека в панели «Подтверждения».
+         try:
+             from core.project_manager.runtime.developer.patch_engine import PatchEngine, RiskLevel
+-            from core.project_manager.runtime.developer.developer_api import approvals_runtime
+-
+-            engine = PatchEngine(project_root=project_dir)
++            # Один движок и одна очередь на процесс: иначе панель «Подтверждения»
++            # не найдёт патч по номеру и применение пройдёт впустую.
++            from core.project_manager.runtime.developer.developer_api import (
++                approvals_runtime, patch_engine,
++            )
++
++            engine = patch_engine()
+             approvals = approvals_runtime()
+ 
+             def submit_for_approval(file_path, content, engine=engine, approvals=approvals):
