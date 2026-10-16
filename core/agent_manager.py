@@ -490,7 +490,9 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
         
         for match in matches:
             try:
-                tool_data = json.loads(match)
+                # strict=False: модели пишут код с настоящими переносами строк внутри JSON-строк,
+                # и строгий разбор на них падает — вызов инструмента молча терялся.
+                tool_data = json.loads(match, strict=False)
                 tool_name = tool_data.get("tool", "create_file")
                 
                 if tool_name in self.tools and self.tools[tool_name].handler:
@@ -498,8 +500,11 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
                     if result.get("success"):
                         created.append(result.get("path", "unknown"))
                         
-            except json.JSONDecodeError:
-                self.logger.warning(f"Bad tool_call: {match[:100]}")
+            except json.JSONDecodeError as exc:
+                # В журнал — причина и хвост: без них непонятно, обрезан ответ или испорчен разбор.
+                self.logger.warning(
+                    f"Bad tool_call ({exc}, {len(match)} симв., хвост …{match[-70:]!r})"
+                )
         
         if not created and self.project_path:
             code_blocks = re.findall(r'```(?:\w+)?\s*(.*?)```', response, re.DOTALL)
