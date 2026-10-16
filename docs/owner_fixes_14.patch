@@ -1,0 +1,46 @@
+Старт сборки спрашивает подтверждение, если уточнения остались без ответа.
+
+Патч собран по фактическому содержимому файла владельца.
+
+Применение (в D:\Projekt Ai Teem):
+       git pull
+       git apply --check --ignore-whitespace docs/owner_fixes_14.patch
+       git apply --ignore-whitespace docs/owner_fixes_14.patch
+       node --check web_ui\static\js\welcome.js
+
+--- a/web_ui/static/js/welcome.js
++++ b/web_ui/static/js/welcome.js
+@@ -394,6 +394,7 @@
+                   // TeamLead только что задал вопросы — кнопка говорит прямо,
+                   // что нажатие их пропустит: иначе человек сам себе перекрывает уточнения.
+                   const asksQuestions = /\?/.test(summary || '');
++                  state.asksQuestions = asksQuestions;
+                   addAiMsg('TeamLead', summary, null,
+                     [
+                       { label: '❓ Есть вопросы', value: 'questions' },
+@@ -449,7 +450,25 @@
+     }
+     focusInput();
+   } else if (value === 'start_build') {
++    if (state.asksQuestions) {
++      // Вопросы остались без ответа: спрашиваем один раз, а не решаем молча за человека.
++      state.asksQuestions = false;
++      addAiMsg('TeamLead',
++        'Мои вопросы остались без ответа. Продолжаем без них или сначала ответишь?',
++        null,
++        [
++          { label: '✅ Да, продолжаем', value: 'confirm_build' },
++          { label: '❓ Нет, отвечу', value: 'questions' }
++        ],
++        onTeamleadChoice
++      );
++      return;
++    }
+     addUserMsg('Делаем!');
++    startBuilding();
++  } else if (value === 'confirm_build') {
++    addUserMsg('Делаем!');
++    state.asksQuestions = false;
+     startBuilding();
+   }
+ }
