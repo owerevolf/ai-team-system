@@ -1,7 +1,14 @@
-// Панель «Провайдеры»: какие облачные модели доступны и что мешает.
-// Ключи нигде не отображаются — сервер отвечает только «доступно / нет ключа / не отвечает».
+// Блок «Проверка провайдеров» внутри вкладки «Настройки».
+//
+// Почему так: содержимое вкладки перерисовывается целиком, поэтому плавающая кнопка
+// осталась бы поверх интерфейса, а прямая вставка стиралась бы при каждом открытии.
+// Здесь блок добавляется в конец #settings-content после каждой перерисовки.
+// Ключи не показываются: сервер отвечает только «доступно / нет ключа / не отвечает».
 (function () {
   'use strict';
+
+  const HOST_ID = 'settings-content';
+  const BLOCK_ROLE = 'providers-block';
 
   const STATUS = {
     ok: { text: 'доступно', color: '#22c55e' },
@@ -24,53 +31,48 @@
       '<span style="opacity:.7">' + note + '</span></div>';
   }
 
-  function render(box, data) {
+  function render(body, data) {
     const probe = data.probe || {};
     const rows = (data.providers || []).map(function (p) { return row(p, probe[p.id]); }).join('');
     const free = (data.free_available || []).join(', ') || '—';
-    box.innerHTML =
-      '<div style="font-weight:600;margin-bottom:6px">Провайдеры облачных моделей</div>' +
-      rows +
+    body.innerHTML = rows +
       '<div style="opacity:.7;margin-top:8px">Доступны без ключа: ' + free + '</div>' +
       '<div style="opacity:.6;margin-top:6px;font-size:12px">Ключ кладётся в .env; сам ключ не показывается</div>' +
       '<button type="button" data-role="refresh" style="margin-top:10px;padding:6px 10px;border-radius:8px;' +
       'border:1px solid #444;background:#1b1b26;color:#eee;cursor:pointer">Проверить заново</button>';
-    const refresh = box.querySelector('[data-role="refresh"]');
-    if (refresh) refresh.addEventListener('click', function () { load(box, true); });
+    const refresh = body.querySelector('[data-role="refresh"]');
+    if (refresh) refresh.addEventListener('click', function () { load(body, true); });
   }
 
-  async function load(box, refresh) {
-    box.innerHTML = refresh ? 'Проверяю провайдеров…' : 'Загружаю…';
+  async function load(body, refresh) {
+    body.innerHTML = refresh ? 'Проверяю провайдеров…' : 'Загружаю…';
     try {
       const response = await fetch('/api/providers' + (refresh ? '?refresh=1' : ''), { cache: 'no-store' });
-      render(box, await response.json());
+      render(body, await response.json());
     } catch (error) {
-      box.innerHTML = 'Не удалось получить список: ' + error;
+      body.innerHTML = 'Не удалось получить список: ' + error;
     }
   }
 
-  function mount() {
-    const host = document.createElement('div');
-    host.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:60;font:13px/1.4 system-ui;text-align:right';
+  function attach() {
+    const host = document.getElementById(HOST_ID);
+    if (!host || host.querySelector('[data-role="' + BLOCK_ROLE + '"]')) return;
 
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.textContent = '🔌 Провайдеры';
-    button.style.cssText = 'padding:8px 12px;border-radius:10px;border:1px solid #444;background:#1b1b26;color:#eee;cursor:pointer';
+    const block = document.createElement('section');
+    block.dataset.role = BLOCK_ROLE;
+    block.style.cssText = 'margin-top:18px;padding:14px;border-radius:12px;background:rgba(255,255,255,.04)';
+    block.innerHTML = '<div style="font-weight:600;margin-bottom:8px">Проверка провайдеров</div>' +
+      '<div data-role="providers-body">Загружаю…</div>';
+    host.append(block);
 
-    const box = document.createElement('div');
-    box.style.cssText = 'display:none;max-width:430px;margin-top:8px;padding:12px;border-radius:12px;' +
-      'background:#15151d;color:#eee;box-shadow:0 8px 24px rgba(0,0,0,.4);text-align:left';
-
-    button.addEventListener('click', function () {
-      const hidden = box.style.display === 'none';
-      box.style.display = hidden ? 'block' : 'none';
-      if (hidden) load(box, false);
-    });
-
-    host.append(box, button);
-    document.body.append(host);
+    load(block.querySelector('[data-role="providers-body"]'), false);
   }
 
-  document.addEventListener('DOMContentLoaded', mount);
+  function start() {
+    attach();
+    // Вкладка перерисовывается из JS: следим и возвращаем блок на место.
+    new MutationObserver(attach).observe(document.body, { childList: true, subtree: true });
+  }
+
+  document.addEventListener('DOMContentLoaded', start);
 })();
