@@ -1,0 +1,27 @@
+Честные сообщения об ошибке: локальный режим не требует интернета.
+
+Патч собран автоматически по фактическому содержимому файла.
+
+Применение:
+       git pull
+       git apply --check --ignore-whitespace docs/owner_fixes_8.patch
+       git apply --ignore-whitespace docs/owner_fixes_8.patch
+       node --check web_ui\static\js\welcome.js
+
+--- a/web_ui/static/js/welcome.js
++++ b/web_ui/static/js/welcome.js
+@@ -495,12 +495,12 @@
+     return '🔑 Проблема с API ключом. Проверь .env файл.';
+   }
+   if (msg.includes('network') || msg.includes('failed to fetch') || msg.includes('connection')) {
+-    return '🌐 Проблема с сетью. Проверь подключение к интернету.';
++    return '🌐 Модель не ответила. В локальном режиме интернет не нужен — проверь, запущена ли Ollama и есть ли модель (ollama list). В облачном режиме проверь ключ в .env.';
+   }
+   if (msg.includes('abort') || msg.includes('aborted')) {
+     return ''; // Пользователь сам остановил — не показываем ошибку
+   }
+-  return '⚠️ Ошибка: ' + (e.message || 'неизвестная ошибка');
++  return '⚠️ Ошибка: ' + (e.message || 'неизвестная ошибка') + '\n\nПодсказка: в локальном режиме модель отвечает через Ollama — проверь, запущена ли она (ollama list).';
+ }
+ async function startBuilding() {
+   state.phase = 'building';

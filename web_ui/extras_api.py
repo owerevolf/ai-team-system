@@ -26,6 +26,38 @@ from fastapi.responses import JSONResponse
 
 router = APIRouter()
 
+_UI_STATE = Path(__file__).resolve().parent.parent / ".cache" / "ui_settings.json"
+
+
+@router.post("/api/ui/language")
+async def set_ui_language(request: Request) -> Dict[str, Any]:
+    """Запоминает выбранный язык интерфейса.
+
+    Этот же выбор просит у модели агент (см. core/agent_manager): на русском —
+    отвечай по-русски, код остаётся кодом.
+    """
+    body = await request.json()
+    language = str(body.get("lang", "")).strip().lower()[:8]
+    if language not in {"ru", "en"}:
+        raise HTTPException(status_code=400, detail="поддерживаются ru и en")
+
+    _UI_STATE.parent.mkdir(parents=True, exist_ok=True)
+    _UI_STATE.write_text(
+        json.dumps({"language": language}, ensure_ascii=False), encoding="utf-8"
+    )
+    return {"status": "ok", "language": language}
+
+
+@router.get("/api/ui/language")
+def get_ui_language() -> Dict[str, Any]:
+    """Отдаёт сохранённый язык интерфейса — без файла считается русский."""
+    try:
+        saved = json.loads(_UI_STATE.read_text(encoding="utf-8"))
+        language = str(saved.get("language", "ru"))
+    except Exception:  # noqa: BLE001 — нет файла или испорчен: считаем русский
+        language = "ru"
+    return {"language": language}
+
 
 @router.get("/api/providers")
 def providers_status(request: Request) -> Dict[str, Any]:
