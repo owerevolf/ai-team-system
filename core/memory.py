@@ -50,16 +50,19 @@ class AgentMemory:
         memory_file = self.memory_dir / "memory.json"
         if memory_file.exists():
             try:
-                data = json.loads(memory_file.read_text())
+                # encoding обязателен: на Windows по умолчанию cp1251, а файл в UTF-8
+                # с русским текстом — без этого каждая загрузка падала с UnicodeDecodeError.
+                data = json.loads(memory_file.read_text(encoding="utf-8"))
                 self.entries = [MemoryEntry(**e) for e in data]
-            except (json.JSONDecodeError, KeyError):
+            except (json.JSONDecodeError, KeyError, UnicodeDecodeError, TypeError):
+                # Испорченный файл — не повод ломать запуск агента: начинаем с пустой памяти.
                 self.entries = []
     
     def save(self):
         """Сохранение памяти"""
         memory_file = self.memory_dir / "memory.json"
         data = [e.to_dict() for e in self.entries]
-        memory_file.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+        memory_file.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
     
     def add(self, entry: MemoryEntry):
         """Добавление записи"""

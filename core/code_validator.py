@@ -67,11 +67,11 @@ class CodeValidator:
         warnings = []
         
         try:
-            compile(path.read_text(), str(path), 'exec')
+            compile(path.read_text(encoding="utf-8"), str(path), 'exec')
         except SyntaxError as e:
             errors.append(f"SyntaxError: line {e.lineno}: {e.msg}")
         
-        content = path.read_text()
+        content = path.read_text(encoding="utf-8")
         
         if "import" not in content and "def " not in content and "class " not in content:
             if len(content) > 50:
@@ -90,7 +90,7 @@ class CodeValidator:
     def _validate_javascript(self, path: Path, relative: str) -> ValidationResult:
         """Базовая проверка JS"""
         errors = []
-        content = path.read_text()
+        content = path.read_text(encoding="utf-8")
         
         open_braces = content.count('{')
         close_braces = content.count('}')
@@ -102,7 +102,7 @@ class CodeValidator:
     
     def _validate_html(self, path: Path, relative: str) -> ValidationResult:
         errors = []
-        content = path.read_text()
+        content = path.read_text(encoding="utf-8")
         
         if '<html' in content and '</html>' not in content:
             errors.append("Missing </html> tag")
@@ -115,7 +115,7 @@ class CodeValidator:
     def _validate_json(self, path: Path, relative: str) -> ValidationResult:
         import json
         try:
-            json.loads(path.read_text())
+            json.loads(path.read_text(encoding="utf-8"))
             return ValidationResult(file=relative, valid=True)
         except json.JSONDecodeError as e:
             return ValidationResult(
@@ -127,7 +127,7 @@ class CodeValidator:
     def _validate_yaml(self, path: Path, relative: str) -> ValidationResult:
         try:
             import yaml
-            yaml.safe_load(path.read_text())
+            yaml.safe_load(path.read_text(encoding="utf-8"))
             return ValidationResult(file=relative, valid=True)
         except yaml.YAMLError as e:
             return ValidationResult(
