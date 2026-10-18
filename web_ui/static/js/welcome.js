@@ -640,11 +640,14 @@ async function startBuilding() {
   document.getElementById('send-btn').disabled = true;
   document.getElementById('stop-btn').classList.add('visible');
 
-  addAiMsg('TeamLead',
+  const buildMsg = addAiMsg('TeamLead',
     `Отлично, всё понял. Передаю задачу команде.\n\nБудем создавать: **${state.projectIdea}**`,
     null, null, null,
     buildProgressBlock()
   );
+  // Статусная строка в блоке прогресса: без неё молчание модели выглядит как зависание.
+  state.buildStatus = buildMsg ? buildMsg.querySelector('.build-status') : null;
+  setBuildStatus('Соединяюсь с командой…');
 
   try {
     // SSE стриминг от агентов
@@ -661,7 +664,12 @@ function buildProgressBlock() {
     `<div class="step-dot"></div><span>${AGENT_LABELS[a]}</span>` +
     `</div>`
   ).join('');
-  return `<div class="progress-steps">${steps}</div>`;
+  return `<div class="progress-steps">${steps}</div>` +
+    `<div class="build-status">Соединяюсь с командой…</div>`;
+}
+
+function setBuildStatus(text) {
+  if (state.buildStatus) state.buildStatus.textContent = text;
 }
 
 async function streamAgents() {
@@ -674,6 +682,7 @@ async function streamAgents() {
 
   // Создаём AbortController для возможности отмены
   buildAbortController = new AbortController();
+  let connectGuard = null;
 
   try {
     const response = await fetch('/api/create_project_stream', {
@@ -689,6 +698,13 @@ async function streamAgents() {
     const decoder = new TextDecoder();
     let buffer = '';
     let buildDoneCalled = false;
+    let firstEventSeen = false;
+    // Если сервер молчит 20 секунд — это видно словами, а не только по тишине в чате.
+    connectGuard = setTimeout(() => {
+      if (!firstEventSeen && state.building) {
+        setBuildStatus('⚠️ Сервер не отвечает 20 секунд. Обнови страницу (Ctrl+F5) и попробуй ещё раз.');
+      }
+    }, 20000);
 
     while (true) {
       const { done, value } = await reader.read();
@@ -707,6 +723,7 @@ async function streamAgents() {
         if (line.startsWith('data: ')) {
           try {
             const data = JSON.parse(line.slice(6));
+            if (!firstEventSeen) { firstEventSeen = true; clearTimeout(connectGuard); }
             handleStreamEvent(data, () => { buildDoneCalled = true; });
           } catch {}
         }
@@ -729,6 +746,7 @@ async function streamAgents() {
       }
     }
   } finally {
+    clearTimeout(connectGuard);
     buildAbortController = null;
   }
 }
@@ -736,12 +754,14 @@ async function streamAgents() {
 function handleStreamEvent(data, markDone) {
   if (data.type === 'agent_start') {
     setAgentActive(data.agent);
+    setBuildStatus('⏳ ' + (AGENT_LABELS[data.agent] || data.agent) + ' думает… Это может занять до минуты.');
   } else if (data.type === 'agent_chunk') {
     // чанки в реальном времени — можно добавить позже
   } else if (data.type === 'project_dir') {
     state.projectDir = data.path;
   } else if (data.type === 'agent_done') {
     setAgentDone(data.agent);
+    setBuildStatus('✓ ' + (AGENT_LABELS[data.agent] || data.agent) + ' закончил');
     const files = data.files && data.files.length
       ? `\n\n📄 **Предложено файлов: ${data.files.length}** — ждут твоего решения в панели «Подтверждения»\n`
         + data.files.map(f => `• \`${f}\``).join('\n')
@@ -763,6 +783,7 @@ function handleStreamEvent(data, markDone) {
     state.buildId = data.build || state.buildId;
     state.pausedAgent = data.agent;
     state.phase = 'build_paused';
+    setBuildStatus('⏸ Пауза: прочитай объяснение и нажми «Дальше»');
     addAiMsg(AGENT_LABELS[data.agent] || data.agent,
       'Готов объяснить, что я сделал и почему. Напиши вопрос в поле ниже — отвечу я, '
       + 'а следующий агент не запустится, пока ты не нажмёшь «Дальше».',
@@ -784,6 +805,7 @@ function handleStreamEvent(data, markDone) {
     // До Тестера — это его входные факты, после — итог сборки.
     if (data.stage === 'after_tester') {
       state.buildCheck = data;
+      setBuildStatus(data.ok ? '✓ Проверка сборки: поломок нет' : '⚠️ Проверка сборки нашла поломки — смотри ниже');
       addAiMsg('system', '🔍 **Проверка сборки целиком**\n\n' + (data.summary || ''));
     }
   } else if (data.type === 'done') {

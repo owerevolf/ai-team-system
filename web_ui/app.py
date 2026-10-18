@@ -553,6 +553,9 @@ async def create_project_stream(req: CreateProjectRequest):
     """SSE-стриминг работы агентов (БЕЗ TeamLead — он уже был)"""
 
     async def event_stream():
+        # Первая строка — сразу: браузер получает заголовки и не считает, что сервер молчит.
+        yield ": connected\n\n"
+
         # TeamLead уже был, запускаем остальных
         agents = ["architect", "backend", "frontend", "devops", "tester", "documentalist"]
         full_query = f"Продолжаем проект '{req.project_name}': {req.query}"
