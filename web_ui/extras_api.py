@@ -89,6 +89,36 @@ def read_project_file(path: str) -> Dict[str, Any]:
     }
 
 
+@router.post("/api/approvals/export")
+def export_pending() -> Dict[str, Any]:
+    """Складывает неподтверждённые правки в отдельную папку для просмотра.
+
+    Зачем: качество работы надо оценивать по настоящим файлам, а не по описаниям.
+    Проект при этом не трогается, а папка просмотра удаляется одной командой.
+    """
+    from core.project_manager.runtime.developer.developer_api import (
+        approvals_runtime,
+        patch_engine,
+    )
+
+    root = Path(os.getenv("USERPROFILE") or Path.home()) / "ai-team-projects" / "_просмотр"
+    target = root / datetime.now().strftime("%Y%m%d_%H%M%S")
+    written = []
+
+    for request in approvals_runtime().get_pending():
+        patch = patch_engine().get_patch(getattr(request, "patch_id", ""))
+        if not patch:
+            continue
+        folder = target / request.request_id[:8]
+        for change in getattr(patch, "files", []) or []:
+            folder.mkdir(parents=True, exist_ok=True)
+            path = folder / Path(change.file_path).name
+            path.write_text(change.new_content or "", encoding="utf-8")
+            written.append(str(path))
+
+    return {"folder": str(target) if written else "", "files": written, "count": len(written)}
+
+
 @router.get("/api/health/model")
 def health_model() -> Dict[str, Any]:
     """Проверяет, отвечает ли модель из того же процесса, что и приложение.
