@@ -392,24 +392,27 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
 
 ## ИНСТРУКЦИИ
 1. Проанализируй задачу
-2. Используй create_file для создания кода
+2. Создай файлы блоками `=== FILE: путь ===` (формат ниже)
 3. Создавай РЕАЛЬНЫЙ рабочий код
-4. После завершения верни JSON:
-{{"status": "success", "files_created": ["file1.py"], "summary": "что сделано"}}
 
-## TOOL CALL FORMAT
+## КАК ОТДАВАТЬ ФАЙЛЫ
 
 Правило размера: один файл — не больше 60 строк. Если код больше, раздели его на
-несколько файлов и вызывай инструмент отдельно для каждого. Длинный ответ обрывается
-на лимите длины у модели — и тогда не создаётся вообще ничего.
+несколько файлов: длинный ответ обрывается на лимите длины, и тогда не создаётся ничего.
 
-Правило объяснения: перед вызовом инструмента напиши короткое объяснение для новичка
-(3–5 строк) — что делает файл, почему выбран такой подход и на что обратить внимание.
-Пиши простыми словами, без жаргона без расшифровки. Человек читает это, чтобы научиться,
-поэтому объяснение так же обязательно, как сам код.
-<tool_call>
-{{"tool": "create_file", "path": "file.py", "content": "# код"}}
-</tool_call>
+Правило объяснения: перед файлами напиши короткое объяснение для новичка (3–5 строк) —
+что делает файл, почему выбран такой подход и на что обратить внимание.
+Пиши простыми словами, без жаргона без расшифровки.
+
+Каждый файл — отдельным блоком, ровно в таком виде:
+
+=== FILE: file.py ===
+```python
+# код
+```
+
+Не задавай вопросов в конце и не жди разрешения: ты уже работаешь.
+Если файлы не нужны (ты только объясняешь) — не пиши блоков FILE.
 
 Начни работу!
 """
@@ -417,7 +420,14 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
         created_files = []
         try:
             response = self.model_router.generate(
-                prompt=full_prompt + self._project_state_block() + self._english_role_brief(agent_name),
+                # Правило формата — последним: у маленькой модели побеждает то,
+                # что ближе к концу промпта, а роль просит «нарисуй чертёж и спроси».
+                prompt=(
+                    full_prompt
+                    + self._project_state_block()
+                    + self._english_role_brief(agent_name)
+                    + self._output_format_rule()
+                ),
                 agent=agent_name
             )
 
@@ -438,12 +448,12 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
                 if not created_files:
                     retry_prompt = (
                         full_prompt + self._project_state_block()
-                        + "\n\nВАЖНО: в прошлый раз вызова инструмента не было: либо ты описал работу словами, либо ответ оборвался на лимите длины."
-                        "Сейчас верни ТОЛЬКО вызов в формате ＜tool_call＞…＜/tool_call＞, "
-                        "без рассуждений. Сделай файл коротким — до 30 строк: длинный ответ обрывается и не доходит. Если файлов не нужно — напиши об этом одной строкой."
+                        + "\n\nВАЖНО: в прошлый раз файлов не было: либо ты описал работу словами, либо ответ оборвался на лимите длины."
+                        "Сейчас верни ТОЛЬКО блоки === FILE: путь === с кодом, без рассуждений и без вопросов. "
+                        "Сделай файл коротким — до 30 строк: длинный ответ обрывается и не доходит. Если файлов не нужно — напиши об этом одной строкой."
                     )
                     retry_response = self.model_router.generate(
-                        prompt=retry_prompt,
+                        prompt=retry_prompt + self._output_format_rule(),
                         agent=agent_name,
                     )
                     retry_files = self._extract_and_create_files(retry_response)
@@ -656,7 +666,28 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
             "Код, имена файлов и команд остаются как есть.\n\n"
         )
 
+    @staticmethod
+    def _output_format_rule() -> str:
+        """Последняя строка промпта: как отдавать файлы. Ближе к концу — сильнее."""
+        return (
+            "\n\n## ФОРМАТ ОТВЕТА (обязательно, важнее стиля роли)\n"
+            "Сначала — до 5 строк объяснения простыми словами. Потом каждый файл отдельным блоком, "
+            "ровно так:\n"
+            "=== FILE: путь/имя.py ===\n"
+            "```python\n"
+            "код файла\n"
+            "```\n"
+            "Один файл — до 60 строк. Вопросов в конце не задавай: ты уже работаешь.\n"
+            "Если файлы не нужны — просто объясни, без блоков FILE.\n"
+        )
+
     def _extract_and_create_files(self, response: str) -> List[str]:
+        # 1. Блоки `=== FILE: путь ===`: так пишет даже 8B-модель, которой JSON
+        #    с экранированными переносами внутри content не даётся.
+        created = self._create_file_blocks(response)
+        if created:
+            return created
+
         created = []
         tool_pattern = r'<tool_call>\s*(.*?)\s*</tool_call>'
         # Одни модели отдают вызов в широких скобках (U+FF1C/U+FF1E), другие — в обычных:
@@ -708,7 +739,10 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
                 
                 if tool_name in self.tools and self.tools[tool_name].handler:
                     result = self.tools[tool_name].handler(tool_data)
-                    if result.get("success"):
+                    # pending=True — правка ушла в очередь подтверждений. Это тоже
+                    # созданный файл: иначе агент считает работу проваленной и
+                    # повторяет её, хотя человек уже видит предложение.
+                    if result.get("success") or result.get("pending"):
                         created.append(result.get("path", "unknown"))
                         
             except json.JSONDecodeError as exc:
@@ -721,12 +755,85 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
             code_blocks = re.findall(r'```(?:\w+)?\s*(.*?)```', response, re.DOTALL)
             for i, code in enumerate(code_blocks):
                 path = f"code/generated_{len(created)}_{i}.py"
-                success = self._create_file({"path": path, "content": code.strip()})
-                if success.get("success"):
+                body = code.strip()
+                if not body:
+                    continue
+                # Дерево папок и куски текста в блоке ``` — не файл: без проверки
+                # синтаксиса они превращались в мусорные code/generated_*.py.
+                try:
+                    compile(body, path, "exec")
+                except SyntaxError:
+                    continue
+                success = self._create_file({"path": path, "content": body})
+                if success.get("success") or success.get("pending"):
                     created.append(path)
         
         return created
     
+    _FILE_HEADER = re.compile(
+        r"^\s*(?:={3,}|#{2,})?\s*(?:FILE|ФАЙЛ)\s*:\s*(?P<path>[^\n=#]+?)\s*(?:={3,}|#{2,})?\s*$",
+        re.IGNORECASE,
+    )
+    _BOLD_HEADER = re.compile(r"^\s*\*\*[^\w\n]*?(?P<path>[\w./\\-]+\.\w+)\*\*\s*$")
+
+    def _file_blocks(self, response: str) -> List[tuple]:
+        """Файлы из ответа модели: заголовок с путём и следующий за ним блок кода.
+
+        Поддерживаются `=== FILE: путь ===`, `### FILE: путь`, `### ФАЙЛ: путь`
+        и жирная строка `**📄 путь.py**` — так модели пишут сами, без JSON.
+        Блок без кода (просто описание файла) файлом не считается.
+        """
+        lines = response.splitlines()
+        blocks: List[tuple] = []
+        i = 0
+        while i < len(lines):
+            header = self._FILE_HEADER.match(lines[i]) or self._BOLD_HEADER.match(lines[i])
+            if not header:
+                i += 1
+                continue
+
+            path = header.group("path").strip().strip("`*").strip()
+            j = i + 1
+            while j < len(lines) and not re.match(r"^\s*(```|~~~)", lines[j]):
+                if self._FILE_HEADER.match(lines[j]):
+                    break
+                j += 1
+            if j >= len(lines) or not re.match(r"^\s*(```|~~~)", lines[j]):
+                i += 1
+                continue
+
+            fence = "```" if "```" in lines[j] else "~~~"
+            k = j + 1
+            code: List[str] = []
+            while k < len(lines) and not lines[k].strip().startswith(fence):
+                code.append(lines[k])
+                k += 1
+            if k >= len(lines):
+                i += 1
+                continue
+
+            blocks.append((path, "\n".join(code).strip("\n")))
+            i = k + 1
+
+        return blocks
+
+    def _create_file_blocks(self, response: str) -> List[str]:
+        """Создаёт файлы из блоков `=== FILE: ... ===`. Возвращает пути принятых."""
+        created: List[str] = []
+        for path, code in self._file_blocks(response):
+            if not path or not code.strip():
+                continue
+            if path.endswith(".py"):
+                try:
+                    compile(code, path, "exec")
+                except SyntaxError as exc:
+                    self.logger.warning(f"Синтаксис не прошёл, блок отклонён: {path}: {exc}")
+                    continue
+            result = self._create_file({"path": path, "content": code, "overwrite": True})
+            if result.get("success") or result.get("pending"):
+                created.append(result.get("path", path))
+        return created
+
     def _create_file(self, params: Dict) -> Dict[str, Any]:
         """
         Создаёт файл внутри папки проекта.

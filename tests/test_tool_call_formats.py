@@ -55,3 +55,64 @@ def test_bare_json_without_wrapper_is_recognised():
 
 def test_garbage_returns_nothing_instead_of_raising():
     assert AgentManager._parse_tool_call("просто текст без вызова") is None
+
+
+def test_file_blocks_are_created_without_json():
+    """Модель пишет файлы заголовком и кодом — это должно становиться файлами."""
+    manager = make_manager()
+    manager.project_path = None
+    captured = []
+    manager._create_file = lambda params: captured.append(params) or {
+        "success": True, "path": params["path"]
+    }
+
+    response = (
+        "Короткое объяснение.\n\n"
+        "=== FILE: calculator.py ===\n```python\ndef add(a, b):\n    return a + b\n```\n\n"
+        "=== FILE: src/history.py ===\n```python\ndef save(x):\n    return x\n```\n"
+    )
+
+    assert manager._extract_and_create_files(response) == ["calculator.py", "src/history.py"]
+    assert captured[0]["content"].startswith("def add")
+
+
+def test_pending_proposal_counts_as_created():
+    """Правка в очереди подтверждений — это созданный файл, а не провал."""
+    manager = make_manager()
+    manager.project_path = None
+    manager._create_file = lambda params: {
+        "success": False, "pending": True, "path": params["path"]
+    }
+
+    response = "=== FILE: main.py ===\n```python\nprint(1)\n```\n"
+
+    assert manager._extract_and_create_files(response) == ["main.py"]
+
+
+def test_description_without_code_is_not_a_file():
+    """Чертёж с деревом папок — объяснение, а не файлы."""
+    manager = make_manager()
+    manager.project_path = None
+    manager._create_file = lambda params: {"success": True, "path": params["path"]}
+
+    response = (
+        "### Сначала — общая картина:\n"
+        "```\n📁 проект\n├── 📄 calculator.py\n└── 📄 history.txt\n```\n"
+        "**📄 calculator.py**\nСодержит функции add и subtract.\n"
+    )
+
+    assert manager._extract_and_create_files(response) == []
+
+
+def test_broken_python_block_is_rejected():
+    manager = make_manager()
+    manager.project_path = None
+    captured = []
+    manager._create_file = lambda params: captured.append(params) or {
+        "success": True, "path": params["path"]
+    }
+
+    response = "=== FILE: broken.py ===\n```python\ndef broken(:\n    pass\n```\n"
+
+    assert manager._extract_and_create_files(response) == []
+    assert captured == []
