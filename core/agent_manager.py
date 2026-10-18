@@ -417,19 +417,27 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
         created_files = []
         try:
             response = self.model_router.generate(
-                prompt=full_prompt,
+                prompt=full_prompt + self._project_state_block(),
                 agent=agent_name
             )
 
             if not is_coordinator:
                 created_files = self._extract_and_create_files(response)
+                # Записываем факт, а не намерение: следующий агент увидит список файлов.
+                try:
+                    from core import project_truth
+
+                    for name in created_files:
+                        project_truth.record_file(self.project_path, name, author=agent_name)
+                except Exception:  # noqa: BLE001
+                    pass
 
                 # Агент, который только рассказал, но не вызвал инструмент, — самая
                 # частая потеря: снаружи работа выглядит сделанной, а файлов нет.
                 # Даём ровно одну попытку с прямым требованием формата.
                 if not created_files:
                     retry_prompt = (
-                        full_prompt
+                        full_prompt + self._project_state_block()
                         + "\n\nВАЖНО: в прошлый раз вызова инструмента не было: либо ты описал работу словами, либо ответ оборвался на лимите длины."
                         "Сейчас верни ТОЛЬКО вызов в формате ＜tool_call＞…＜/tool_call＞, "
                         "без рассуждений. Сделай файл коротким — до 30 строк: длинный ответ обрывается и не доходит. Если файлов не нужно — напиши об этом одной строкой."
@@ -575,6 +583,15 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
         found["content"] = text
         found.setdefault("tool", "create_file")
         return found
+
+    def _project_state_block(self) -> str:
+        """Короткая справка о проекте для промпта: что уже предложено и кем."""
+        try:
+            from core import project_truth
+
+            return project_truth.as_prompt_block(self.project_path)
+        except Exception:  # noqa: BLE001 — справка не должна ломать ход агента
+            return ""
 
     @staticmethod
     def _reply_language_rule() -> str:
