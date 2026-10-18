@@ -711,10 +711,16 @@ function handleStreamEvent(data, markDone) {
   } else if (data.type === 'agent_done') {
     setAgentDone(data.agent);
     const files = data.files && data.files.length
-      ? `\n\n📄 **Создано файлов: ${data.files.length}**\n` + data.files.map(f => `• \`${f}\``).join('\n')
+      ? `\n\n📄 **Предложено файлов: ${data.files.length}** — ждут твоего решения в панели «Подтверждения»\n`
+        + data.files.map(f => `• \`${f}\``).join('\n')
       : '';
-    
-    const summary = summarizeResponse(data.response, state.level);
+
+    // Модель отвечает «объяснение + JSON вызова». JSON в чате — мусор: показываем объяснение,
+    // а если объяснения нет — ниже строка про файлы всё скажет.
+    const raw = String(data.response || '');
+    const jsonStart = raw.search(/\{\s*"(tool|status|files_created)"/);
+    const explanation = (jsonStart > 0 ? raw.slice(0, jsonStart) : (jsonStart === 0 ? '' : raw)).trim();
+    const summary = explanation || 'Готово — подробности в строке ниже.';
     const fullMsg = summary + files;
     
     addAiMsg(AGENT_LABELS[data.agent] || data.agent, fullMsg);
