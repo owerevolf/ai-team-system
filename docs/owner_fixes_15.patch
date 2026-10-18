@@ -1,0 +1,29 @@
+Уровень «ноль» начинается с приглашения к занятию, а не с требования идеи.
+
+Патч собран по фактическому содержимому файла владельца.
+
+Применение (в D:\Projekt Ai Teem):
+       git pull
+       git apply --check --ignore-whitespace docs/owner_fixes_15.patch
+       git apply --ignore-whitespace docs/owner_fixes_15.patch
+       node --check web_ui\static\js\welcome.js
+
+--- a/web_ui/static/js/welcome.js
++++ b/web_ui/static/js/welcome.js
+@@ -232,7 +232,15 @@
+   state.projectIdea = '';
+   state.projectName = '';
+   
+-  addAiMsg('system', 'Отлично! Расскажи свою идею — что хочешь создать?');
++  // Для «нуля» это не анкета, а начало занятия: человек пришёл учиться,
++  // поэтому первая фраза приглашает к уроку, а не требует готовую идею.
++  if (value === 'zero') {
++    addAiMsg('TeamLead',
++      'Давай сделаем твой первый проект — вместе, шаг за шагом. ' +
++      'Расскажи, что тебе самому интересно: игры, коты, музыка, машины, что-то ещё?');
++  } else {
++    addAiMsg('system', 'Отлично! Расскажи свою идею — что хочешь создать?');
++  }
+   focusInput();
+ }
+ 
