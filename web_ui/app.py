@@ -575,6 +575,7 @@ async def create_project_stream(req: CreateProjectRequest):
 
         results = {}
         all_files = []
+        build_report = None
 
         # Инициализируем AgentManager и ModelRouter один раз
         from core.model_router import ModelRouter
@@ -586,6 +587,7 @@ async def create_project_stream(req: CreateProjectRequest):
 
         # Правки агентов идут через движок патчей и очередь подтверждений:
         # файл меняется только после решения человека в панели «Подтверждения».
+        approvals = None
         try:
             from core.project_manager.runtime.developer.patch_engine import PatchEngine, RiskLevel
             # Один движок и одна очередь на процесс: иначе панель «Подтверждения»
@@ -622,6 +624,7 @@ async def create_project_stream(req: CreateProjectRequest):
 
         import uuid
 
+        from core.build_check import check_build
         from core.build_gates import gate as build_gate
 
         # Каждая сборка получает свой шлюз: продолжение нажимается именно для неё.
@@ -632,9 +635,33 @@ async def create_project_stream(req: CreateProjectRequest):
             yield f"data: {json.dumps({'type': 'agent_start', 'agent': agent})}\n\n"
             await asyncio.sleep(0)
 
+            agent_query = query_with_level
+            if agent == "tester":
+                # Тестер проверяет сборку целиком: до него прогоняем проверку и отдаём
+                # ему факты — какие импорты не сходятся, есть ли точка входа, какие
+                # ссылки из HTML ведут в пустоту. Список файлов этого не показывает.
+                pre_report = None
+                try:
+                    pre_report = await asyncio.get_event_loop().run_in_executor(
+                        None, lambda: check_build(project_dir, approvals, run_tests=False)
+                    )
+                except Exception as exc:  # noqa: BLE001 — без проверки Тестер тоже работает
+                    logger.warning(f"Проверка сборки перед Тестером не удалась: {exc}")
+
+                if pre_report is not None:
+                    yield (
+                        "data: " + json.dumps(
+                            {"type": "build_check", "stage": "before_tester", **pre_report.as_dict()},
+                            ensure_ascii=False,
+                        ) + "\n\n"
+                    )
+                    agent_query = (
+                        f"{query_with_level}\n\n{pre_report.as_prompt_block()}"
+                    )
+
             try:
                 result = await asyncio.get_event_loop().run_in_executor(
-                    None, lambda a=agent: manager.run_agent(a, query_with_level, level=req.level)
+                    None, lambda a=agent, q=agent_query: manager.run_agent(a, q, level=req.level)
                 )
 
                 raw_response = result.get('response', '')
@@ -644,6 +671,27 @@ async def create_project_stream(req: CreateProjectRequest):
                 results[agent] = raw_response
 
                 yield f"data: {json.dumps({'type': 'agent_done', 'agent': agent, 'response': raw_response, 'files': created_files, 'summary': summary}, ensure_ascii=False)}\n\n"
+
+                if agent == "tester":
+                    # Проверка сборки целиком сразу после Тестера: его тесты уже
+                    # предложены, и человек видит результат до нажатия «Дальше».
+                    # Проверка идёт на копии, где предложенные файлы уже лежат.
+                    try:
+                        build_report = await asyncio.get_event_loop().run_in_executor(
+                            None, lambda: check_build(project_dir, approvals, run_tests=True)
+                        )
+                        yield (
+                            "data: " + json.dumps(
+                                {
+                                    "type": "build_check",
+                                    "stage": "after_tester",
+                                    **build_report.as_dict(),
+                                },
+                                ensure_ascii=False,
+                            ) + "\n\n"
+                        )
+                    except Exception as exc:  # noqa: BLE001 — проверка не должна ломать сборку
+                        logger.warning(f"Проверка сборки после Тестера не удалась: {exc}")
 
                 # Пауза после каждого агента, кроме последнего: человек читает
                 # объяснение и сам решает, когда звать следующего.
@@ -662,7 +710,7 @@ async def create_project_stream(req: CreateProjectRequest):
             await asyncio.sleep(0.1)
 
         # Финал
-        yield f"data: {json.dumps({'type': 'done', 'project': req.project_name, 'project_dir': str(project_dir), 'total_files': len(all_files), 'files': all_files})}\n\n"
+        yield f"data: {json.dumps({'type': 'done', 'project': req.project_name, 'project_dir': str(project_dir), 'total_files': len(all_files), 'files': all_files, 'build_check': build_report.summary() if build_report else '', 'build_ok': bool(build_report and build_report.ok)}, ensure_ascii=False)}\n\n"
 
         # Экспорт markdown
         try:

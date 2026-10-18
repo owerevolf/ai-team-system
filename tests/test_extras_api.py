@@ -80,3 +80,45 @@ class TestTourEndpoint:
     def test_missing_language_falls_back_to_russian(self, client):
         data = client.get("/api/tour", params={"lang": "de"}).json()
         assert data["total"] >= 9
+
+
+class TestBuildCheckEndpoint:
+    def test_refuses_folder_outside_projects(self, client, tmp_path, monkeypatch):
+        import web_ui.extras_api as extras
+
+        monkeypatch.setattr(extras, "_SESSIONS_DIR", tmp_path / "projects")
+        (tmp_path / "outside").mkdir()
+
+        response = client.post("/api/build/check", json={"path": str(tmp_path / "outside")})
+
+        assert response.status_code == 403
+
+    def test_reports_broken_import_of_the_project(self, client, tmp_path, monkeypatch):
+        import web_ui.extras_api as extras
+
+        root = tmp_path / "projects"
+        project = root / "demo"
+        project.mkdir(parents=True)
+        (project / "main.py").write_text("import missing_local_module\n", encoding="utf-8")
+        monkeypatch.setattr(extras, "_SESSIONS_DIR", root)
+
+        data = client.post("/api/build/check", json={"path": str(project)}).json()
+
+        assert data["ok"] is False
+        assert any("missing_local_module" in error for error in data["errors"])
+
+    def test_uses_latest_project_when_path_is_omitted(self, client, tmp_path, monkeypatch):
+        import web_ui.extras_api as extras
+
+        root = tmp_path / "projects"
+        older = root / "older"
+        newer = root / "newer"
+        for folder in (older, newer):
+            folder.mkdir(parents=True)
+            (folder / "main.py").write_text("VALUE = 1\n", encoding="utf-8")
+        monkeypatch.setattr(extras, "_SESSIONS_DIR", root)
+
+        data = client.post("/api/build/check", json={}).json()
+
+        assert data["files"] >= 1
+        assert data["project"].endswith(("older", "newer"))

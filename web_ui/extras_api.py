@@ -132,6 +132,59 @@ async def build_continue(request: Request) -> Dict[str, Any]:
     return {"status": "ok", "released": released, "build": build_id}
 
 
+@router.post("/api/build/check")
+async def build_check(request: Request) -> Dict[str, Any]:
+    """Проверка сборки целиком — по кнопке и после сборки.
+
+    Синтаксиса каждого файла мало: проект проверяется как система — импорты,
+    точка входа, ссылки из HTML, тесты. Предложенные, но не подтверждённые файлы
+    тоже учитываются: человек видит, что получится после «Применить».
+    """
+    import asyncio
+
+    from core.build_check import check_build
+
+    body = await request.json()
+    raw = str(body.get("path") or "").strip()
+    root = _SESSIONS_DIR.resolve()
+
+    if raw:
+        target = Path(raw).resolve()
+        if root != target and root not in target.parents:
+            raise HTTPException(status_code=403, detail="папка вне папки проектов")
+        if not target.is_dir():
+            raise HTTPException(status_code=404, detail="папки нет")
+    else:
+        target = _latest_project()
+        if target is None:
+            raise HTTPException(status_code=404, detail="проектов ещё нет")
+
+    approvals = None
+    try:
+        from core.project_manager.runtime.developer.developer_api import approvals_runtime
+
+        approvals = approvals_runtime()
+    except Exception:  # noqa: BLE001 — без очереди проверяем то, что на диске
+        approvals = None
+
+    report = await asyncio.get_event_loop().run_in_executor(
+        None, lambda: check_build(target, approvals, run_tests=True)
+    )
+    return report.as_dict()
+
+
+def _latest_project() -> Optional[Path]:
+    """Самая свежая папка проекта — когда интерфейс не передал путь."""
+    if not _SESSIONS_DIR.is_dir():
+        return None
+    folders = sorted(
+        (p for p in _SESSIONS_DIR.iterdir() if p.is_dir() and not p.name.startswith("_")),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    return folders[0] if folders else None
+
+
 @router.post("/api/approvals/export")
 def export_pending() -> Dict[str, Any]:
     """Складывает неподтверждённые правки в отдельную папку для просмотра.

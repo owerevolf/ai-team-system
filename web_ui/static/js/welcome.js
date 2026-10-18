@@ -779,6 +779,13 @@ function handleStreamEvent(data, markDone) {
       });
   } else if (data.type === 'paused_timeout') {
     addAiMsg('system', 'Сборка остановлена: время ожидания вышло. Запусти новую, когда будет удобно.');
+  } else if (data.type === 'build_check') {
+    // Проверка сборки целиком: результат нужен человеку, а не только Тестеру.
+    // До Тестера — это его входные факты, после — итог сборки.
+    if (data.stage === 'after_tester') {
+      state.buildCheck = data;
+      addAiMsg('system', '🔍 **Проверка сборки целиком**\n\n' + (data.summary || ''));
+    }
   } else if (data.type === 'done') {
     markDone && markDone();
     onBuildDone(data);
@@ -925,10 +932,11 @@ function onBuildDone(data) {
   const totalFiles = data && data.total_files ? data.total_files : 0;
   const projectDir = data && data.project_dir ? data.project_dir : (state.projectDir || '~/ai-team-projects');
   const mdName = `${state.projectName || 'project'}.md`;
+  const checkLine = data && data.build_check ? `\n\n${data.build_check}` : '';
 
   const summary = totalFiles > 0
-    ? `✅ Проект создан! Файлов на диске: **${totalFiles}**\n📁 Папка: \`${projectDir}\`\n\nКоманда завершила работу. Что дальше?`
-    : `⏳ Сборка закончилась. Если агенты предложили файлы, они ждут тебя в панели «Подтверждения»: на диск ничего не пишется без твоего решения.`;
+    ? `✅ Проект создан! Файлов на диске: **${totalFiles}**\n📁 Папка: \`${projectDir}\`${checkLine}\n\nКоманда завершила работу. Что дальше?`
+    : `⏳ Сборка закончилась. Если агенты предложили файлы, они ждут тебя в панели «Подтверждения»: на диск ничего не пишется без твоего решения.${checkLine}`;
 
   addAiMsg('system',
     summary,
@@ -936,6 +944,7 @@ function onBuildDone(data) {
     [
       { label: '📥 Скачать Markdown', value: 'download' },
       { label: '📂 Открыть папку',    value: 'open' },
+      { label: '🔍 Проверить сборку', value: 'check' },
       { label: '🔍 Что было создано?', value: 'explain' },
       { label: '✨ Новый проект',     value: 'new' },
     ],
@@ -953,6 +962,23 @@ function onBuildDone(data) {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({path: projectDir})
+        });
+      } else if (value === 'check') {
+        // Повторная проверка по кнопке: те же проверки, что делал Тестер.
+        addUserMsg('Проверить сборку');
+        addAiMsg('system', 'Проверяю сборку целиком: импорты, точку входа, ссылки и тесты…');
+        fetch('/api/build/check', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({path: projectDir})
+        }).then((r) => r.json()).then((res) => {
+          if (res.detail) {
+            addAiMsg('system', `Проверка не запустилась: ${res.detail}`);
+          } else {
+            addAiMsg('system', `🔍 **Проверка сборки целиком**\n\n${res.summary || 'Замечаний нет.'}`);
+          }
+        }).catch((e) => {
+          addAiMsg('system', `Проверка не запустилась: ${e.message}`);
         });
       } else if (value === 'explain') {
         addUserMsg('Что было создано?');
