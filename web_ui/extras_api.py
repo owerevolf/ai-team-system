@@ -89,6 +89,30 @@ def read_project_file(path: str) -> Dict[str, Any]:
     }
 
 
+@router.get("/api/health/model")
+def health_model() -> Dict[str, Any]:
+    """Проверяет, отвечает ли модель из того же процесса, что и приложение.
+
+    Сообщение «модель не ответила» одинаковое, а причины разные: модель не запущена
+    или приложение её не видит. Эта проверка показывает, что именно.
+    """
+    try:
+        from core.model_router import ModelRouter
+
+        router = ModelRouter(profile=os.getenv("HARDWARE_PROFILE", "medium"))
+        answer = str(
+            router.generate(prompt="Ответь одним коротким словом: работает?", agent="teamlead") or ""
+        )[:300]
+        failed = "не ответила" in answer or "не настроены" in answer
+        return {
+            "ok": not failed,
+            "model": os.getenv("OLLAMA_MODEL", "не задана в .env"),
+            "answer": answer,
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)[:300]}
+
+
 @router.get("/api/sessions")
 def list_sessions() -> Dict[str, Any]:
     """Прошлые проекты: имя, когда делали, сколько файлов внутри.
