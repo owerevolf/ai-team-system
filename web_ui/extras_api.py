@@ -103,12 +103,22 @@ async def ask_agent(request: Request) -> Dict[str, Any]:
     agent = str(body.get("agent", "architect"))
     question = str(body.get("question", "")).strip()[:2000]
     level = str(body.get("level", "zero"))
+    project_dir = str(body.get("project_dir") or "").strip()
     if not question:
         raise HTTPException(status_code=400, detail="пустой вопрос")
 
     manager = AgentManager(ModelRouter(profile=os.getenv("HARDWARE_PROFILE", "medium")))
+    if project_dir:
+        # Без папки проекта агент отвечает вслепую: «этот файл» ему неизвестен.
+        try:
+            manager.set_project_path(Path(project_dir))
+        except Exception:  # noqa: BLE001 — без папки ответ останется общим
+            pass
+
     prompt = (
         manager.get_agent_prompt(agent, level)
+        + "\n\n"
+        + manager._project_state_block()
         + "\n\nСейчас ты НЕ создаёшь и НЕ меняешь файлы: ты объясняешь человеку то, что он спросил. "
         + "Ответь коротко и простыми словами.\n\nВопрос: "
         + question

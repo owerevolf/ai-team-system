@@ -257,7 +257,11 @@ function autoResize(el) {
 async function sendMessage() {
   const input = document.getElementById('user-input');
   const text  = input.value.trim();
-  if (!text || state.building) return;
+  // На паузе сборка ждёт человека, но state.building остаётся true — вопрос
+  // агенту должен проходить именно в этом состоянии, иначе приглашение
+  // «напиши вопрос» обманывает.
+  const askingPaused = state.phase === 'build_paused' && !!state.pausedAgent;
+  if (!text || (state.building && !askingPaused)) return;
 
   input.value = '';
   input.style.height = 'auto';
@@ -277,7 +281,7 @@ async function sendMessage() {
       const answer = await fetch('/api/agent/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agent: agent, question: text, level: state.level })
+        body: JSON.stringify({ agent: agent, question: text, level: state.level, project_dir: state.projectDir || '' })
       }).then(function (r) { return r.json(); });
       removeTyping();
       addAiMsg(AGENT_LABELS[agent] || agent, String(answer.answer || 'Не смог ответить.'));
@@ -900,7 +904,7 @@ function handleStreamEvent(data, markDone) {
     state.buildId = data.build || state.buildId;
     state.pausedAgent = data.agent;
     state.phase = 'build_paused';
-    setBuildStatus('⏸ Пауза: прочитай объяснение и нажми «Дальше»');
+    setBuildStatus('⏸ Пауза: спроси меня в поле ниже или нажми «Дальше»');
     addAiMsg(AGENT_LABELS[data.agent] || data.agent,
       'Готов объяснить, что я сделал и почему. Напиши вопрос в поле ниже — отвечу я, '
       + 'а следующий агент не запустится, пока ты не нажмёшь «Дальше».',
@@ -909,12 +913,29 @@ function handleStreamEvent(data, markDone) {
       function () {
         state.pausedAgent = null;
         state.phase = 'building';
+        const nextSend = document.getElementById('send-btn');
+        if (nextSend) nextSend.disabled = true;
+        const nextInput = document.getElementById('user-input');
+        if (nextInput && state.inputPlaceholder) nextInput.placeholder = state.inputPlaceholder;
         fetch('/api/build/continue', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ build: state.buildId })
         });
       });
+
+    // На паузе вопрос разрешён, значит поле и кнопка должны работать.
+    // Без этого приглашение «напиши вопрос» было ложью: отправка молча глохла.
+    const pauseInput = document.getElementById('user-input');
+    const pauseSend = document.getElementById('send-btn');
+    if (pauseInput) {
+      if (!state.inputPlaceholder) state.inputPlaceholder = pauseInput.placeholder;
+      pauseInput.disabled = false;
+      pauseInput.placeholder = 'Спроси ' + (AGENT_LABELS[data.agent] || data.agent)
+        + ': например, «зачем этот файл?»';
+      pauseInput.focus();
+    }
+    if (pauseSend) pauseSend.disabled = false;
   } else if (data.type === 'paused_timeout') {
     addAiMsg('system', 'Сборка остановлена: время ожидания вышло. Запусти новую, когда будет удобно.');
   } else if (data.type === 'build_check') {

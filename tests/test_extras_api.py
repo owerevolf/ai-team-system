@@ -82,6 +82,50 @@ class TestTourEndpoint:
         assert data["total"] >= 9
 
 
+class TestAskAgentEndpoint:
+    def test_question_uses_project_folder(self, client, tmp_path, monkeypatch):
+        """На паузе агент должен видеть проект, иначе «этот файл» ему неизвестен."""
+        import core.agent_manager as agent_manager
+        import core.model_router as model_router
+
+        seen = {}
+
+        class FakeRouter:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def generate(self, prompt=None, agent=None):
+                seen['prompt'] = prompt
+                return 'ответ'
+
+        class FakeManager:
+            def __init__(self, router=None):
+                self.model_router = router
+                self.project_path = None
+
+            def set_project_path(self, path):
+                self.project_path = path
+
+            def get_agent_prompt(self, agent, level):
+                return 'ROLE'
+
+            def _project_state_block(self):
+                return 'TRUTH BLOCK'
+
+        monkeypatch.setattr(model_router, 'ModelRouter', FakeRouter)
+        monkeypatch.setattr(agent_manager, 'AgentManager', FakeManager)
+
+        data = client.post('/api/agent/ask', json={
+            'agent': 'architect',
+            'question': 'зачем этот файл?',
+            'level': 'zero',
+            'project_dir': str(tmp_path),
+        }).json()
+
+        assert data == {'status': 'ok', 'agent': 'architect', 'answer': 'ответ'}
+        assert 'TRUTH BLOCK' in seen['prompt']
+
+
 class TestBuildCheckEndpoint:
     def test_refuses_folder_outside_projects(self, client, tmp_path, monkeypatch):
         import web_ui.extras_api as extras
