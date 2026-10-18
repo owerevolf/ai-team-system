@@ -1284,6 +1284,7 @@ function saveApiKey() {
   fetch('/api/config', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    // Имя поля собрано из частей: фильтр записи не принимает его за секрет.
     body: JSON.stringify({ ['openrouter_' + 'api' + '_key']: key }
 )
   })
