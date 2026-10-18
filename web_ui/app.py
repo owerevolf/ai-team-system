@@ -1198,7 +1198,8 @@ class CreateWebhookRequest(BaseModel):
 async def create_webhook_subscription(req: CreateWebhookRequest):
     """Создать подписку на webhook"""
     sub_id = webhook_manager.create_subscription(
-        name=req.name, url=req.url, events=req.events, secret=req.signing_key
+        name=req.name, url=req.url, events=req.events,
+
 
     )
     return JSONResponse({"id": sub_id, "status": "created"})
