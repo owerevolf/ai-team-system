@@ -25,6 +25,12 @@ param(
     [switch]$NoBrowser
 )
 
+# Русский текст в консоли Windows: без этого сообщения выводятся кракозябрами,
+# и человек не может прочитать, что именно сломалось.
+try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
+try { chcp 65001 > $null } catch { }
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent
 Set-Location $root
