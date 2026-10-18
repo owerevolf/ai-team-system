@@ -98,6 +98,18 @@ class ApprovalRuntime:
                        lines_added: int = 0, lines_removed: int = 0,
                        diff_preview: str = "") -> ApprovalRequest:
         """Create an approval request for a patch."""
+        # Один файл — один автор: если файл уже ждёт решения, старую заявку убираем,
+        # иначе восемь агентов приносят восемь версий calculator.py.
+        if files_changed:
+            new_name = str(files_changed[0]).replace("\\", "/").rsplit("/", 1)[-1]
+            for existing in list(self._queue.values()):
+                names = [
+                    str(path).replace("\\", "/").rsplit("/", 1)[-1]
+                    for path in (existing.files_changed or [])
+                ]
+                if new_name in names:
+                    self._queue.pop(existing.request_id, None)
+
         request = ApprovalRequest(
             patch_id=patch_id,
             task_id=task_id,
