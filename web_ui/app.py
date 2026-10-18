@@ -603,17 +603,20 @@ async def create_project_stream(req: CreateProjectRequest):
             approvals = approvals_runtime()
 
             def submit_for_approval(file_path, content, engine=engine, approvals=approvals):
+                # Автор — тот агент, который сейчас работает: иначе в очереди все
+                # правки были от безымянного «agent» и человек не понимал, кто что предложил.
+                author = getattr(manager, "_current_agent", "") or "agent"
                 patch = engine.generate_patch(
                     task_id="agent-write",
                     file_changes={str(file_path): content},
-                    created_by="agent",
+                    created_by=author,
                     summary=f"Правка файла {file_path.name}",
                 )
                 approvals.create_request(
                     patch_id=patch.patch_id,
                     task_id="agent-write",
-                    agent_id="agent",
-                    summary=f"Запись файла {file_path.name}",
+                    agent_id=author,
+                    summary=f"{author}: {file_path.name}",
                     risk_level=RiskLevel.MEDIUM.value,
                     files_changed=[str(file_path)],
                     files_content={str(file_path): content},

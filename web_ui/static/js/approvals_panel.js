@@ -30,6 +30,7 @@
         '.ap-body{padding:12px 14px;overflow:auto}',
         '.ap-item{border:1px solid #2a3350;border-radius:10px;padding:10px 12px;margin-bottom:10px;background:#1a2030}',
         '.ap-title{font-weight:600;color:#fff;margin-bottom:4px}',
+        '.ap-note{font-size:12px;color:#d9b26a;margin-bottom:6px}',
         '.ap-meta{font-size:12px;color:#8b93a7;margin-bottom:8px}',
         '.ap-actions{display:flex;gap:8px}',
         '.ap-btn{flex:1;padding:8px 10px;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px}',
@@ -98,8 +99,16 @@
         state.items.forEach(function (item) {
             var card = h('div', {class: 'ap-item'});
             card.appendChild(h('div', {class: 'ap-title'}, describe(item)));
+            // Замена версии должна быть видна: иначе Frontend-овский файл
+            // исчезает из очереди и никто об этом не узнаёт.
+            if (item.note) {
+                card.appendChild(h('div', {class: 'ap-note'}, item.note));
+            }
 
             var meta = [];
+            if (item.agent_id) {
+                meta.push('автор: ' + item.agent_id);
+            }
             if (item.risk_level) {
                 if (item.created_at) {
                     meta.push('создан: ' + formatTime(item.created_at));

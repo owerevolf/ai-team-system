@@ -284,6 +284,8 @@ class AgentManager:
     
     def run_agent(self, agent_name: str, task: str, context: Dict = None, level: str = "advanced") -> Dict[str, Any]:
         self.logger.info(f"Запуск агента: {agent_name} (level={level})")
+        # Кто именно предлагает файл: без этого все заявки в очереди были от «agent».
+        self._current_agent = agent_name
         self.emit_event("agent_start", {"agent": agent_name})
 
         prompt_template = self.get_agent_prompt(agent_name, level)

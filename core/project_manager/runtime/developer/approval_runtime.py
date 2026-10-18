@@ -30,6 +30,7 @@ class ApprovalStatus(Enum):
     REJECTED = "rejected"
     AUTO_APPROVED = "auto_approved"
     EXPIRED = "expired"
+    SUPERSEDED = "superseded"   # заменена новой версией того же файла
 
 
 @dataclass
@@ -43,6 +44,8 @@ class ApprovalRequest:
     task_id: str = ""
     agent_id: str = ""
     summary: str = ""
+    # Пометка для человека: чем эта заявка отличается от предыдущей версии.
+    note: str = ""
     risk_level: str = ApprovalLevel.MEDIUM.value
     status: str = ApprovalStatus.PENDING.value
     created_at: str = ""
@@ -69,6 +72,7 @@ class ApprovalRequest:
             "task_id": self.task_id,
             "agent_id": self.agent_id,
             "summary": self.summary,
+            "note": self.note,
             "risk_level": self.risk_level,
             "status": self.status,
             "created_at": self.created_at,
@@ -102,23 +106,18 @@ class ApprovalRuntime:
                        diff_preview: str = "",
                        files_content: Dict[str, str] = None) -> ApprovalRequest:
         """Create an approval request for a patch."""
-        # Один файл — один автор: если файл уже ждёт решения, старую заявку убираем,
-        # иначе восемь агентов приносят восемь версий calculator.py.
-        if files_changed:
-            new_name = str(files_changed[0]).replace("\\", "/").rsplit("/", 1)[-1]
-            for existing in list(self._queue.values()):
-                names = [
-                    str(path).replace("\\", "/").rsplit("/", 1)[-1]
-                    for path in (existing.files_changed or [])
-                ]
-                if new_name in names:
-                    self._queue.pop(existing.request_id, None)
+        # Один путь — одна заявка. Раньше сравнивались только имена файлов, и
+        # `frontend/style.css` от Frontend исчезал, когда DevOps приносил свой
+        # `style.css`: разные файлы считались одним. Заменённая версия теперь
+        # уходит в историю, а не пропадает.
+        note = self._supersede_same_paths(files_changed, agent_id)
 
         request = ApprovalRequest(
             patch_id=patch_id,
             task_id=task_id,
             agent_id=agent_id,
             summary=summary,
+            note=note,
             risk_level=risk_level,
             files_changed=files_changed if files_changed is not None else [],
             lines_added=lines_added,
@@ -137,6 +136,44 @@ class ApprovalRuntime:
             self._queue[request.request_id] = request
 
         return request
+
+    @staticmethod
+    def _normal_path(value: str) -> str:
+        """Путь для сравнения: без регистра, с прямыми слэшами и без хвостового."""
+        text = str(value).replace("\\", "/").strip().lower()
+        while "//" in text:
+            text = text.replace("//", "/")
+        return text.rstrip("/")
+
+    def _supersede_same_paths(self, files_changed, agent_id: str) -> str:
+        """Убирает заявки на те же пути и говорит человеку, чью версию заменили.
+
+        Сравниваются пути, а не имена: `backend/style.css` и `frontend/style.css` —
+        разные файлы. Совпал путь — новая версия важнее, старая уходит в историю
+        со статусом `superseded`, чтобы решение не терялось молча.
+        """
+        if not files_changed:
+            return ""
+
+        new_paths = {self._normal_path(path) for path in files_changed}
+        replaced_by = []
+
+        for existing in list(self._queue.values()):
+            old_paths = {self._normal_path(path) for path in (existing.files_changed or [])}
+            if not (new_paths & old_paths):
+                continue
+
+            self._queue.pop(existing.request_id, None)
+            existing.status = ApprovalStatus.SUPERSEDED.value
+            existing.resolved_at = datetime.utcnow().isoformat() + "Z"
+            existing.resolved_by = "system"
+            existing.comments = f"заменена новой версией от {agent_id}"
+            self._history.append(existing)
+            replaced_by.append(existing.agent_id or "агент")
+
+        if not replaced_by:
+            return ""
+        return "заменяет версию: " + ", ".join(sorted(set(replaced_by)))
 
     def approve(self, request_id: str, approved_by: str = "user",
                 comments: str = "") -> Optional[ApprovalRequest]:
@@ -179,25 +216,41 @@ class ApprovalRuntime:
         return pathlib.Path(__file__).resolve().parents[4] / ".cache" / "approvals.json"
 
     def save_state(self) -> None:
-        """Сохраняет очередь на диск: перезапуск не должен стирать неподтверждённое."""
+        """Сохраняет очередь и историю: перезапуск не должен стирать ни то, ни другое."""
         try:
             import json
 
             path = self._state_path()
             path.parent.mkdir(parents=True, exist_ok=True)
-            data = [item.__dict__ for item in self._queue.values()]
+            data = {
+                "queue": [item.__dict__ for item in self._queue.values()],
+                "history": [item.__dict__ for item in self._history],
+            }
             path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
         except Exception:  # noqa: BLE001 — сохранение не должно ломать работу
             pass
 
     def load_state(self) -> None:
-        """Возвращает сохранённую очередь при старте процесса."""
+        """Возвращает сохранённую очередь при старте процесса.
+
+        Старый файл — просто список заявок; новый — словарь с очередью и историей.
+        Оба формата читаются, иначе обновление стирало бы неподтверждённые правки.
+        """
         try:
             import json
 
-            for raw in json.loads(self._state_path().read_text(encoding="utf-8")):
+            data = json.loads(self._state_path().read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                queue = data.get("queue", [])
+                history = data.get("history", [])
+            else:
+                queue, history = data, []
+
+            for raw in queue:
                 item = ApprovalRequest(**raw)
                 self._queue[item.request_id] = item
+            for raw in history:
+                self._history.append(ApprovalRequest(**raw))
         except Exception:  # noqa: BLE001 — нет файла или он испорчен: начинаем с пустой
             pass
 
