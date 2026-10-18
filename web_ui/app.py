@@ -619,6 +619,14 @@ async def create_project_stream(req: CreateProjectRequest):
         except Exception as exc:  # noqa: BLE001
             logger.warning(f"Очередь подтверждений недоступна, агенты пишут напрямую: {exc}")
 
+        import uuid
+
+        from core.build_gates import gate as build_gate
+
+        # Каждая сборка получает свой шлюз: продолжение нажимается именно для неё.
+        build_id = uuid.uuid4().hex[:12]
+        yield f"data: {json.dumps({'type': 'build_id', 'build': build_id})}\n\n"
+
         for agent in agents:
             yield f"data: {json.dumps({'type': 'agent_start', 'agent': agent})}\n\n"
             await asyncio.sleep(0)
@@ -635,6 +643,15 @@ async def create_project_stream(req: CreateProjectRequest):
                 results[agent] = raw_response
 
                 yield f"data: {json.dumps({'type': 'agent_done', 'agent': agent, 'response': raw_response, 'files': created_files, 'summary': summary}, ensure_ascii=False)}\n\n"
+
+                # Пауза после каждого агента, кроме последнего: человек читает
+                # объяснение и сам решает, когда звать следующего.
+                if agent != agents[-1]:
+                    yield f"data: {json.dumps({'type': 'paused', 'agent': agent, 'build': build_id}, ensure_ascii=False)}\n\n"
+                    resumed = await build_gate.wait_for_continue(build_id, agent)
+                    if not resumed:
+                        yield f"data: {json.dumps({'type': 'paused_timeout', 'agent': agent})}\n\n"
+                        break
 
             except Exception as e:
                 logger.error(f"Агент {agent} ошибка: {e}")

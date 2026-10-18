@@ -89,6 +89,21 @@ def read_project_file(path: str) -> Dict[str, Any]:
     }
 
 
+@router.post("/api/build/continue")
+async def build_continue(request: Request) -> Dict[str, Any]:
+    """Продолжает сборку после паузы «Дальше».
+
+    Человек читает объяснение агента столько, сколько нужно, и только потом
+    отправляет следующего — или продолжает разговор с текущим.
+    """
+    from core.build_gates import gate
+
+    body = await request.json()
+    build_id = str(body.get("build", ""))
+    released = gate.release(build_id)
+    return {"status": "ok", "released": released, "build": build_id}
+
+
 @router.post("/api/approvals/export")
 def export_pending() -> Dict[str, Any]:
     """Складывает неподтверждённые правки в отдельную папку для просмотра.

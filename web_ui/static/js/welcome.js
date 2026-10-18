@@ -724,6 +724,24 @@ function handleStreamEvent(data, markDone) {
     const fullMsg = summary + files;
     
     addAiMsg(AGENT_LABELS[data.agent] || data.agent, fullMsg);
+  } else if (data.type === 'build_id') {
+    state.buildId = data.build;
+  } else if (data.type === 'paused') {
+    // Пауза между агентами: следующий шаг запускает человек, и только он.
+    state.buildId = data.build || state.buildId;
+    addAiMsg('system',
+      'Можно спокойно прочитать выше и задать вопрос. Когда будешь готов — жми «Дальше».',
+      null,
+      [{ label: '▶ Дальше', value: 'build_next' }],
+      function () {
+        fetch('/api/build/continue', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ build: state.buildId })
+        });
+      });
+  } else if (data.type === 'paused_timeout') {
+    addAiMsg('system', 'Сборка остановлена: время ожидания вышло. Запусти новую, когда будет удобно.');
   } else if (data.type === 'done') {
     markDone && markDone();
     onBuildDone(data);
