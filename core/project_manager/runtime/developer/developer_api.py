@@ -423,6 +423,18 @@ async def approval_action(req: ApprovalActionRequest) -> Dict[str, Any]:
                     continue
                 patch = _patch_engine.get_patch(h.patch_id)
                 if not patch:
+                    # Движок мог не знать этот патч — но содержимое лежит в самой заявке.
+                    contents = getattr(h, "files_content", {}) or {}
+                    if contents:
+                        from pathlib import Path as _Path
+
+                        for file_path, content in contents.items():
+                            target = _Path(file_path)
+                            target.parent.mkdir(parents=True, exist_ok=True)
+                            target.write_text(content, encoding="utf-8")
+                            applied = True
+                        note = "записано из заявки"
+                        break
                     note = "патч недоступен: он создан в другом экземпляре движка, файлы не записаны"
                     break
                 # Проверка обязана быть здесь: без неё применение молча отказывает.

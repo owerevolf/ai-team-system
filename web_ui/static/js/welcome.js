@@ -308,7 +308,16 @@ async function sendMessage() {
     await callTeamLead();
   } else if (state.phase === 'clarify') {
     state.clarifications['detail'] = text;
-    await startBuilding();
+    // Раньше любой текст здесь запускал сборку — то же, что было со словом «да».
+    const low = text.toLowerCase().trim();
+    const consent = ['да', 'ок', 'окей', 'делаем', 'погнали', 'старт', 'yes', 'ok'].includes(low)
+      || /^(да|ок|окей|делаем|погнали|старт)[\s!]/i.test(low);
+    if (consent) {
+      await startBuilding();
+    } else {
+      appendClarification(text);
+      addAiMsg('system', 'Принял и записал. Если всё — напиши «Делаем!», и начнём.');
+    }
   } else if (state.phase === 'done') {
     // новый проект
     addAiMsg('system', 'Хочешь создать ещё один проект? Опиши идею!');

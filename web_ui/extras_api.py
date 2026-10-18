@@ -149,6 +149,18 @@ def export_pending() -> Dict[str, Any]:
     written = []
 
     for request in approvals_runtime().get_pending():
+        # Сначала — содержимое самой заявки: оно не зависит от того,
+        # в каком экземпляре движка живёт патч.
+        contents = getattr(request, "files_content", {}) or {}
+        if contents:
+            for name, content in contents.items():
+                folder = target / request.request_id[:8]
+                folder.mkdir(parents=True, exist_ok=True)
+                path = folder / Path(name).name
+                path.write_text(content, encoding="utf-8")
+                written.append(str(path))
+            continue
+
         patch = patch_engine().get_patch(getattr(request, "patch_id", ""))
         if not patch:
             continue

@@ -35,6 +35,9 @@ class ApprovalStatus(Enum):
 @dataclass
 class ApprovalRequest:
     """A request for human approval of a patch."""
+    # Содержимое правки хранится вместе с заявкой: движок патчей может быть
+    # в другом экземпляре, и тогда «Применить» теряло файл.
+    files_content: Dict[str, str] = field(default_factory=dict)
     request_id: str = ""
     patch_id: str = ""
     task_id: str = ""
@@ -96,7 +99,8 @@ class ApprovalRuntime:
                        summary: str, risk_level: str,
                        files_changed: List[str] = None,
                        lines_added: int = 0, lines_removed: int = 0,
-                       diff_preview: str = "") -> ApprovalRequest:
+                       diff_preview: str = "",
+                       files_content: Dict[str, str] = None) -> ApprovalRequest:
         """Create an approval request for a patch."""
         # Один файл — один автор: если файл уже ждёт решения, старую заявку убираем,
         # иначе восемь агентов приносят восемь версий calculator.py.
@@ -120,6 +124,7 @@ class ApprovalRuntime:
             lines_added=lines_added,
             lines_removed=lines_removed,
             diff_preview=diff_preview,
+            files_content=files_content or {},
         )
 
         # Auto-approve low risk

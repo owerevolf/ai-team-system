@@ -611,6 +611,7 @@ async def create_project_stream(req: CreateProjectRequest):
                     summary=f"Запись файла {file_path.name}",
                     risk_level=RiskLevel.MEDIUM.value,
                     files_changed=[str(file_path)],
+                    files_content={str(file_path): content},
                 )
                 return True
 
