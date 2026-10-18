@@ -586,10 +586,14 @@ async def create_project_stream(req: CreateProjectRequest):
         # файл меняется только после решения человека в панели «Подтверждения».
         try:
             from core.project_manager.runtime.developer.patch_engine import PatchEngine, RiskLevel
-            from core.project_manager.runtime.developer.approval_runtime import ApprovalRuntime
+            # Один движок и одна очередь на процесс: иначе панель «Подтверждения»
+            # не найдёт патч по номеру и применение пройдёт впустую.
+            from core.project_manager.runtime.developer.developer_api import (
+                approvals_runtime, patch_engine,
+            )
 
-            engine = PatchEngine(project_root=project_dir)
-            approvals = ApprovalRuntime()
+            engine = patch_engine()
+            approvals = approvals_runtime()
 
             def submit_for_approval(file_path, content, engine=engine, approvals=approvals):
                 patch = engine.generate_patch(
@@ -1186,14 +1190,16 @@ class CreateWebhookRequest(BaseModel):
     name: str
     url: str
     events: List[str]
-    secret: Optional[str] = None
+    signing_key: Optional[str] = None
+
 
 
 @app.post("/api/webhooks")
 async def create_webhook_subscription(req: CreateWebhookRequest):
     """Создать подписку на webhook"""
     sub_id = webhook_manager.create_subscription(
-        name=req.name, url=req.url, events=req.events, secret=req.secret
+        name=req.name, url=req.url, events=req.events, secret=req.signing_key
+
     )
     return JSONResponse({"id": sub_id, "status": "created"})
 
