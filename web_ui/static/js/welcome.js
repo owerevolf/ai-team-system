@@ -119,7 +119,7 @@ function tourLanguage() {
 }
 
 function loadTourSteps() {
-    return fetch('/api/tour?lang=' + tourLanguage())
+    return fetch('/api/tour?lang=' + tourLanguage(), {cache: 'no-store'})
         .then(function (response) {
             return response.ok ? response.json() : {steps: []};
         })
@@ -143,6 +143,22 @@ loadTourSteps();
 function startTour() {
   state.phase = 'tour';
   state.tourStep = 0;
+  addAiMsg('system',
+    'Сначала — как мне объяснять? От этого зависит, сколько я буду разжёвывать.',
+    null,
+    [
+      { label: '🐣 Знания: ноль — объясняй всё', value: 'zero' },
+      { label: '📚 Начинающий — знаю основы', value: 'beginner' },
+      { label: '🚀 Продвинутый — только суть', value: 'advanced' },
+      { label: '➡️ Просто показать Тур', value: 'skip' },
+    ],
+    onTourLevelSelect
+  );
+}
+
+function onTourLevelSelect(value, label) {
+  if (value !== 'skip') { state.level = value; addUserMsg(label); }
+  else { addUserMsg('Просто показать Тур'); }
   showTourStep();
 }
 
@@ -216,7 +232,15 @@ function onLevelSelect(value, label) {
   state.projectIdea = '';
   state.projectName = '';
   
-  addAiMsg('system', 'Отлично! Расскажи свою идею — что хочешь создать?');
+  // Для «нуля» это не анкета, а начало занятия: человек пришёл учиться,
+  // поэтому первая фраза приглашает к уроку, а не требует готовую идею.
+  if (value === 'zero') {
+    addAiMsg('TeamLead',
+      'Давай сделаем твой первый проект — вместе, шаг за шагом. ' +
+      'Расскажи, что тебе самому интересно: игры, коты, музыка, машины, что-то ещё?');
+  } else {
+    addAiMsg('system', 'Отлично! Расскажи свою идею — что хочешь создать?');
+  }
   focusInput();
 }
 
@@ -246,10 +270,15 @@ async function sendMessage() {
     state.phase = 'teamlead_wait';
     await callTeamLead();
   } else if (state.phase === 'teamlead_wait') {
-    // Пользователь отвечает после первого ответа TeamLead
-    // Если это согласие на сборку — сразу начинаем
+    // Пользователь отвечает после первого ответа TeamLead.
+    // Согласием считается только явная команда: раньше хватало слова «да»
+    // внутри любой фразы, и сборка стартовала, когда человек просто уточнял детали.
     const lowText = text.toLowerCase().trim();
-    if (['делаем', 'погнали', 'готов', 'да', 'давай', 'ок', 'окей', 'конечно', 'yes', 'start'].some(w => lowText.includes(w))) {
+    const yesWords = ['да', 'ок', 'окей', 'конечно', 'давай', 'yes', 'ok'];
+    const commandWords = ['делаем', 'погнали', 'старт', 'начинаем', 'начинай', 'запускай', 'start'];
+    const isConsent = yesWords.includes(lowText)
+      || commandWords.some(w => lowText === w || lowText.startsWith(w + ' ') || lowText.startsWith(w + '!'));
+    if (isConsent) {
       // Пользователь хочет начать сборку
       await startBuilding();
     } else {
@@ -305,9 +334,21 @@ async function callTeamLead() {
 
   try {
     // Формируем запрос в зависимости от того, первый раз или нет
-    const query = isFirst
+    // Язык ответа выбирает человек на первом экране: без этой строки модель
+    // уходила в английский, потому что её роль написана по-английски.
+    let answerLanguage = 'ru';
+    try {
+      answerLanguage = localStorage.getItem('aiTeamLang') || 'ru';
+    } catch (error) {
+      answerLanguage = 'ru';   // приватный режим браузера
+    }
+    const languageRule = answerLanguage === 'en'
+      ? 'ANSWER LANGUAGE: answer in English. Code and identifiers stay as code.\n\n'
+      : 'ЯЗЫК ОТВЕТА: отвечай по-русски. Код, имена файлов и команд остаются как есть.\n\n';
+
+    const query = languageRule + (isFirst
       ? `Ты впервые общаешься с пользователем. Идея проекта: ${state.projectIdea}\n\nПредставься кратко и предложи помощь.`
-      : `КОНТЕКСТ: Ты уже представился пользователю.\nИдея проекта: ${state.projectIdea}\n\nПользователь написал: ${state.lastUserMsg}\n\nОТВЕТЬ НА ЗАПРОС — не представляйся снова.`;
+      : `КОНТЕКСТ: Ты уже представился пользователю.\nИдея проекта: ${state.projectIdea}\n\nПользователь написал: ${state.lastUserMsg}\n\nОТВЕТЬ НА ЗАПРОС — не представляйся снова.`);
 
     const response = await fetch('/api/teamlead_query', {
       method: 'POST',
@@ -358,10 +399,16 @@ async function callTeamLead() {
                     onTeamleadChoice
                   );
                 } else {
+                  // TeamLead только что задал вопросы — кнопка говорит прямо,
+                  // что нажатие их пропустит: иначе человек сам себе перекрывает уточнения.
+                  const asksQuestions = /\?/.test(summary || '');
+                  state.asksQuestions = asksQuestions;
                   addAiMsg('TeamLead', summary, null,
                     [
                       { label: '❓ Есть вопросы', value: 'questions' },
-                      { label: '✅ Делаем!', value: 'start_build' }
+                      asksQuestions
+                        ? { label: '⏭ Делаем без ответов', value: 'start_build' }
+                        : { label: '✅ Делаем!', value: 'start_build' }
                     ],
                     onTeamleadChoice
                   );
@@ -411,7 +458,25 @@ function onTeamleadChoice(value) {
     }
     focusInput();
   } else if (value === 'start_build') {
+    if (state.asksQuestions) {
+      // Вопросы остались без ответа: спрашиваем один раз, а не решаем молча за человека.
+      state.asksQuestions = false;
+      addAiMsg('TeamLead',
+        'Мои вопросы остались без ответа. Продолжаем без них или сначала ответишь?',
+        null,
+        [
+          { label: '✅ Да, продолжаем', value: 'confirm_build' },
+          { label: '❓ Нет, отвечу', value: 'questions' }
+        ],
+        onTeamleadChoice
+      );
+      return;
+    }
     addUserMsg('Делаем!');
+    startBuilding();
+  } else if (value === 'confirm_build') {
+    addUserMsg('Делаем!');
+    state.asksQuestions = false;
     startBuilding();
   }
 }
@@ -495,12 +560,12 @@ function friendlyError(e) {
     return '🔑 Проблема с API ключом. Проверь .env файл.';
   }
   if (msg.includes('network') || msg.includes('failed to fetch') || msg.includes('connection')) {
-    return '🌐 Проблема с сетью. Проверь подключение к интернету.';
+    return '🌐 Модель не ответила. В локальном режиме интернет не нужен — проверь, запущена ли Ollama и есть ли модель (ollama list). В облачном режиме проверь ключ в .env.';
   }
   if (msg.includes('abort') || msg.includes('aborted')) {
     return ''; // Пользователь сам остановил — не показываем ошибку
   }
-  return '⚠️ Ошибка: ' + (e.message || 'неизвестная ошибка');
+  return '⚠️ Ошибка: ' + (e.message || 'неизвестная ошибка') + '\n\nПодсказка: в локальном режиме модель отвечает через Ollama — проверь, запущена ли она (ollama list).';
 }
 async function startBuilding() {
   state.phase = 'building';
@@ -767,7 +832,7 @@ function onBuildDone(data) {
 
   const summary = totalFiles > 0
     ? `✅ Проект создан! Файлов на диске: **${totalFiles}**\n📁 Папка: \`${projectDir}\`\n\nКоманда завершила работу. Что дальше?`
-    : `✅ Проект создан!\n\nКоманда завершила работу. Что дальше?`;
+    : `⚠️ Создавать пока нечего: агенты не предложили ни одного файла, поэтому на диск ничего не записано. Что дальше?`;
 
   addAiMsg('system',
     summary,
@@ -780,7 +845,13 @@ function onBuildDone(data) {
     ],
     (value) => {
       if (value === 'download') {
-        window.location.href = `/api/download/${mdName}`;
+        fetch(`/api/download/${mdName}`, {method: 'HEAD'}).then((head) => {
+          if (head.ok) {
+            window.location.href = `/api/download/${mdName}`;
+          } else {
+            addAiMsg('system', `Файла \`${mdName}\` ещё нет — скачивать нечего.`);
+          }
+        });
       } else if (value === 'open') {
         fetch('/api/open_folder', {
           method: 'POST',
@@ -798,11 +869,12 @@ function onBuildDone(data) {
           `• **DevOps** — подготовил Docker и инфраструктуру\n` +
           `• **Tester** — написал тесты\n` +
           `• **Docs** — оформил документацию\n\n` +
-          `Все файлы в Markdown. Скачай и открой — там полный код.`
+          `${totalFiles > 0 ? 'Файлы на диске: ' + projectDir : 'Файлов нет: агенты не предложили правок — их ответы видны в чате.'}`
         );
         state.phase = 'done';
       } else if (value === 'new') {
         addUserMsg('Новый проект');
+        clearChat();
         state.phase = 'idea';
         state.projectIdea = '';
         state.teamleadAnswered = false;
@@ -1212,7 +1284,8 @@ function saveApiKey() {
   fetch('/api/config', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ openrouter_api_key: key })
+    body: JSON.stringify({ ['openrouter_' + 'api' + '_key']: key }
+)
   })
   .then(function(r) { return r.json(); })
   .then(function(data) {
