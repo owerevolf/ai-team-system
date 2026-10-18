@@ -119,10 +119,30 @@ if ($ollamaUp) {
     Write-Output "Установить: winget install Ollama.Ollama"
 }
 
-# ── 6. Порт свободен? ────────────────────────────────────────────────────────
-$busy = Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue
+# ── 6. Освобождаем порт: старый сервер закрываем сами ────────────────────────
+# Лаунчер не должен спихивать это на человека: он сам находит занявший порт процесс.
+# Закрываем только Python (сервер проекта). Чужие программы не трогаем —
+# вместо этого говорим прямо, кто мешает.
+$busy = Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($busy) {
-    throw "Порт $Port уже занят. Закрой приложение на этом порту или запусти: pwsh scripts/launcher.ps1 -Port 8010"
+    $oldPid = $busy.OwningProcess
+    $oldProc = Get-Process -Id $oldPid -ErrorAction SilentlyContinue
+    if ($oldProc -and $oldProc.ProcessName -match '^(python|pythonw|uvicorn)') {
+        Write-Output "Порт $Port занят прошлым сервером (PID $oldPid) — закрываю его."
+        try {
+            Stop-Process -Id $oldPid -Force -ErrorAction Stop
+            for ($i = 0; $i -lt 10; $i++) {
+                Start-Sleep -Milliseconds 300
+                if (-not (Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue)) { break }
+            }
+        } catch {
+            throw "Не удалось закрыть прошлый сервер (PID $oldPid). Закрой его вручную и запусти снова."
+        }
+        Write-Output "Порт $Port освобождён."
+    } else {
+        $who = if ($oldProc) { $oldProc.ProcessName } else { 'неизвестная программа' }
+        throw "Порт $Port занят: $who (PID $oldPid). Это не сервер проекта — закрой её или укажи другой порт: pwsh scripts/launcher.ps1 -Port 8010"
+    }
 }
 
 # ── 7. Старт сервера ─────────────────────────────────────────────────────────
