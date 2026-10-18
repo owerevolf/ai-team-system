@@ -417,7 +417,7 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
         created_files = []
         try:
             response = self.model_router.generate(
-                prompt=full_prompt + self._project_state_block(),
+                prompt=full_prompt + self._project_state_block() + self._english_role_brief(agent_name),
                 agent=agent_name
             )
 
@@ -583,6 +583,35 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
         found["content"] = text
         found.setdefault("tool", "create_file")
         return found
+
+    def _english_role_brief(self, agent_name: str) -> str:
+        """Короткая английская роль агента — только если человек выбрал английский.
+
+        Переводить все файлы ролей целиком не нужно: модели достаточно двух строк,
+        кто она и что делает, а остальное даёт правило уровня.
+        """
+        try:
+            from core import project_truth as _unused  # noqa: F401 — язык берём оттуда же
+
+            settings = Path(__file__).resolve().parent.parent / ".cache" / "ui_settings.json"
+            language = str(json.loads(settings.read_text(encoding="utf-8")).get("language", "ru"))
+        except Exception:  # noqa: BLE001
+            language = "ru"
+        if not language.lower().startswith("en"):
+            return ""
+
+        roles = {
+            "teamlead": "You are the Team Lead: listen, clarify, name who does what, hand the task over.",
+            "architect": "You are the Architect: explain the project structure — which files exist, "
+                         "what each does, why this stack fits the task.",
+            "backend": "You are the Backend developer: server logic and data, explain every choice briefly.",
+            "frontend": "You are the Frontend developer: layout and styling, explain why it looks so.",
+            "devops": "You are DevOps: how to run and ship the project, keep it simple.",
+            "tester": "You are the Tester: check the work and explain each problem and its cause.",
+            "documentalist": "You are the Documentalist: a short guide a beginner can follow.",
+        }
+        brief = roles.get(agent_name)
+        return f"ROLE: {brief}\n\n" if brief else ""
 
     def _project_state_block(self) -> str:
         """Короткая справка о проекте для промпта: что уже предложено и кем."""
