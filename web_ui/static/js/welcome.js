@@ -348,7 +348,7 @@ async function callTeamLead() {
 
     // Уровень и язык раньше не доходили до TeamLead: он получает промпт отсюда,
     // и без этих строк отвечал по-английски и одинаково на всех уровнях.
-    const levelRule = state.level === 'zero'
+    const levelRuleRu = state.level === 'zero'
       ? 'УРОВЕНЬ «НОЛЬ»: человек впервые видит код. Веди как учитель начальных классов: '
         + 'один шаг за раз, каждое слово расшифровывай, и у каждого вопроса объясняй, зачем спрашиваешь. '
         + 'Повтори задачу своими словами: «Я услышал: … Правильно понял?» '
@@ -363,6 +363,23 @@ async function callTeamLead() {
           + 'Не решай за команду: назови, кто дальше возьмёт работу, и передай задачу.\n\n'
         : 'УРОВЕНЬ «ПРОДВИНУТЫЙ»: сразу суть — что делаем и с чего начать. '
           + 'Без вступлений и без урока. Не расписывай задачи за других агентов: назови, кто берёт часть, и передай.\n\n';
+
+    // Английские правила уровней: англоязычный гость не должен получать русские инструкции.
+    const levelRuleEn = {
+      zero: 'LEVEL ZERO: the person sees code for the first time. Teach like a primary school teacher: '
+        + 'one step at a time, explain every term, say why you ask each question. Repeat the task back: '
+        + '"I heard: … Right?". Do not solve or explain for the team: name who does what '
+        + '(Architect — structure, Backend — code, Frontend — styling, Tester — checks, Documentalist — docs) '
+        + 'and hand the task over. Answer in English.\n\n',
+      beginner: 'LEVEL BEGINNER: knows the basics. Offer two options with a short trade-off and ask which one. '
+        + 'Do not over-explain. Do not decide for the team: name who takes the work and hand it over. '
+        + 'Answer in English.\n\n',
+      advanced: 'LEVEL ADVANCED: get to the point — what we build and where to start. No intro, no lesson. '
+        + 'Do not write tasks for other agents: name who takes the part and hand over. Answer in English.\n\n'
+    };
+    const levelRule = answerLanguage === 'en'
+      ? (levelRuleEn[state.level] || levelRuleEn.advanced)
+      : levelRuleRu;
 
     const query = levelRule + (isFirst
       ? `Ты впервые общаешься с пользователем. Идея проекта: ${state.projectIdea}\n\nПредставься кратко и предложи помощь.`
