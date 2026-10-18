@@ -147,6 +147,17 @@ def health_model() -> Dict[str, Any]:
         return {"ok": False, "error": str(exc)[:300]}
 
 
+def _session_title(folder_name: str) -> str:
+    """Читаемое имя проекта: без временной метки и подчёркиваний.
+
+    Папка называется «идея_20261016_223525» — человеку нужно «идея».
+    """
+    import re
+
+    cleaned = re.sub(r"_\d{8}_\d{6}$", "", folder_name)
+    return cleaned.replace("_", " ").strip() or folder_name
+
+
 @router.get("/api/sessions")
 def list_sessions() -> Dict[str, Any]:
     """Прошлые проекты: имя, когда делали, сколько файлов внутри.
@@ -166,6 +177,7 @@ def list_sessions() -> Dict[str, Any]:
             items.append(
                 {
                     "name": folder.name,
+                    "title": _session_title(folder.name),
                     "path": str(folder),
                     "modified": datetime.fromtimestamp(folder.stat().st_mtime).isoformat(
                         timespec="minutes"
