@@ -80,15 +80,34 @@ AGENT_SKILL_MAP = {
 }
 
 
+def _ui_language() -> str:
+    """Язык, выбранный человеком на первом экране. По умолчанию русский."""
+    try:
+        import json
+        from pathlib import Path
+
+        settings = Path(__file__).resolve().parent.parent / ".cache" / "ui_settings.json"
+        return str(json.loads(settings.read_text(encoding="utf-8")).get("language", "ru"))
+    except Exception:  # noqa: BLE001 — нет файла или он испорчен: считаем русский
+        return "ru"
+
+
 def get_agent_skill_addon(agent_name: str) -> str:
-    """Загружает скилл агента из файла core/skills/*.md"""
+    """Загружает скилл агента из core/skills/*.md с учётом языка интерфейса.
+
+    Язык — это файл, а не ветвление в коде: TEAMLEAD_SKILL.<lang>.md.
+    Нет перевода — берём основной файл, чтобы агент не остался без инструкций.
+    """
     skill = AGENT_SKILL_MAP.get(agent_name)
     if not skill:
         return ""
 
-    skill_file = SKILLS_DIR / skill["skill_file"]
-    if skill_file.exists():
-        return skill_file.read_text(encoding="utf-8")
+    base = SKILLS_DIR / skill["skill_file"]
+    language = _ui_language()
+    localized = base.with_name(base.name.replace(".md", f".{language}.md"))
+    for candidate in (localized, base):
+        if candidate.exists():
+            return candidate.read_text(encoding="utf-8")
 
     return ""
 
