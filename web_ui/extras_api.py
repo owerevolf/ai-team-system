@@ -101,7 +101,11 @@ def health_model() -> Dict[str, Any]:
 
         router = ModelRouter(profile=os.getenv("HARDWARE_PROFILE", "medium"))
         answer = str(
-            router.generate(prompt="Ответь одним коротким словом: работает?", agent="teamlead") or ""
+            router.generate(
+                prompt="Ответь одним коротким предложением: ты работаешь и готов помогать?",
+                agent="teamlead",
+            )
+            or ""
         )[:300]
         failed = "не ответила" in answer or "не настроены" in answer
         return {
