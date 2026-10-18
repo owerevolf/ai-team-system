@@ -269,6 +269,22 @@ async function sendMessage() {
     state.projectName = text.split(' ').slice(0,3).join('_').toLowerCase() || 'my_project';
     state.phase = 'teamlead_wait';
     await callTeamLead();
+  } else if (state.phase === 'build_paused' && state.pausedAgent) {
+    // Вопрос агенту на паузе: отвечает тот, кто ждёт, сборка не двигается.
+    const agent = state.pausedAgent;
+    showTyping();
+    try {
+      const answer = await fetch('/api/agent/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent: agent, question: text, level: state.level })
+      }).then(function (r) { return r.json(); });
+      removeTyping();
+      addAiMsg(AGENT_LABELS[agent] || agent, String(answer.answer || 'Не смог ответить.'));
+    } catch (error) {
+      removeTyping();
+      addAiMsg('system', 'Не удалось получить ответ: ' + error);
+    }
   } else if (state.phase === 'teamlead_wait') {
     // Пользователь отвечает после первого ответа TeamLead.
     // Согласием считается только явная команда: раньше хватало слова «да»
@@ -729,11 +745,16 @@ function handleStreamEvent(data, markDone) {
   } else if (data.type === 'paused') {
     // Пауза между агентами: следующий шаг запускает человек, и только он.
     state.buildId = data.build || state.buildId;
-    addAiMsg('system',
-      'Можно спокойно прочитать выше и задать вопрос. Когда будешь готов — жми «Дальше».',
+    state.pausedAgent = data.agent;
+    state.phase = 'build_paused';
+    addAiMsg(AGENT_LABELS[data.agent] || data.agent,
+      'Готов объяснить, что я сделал и почему. Напиши вопрос в поле ниже — отвечу я, '
+      + 'а следующий агент не запустится, пока ты не нажмёшь «Дальше».',
       null,
       [{ label: '▶ Дальше', value: 'build_next' }],
       function () {
+        state.pausedAgent = null;
+        state.phase = 'building';
         fetch('/api/build/continue', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

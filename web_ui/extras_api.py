@@ -89,6 +89,34 @@ def read_project_file(path: str) -> Dict[str, Any]:
     }
 
 
+@router.post("/api/agent/ask")
+async def ask_agent(request: Request) -> Dict[str, Any]:
+    """Вопрос агенту на паузе: только объяснение, без файлов и без следующего шага.
+
+    Человек спрашивает Архитектора (или любого) столько, сколько нужно, прежде
+    чем нажать «Дальше». Сборка при этом стоит.
+    """
+    from core.agent_manager import AgentManager
+    from core.model_router import ModelRouter
+
+    body = await request.json()
+    agent = str(body.get("agent", "architect"))
+    question = str(body.get("question", "")).strip()[:2000]
+    level = str(body.get("level", "zero"))
+    if not question:
+        raise HTTPException(status_code=400, detail="пустой вопрос")
+
+    manager = AgentManager(ModelRouter(profile=os.getenv("HARDWARE_PROFILE", "medium")))
+    prompt = (
+        manager.get_agent_prompt(agent, level)
+        + "\n\nСейчас ты НЕ создаёшь и НЕ меняешь файлы: ты объясняешь человеку то, что он спросил. "
+        + "Ответь коротко и простыми словами.\n\nВопрос: "
+        + question
+    )
+    answer = manager.model_router.generate(prompt=prompt, agent=agent)
+    return {"status": "ok", "agent": agent, "answer": str(answer or "")[:4000]}
+
+
 @router.post("/api/build/continue")
 async def build_continue(request: Request) -> Dict[str, Any]:
     """Продолжает сборку после паузы «Дальше».
