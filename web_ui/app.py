@@ -546,6 +546,8 @@ async def teamlead_query(req: CreateProjectRequest):
     )
 
 
+# Сборка идёт одним потоком; следующий шаг — пауза между агентами,
+# чтобы человек мог поговорить с каждым (план «учебная полка»).
 @app.post("/api/create_project_stream")
 async def create_project_stream(req: CreateProjectRequest):
     """SSE-стриминг работы агентов (БЕЗ TeamLead — он уже был)"""
