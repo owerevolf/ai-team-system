@@ -649,6 +649,18 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
                 tool_data = self._parse_tool_call(match)
                 if tool_data is None:
                     raise json.JSONDecodeError("вызов инструмента не разобран", match, 0)
+                # Проверка синтаксиса до записи: битый код не должен доходить до человека.
+                if str(tool_data.get("path", "")).endswith(".py"):
+                    try:
+                        compile(
+                            str(tool_data.get("content", "")),
+                            str(tool_data.get("path", "file.py")),
+                            "exec",
+                        )
+                    except SyntaxError as exc:
+                        self.logger.warning(f"Синтаксис не прошёл, правка отклонена: {exc}")
+                        continue
+
                 tool_name = tool_data.get("tool", "create_file")
                 
                 if tool_name in self.tools and self.tools[tool_name].handler:

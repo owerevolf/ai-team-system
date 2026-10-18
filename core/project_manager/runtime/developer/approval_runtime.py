@@ -90,6 +90,7 @@ class ApprovalRuntime:
     def __init__(self):
         self._queue: Dict[str, ApprovalRequest] = {}
         self._history: List[ApprovalRequest] = []
+        self.load_state()
 
     def create_request(self, patch_id: str, task_id: str, agent_id: str,
                        summary: str, risk_level: str,
@@ -154,7 +155,37 @@ class ApprovalRuntime:
 
         return request
 
+    def _state_path(self):
+        import pathlib
+
+        # core/project_manager/runtime/developer → четырьмя уровнями выше корень проекта.
+        return pathlib.Path(__file__).resolve().parents[4] / ".cache" / "approvals.json"
+
+    def save_state(self) -> None:
+        """Сохраняет очередь на диск: перезапуск не должен стирать неподтверждённое."""
+        try:
+            import json
+
+            path = self._state_path()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            data = [item.__dict__ for item in self._queue.values()]
+            path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        except Exception:  # noqa: BLE001 — сохранение не должно ломать работу
+            pass
+
+    def load_state(self) -> None:
+        """Возвращает сохранённую очередь при старте процесса."""
+        try:
+            import json
+
+            for raw in json.loads(self._state_path().read_text(encoding="utf-8")):
+                item = ApprovalRequest(**raw)
+                self._queue[item.request_id] = item
+        except Exception:  # noqa: BLE001 — нет файла или он испорчен: начинаем с пустой
+            pass
+
     def get_pending(self) -> List[ApprovalRequest]:
+        self.save_state()
         """Get all pending approval requests."""
         return list(self._queue.values())
 
