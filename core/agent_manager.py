@@ -618,7 +618,21 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
         try:
             from core import project_truth
 
-            return project_truth.as_prompt_block(self.project_path)
+            target = self.project_path
+            if not target:
+                # Маршрут сборки не передаёт папку: берём самый свежий проект.
+                import os
+                import pathlib
+
+                base = pathlib.Path(os.getenv("USERPROFILE") or pathlib.Path.home()) / "ai-team-projects"
+                folders = sorted(
+                    (p for p in base.iterdir() if p.is_dir() and not p.name.startswith("_")),
+                    key=lambda p: p.stat().st_mtime,
+                    reverse=True,
+                )
+                target = folders[0] if folders else None
+
+            return project_truth.as_prompt_block(target)
         except Exception:  # noqa: BLE001 — справка не должна ломать ход агента
             return ""
 
@@ -767,6 +781,18 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
                     )
                     routed = False
                 if routed:
+                    # Источник правды: следующий агент увидит этот файл в своём промпте.
+                    try:
+                        from core import project_truth
+
+                        project_truth.record_file(
+                            project_root,
+                            str(file_path.relative_to(project_root)).replace("\\", "/"),
+                            author="",
+                            purpose="предложен агентом",
+                        )
+                    except Exception:  # noqa: BLE001 — учёт не должен мешать записи
+                        pass
                     return {
                         "success": False,
                         "pending": True,
