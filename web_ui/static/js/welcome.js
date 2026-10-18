@@ -501,20 +501,137 @@ async function callTeamLead() {
   }
 }
 
+// ── ДЕМО: сначала разговор, потом сборка ──
+
+function answerLanguageRule() {
+  let lang = 'ru';
+  try { lang = localStorage.getItem('aiTeamLang') || 'ru'; } catch (e) { lang = 'ru'; }
+  return lang === 'en'
+    ? 'ANSWER LANGUAGE: answer in English.\n\n'
+    : 'ОТВЕЧАЙ ТОЛЬКО ПО-РУССКИ.\n\n';
+}
+
+function demoBriefPrompt() {
+  const levelHint = state.level === 'zero'
+    ? 'Человек впервые видит код: объясняй простыми словами, без терминов.'
+    : state.level === 'beginner'
+      ? 'Человек знает основы: объясняй логику, без азов.'
+      : 'Человек продвинутый: коротко и по делу.';
+
+  return [
+    'Продолжи разговор. Сборку НЕ начинай и код НЕ пиши.',
+    'Человек согласился посмотреть учебный пример. Будем собирать: «Супер Калькулятор — многофункциональный калькулятор с историей вычислений, конвертером валют и научными функциями».',
+    '',
+    'Объясни коротко:',
+    '1) что это за программа — одна фраза;',
+    '2) три вещи, которые в ней важно заметить: ввод и вычисление, история вычислений, обработка ошибок вроде деления на ноль;',
+    '3) что каждый агент объяснит свою часть сам.',
+    '',
+    'Закончи вопросом: «Начинаем сборку?». Не говори «передаю задачу команде».',
+    '',
+    levelHint,
+    '',
+    answerLanguageRule()
+  ].join('\n');
+}
+
+async function askTeamlead(prompt) {
+  const response = await fetch('/api/teamlead_query', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ project_name: state.projectName, query: prompt, level: state.level })
+  });
+  if (!response.ok) throw new Error('HTTP ' + response.status);
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let answer = '';
+
+  while (true) {
+    const chunk = await reader.read();
+    if (chunk.done) break;
+    buffer += decoder.decode(chunk.value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop();
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      try {
+        const data = JSON.parse(line.slice(6));
+        if (data.type === 'agent_done' && data.response) answer = data.response;
+      } catch (e) { /* обрывок строки — пропускаем */ }
+    }
+  }
+
+  return answer;
+}
+
+async function showDemoBrief() {
+  state.phase = 'demo_brief';
+  state.building = false;
+  showTyping();
+
+  const sendBtn = document.getElementById('send-btn');
+  if (sendBtn) sendBtn.disabled = true;
+
+  try {
+    const answer = await askTeamlead(demoBriefPrompt());
+    removeTyping();
+    const text = summarizeResponse(answer || '', state.level)
+      || 'Это учебный пример: калькулятор с историей и научными функциями. Начинаем?';
+
+    addAiMsg('TeamLead', text, null, [
+      { label: '▶ Собрать пример', value: 'demo_start' },
+      { label: '💡 Вернуться к моей идее', value: 'back_to_idea' }
+    ], onTeamleadChoice);
+    state.phase = 'demo_ready';
+  } catch (e) {
+    removeTyping();
+    addAiMsg('system',
+      '⚠️ Не получилось рассказать про пример: ' + (e.message || 'модель не ответила')
+      + '\n\nМожно начать сборку сразу.',
+      null,
+      [{ label: '▶ Собрать пример', value: 'demo_start' }],
+      onTeamleadChoice
+    );
+  } finally {
+    if (sendBtn) sendBtn.disabled = false;
+  }
+}
+
 function onTeamleadChoice(value) {
   if (value === 'demo') {
     // Демо — это отдельный учебный пример, а не идея человека.
     // Раньше кнопка «давай пример» молча затирала идею (например Porsche) и вся
     // команда собирала калькулятор — человек не понимал, почему тема сменилась.
+    // Теперь она сначала продолжает разговор: TeamLead объясняет, что за пример
+    // и что в нём важно, а сборка начинается только по отдельному нажатию.
     state.savedIdea = state.projectIdea || '';
     addUserMsg('Да, покажи пример.');
     addAiMsg('system',
-      'Собираю демо-пример «Супер Калькулятор» — это учебный образец, а не твоя идея.'
+      'Хорошо, покажу пример — «Супер Калькулятор». Сначала коротко объясню, что в нём важно, '
+      + 'а собирать начнём по твоему слову.'
       + (state.savedIdea ? `\n\nТвоя идея сохранена: «${state.savedIdea}». После примера вернёмся к ней.` : ''),
       null, null, null);
     state.projectIdea = 'Супер Калькулятор — многофункциональный калькулятор с историей вычислений, конвертером валют и научными функциями';
     state.projectName = 'super_calculator';
+    showDemoBrief();
+  } else if (value === 'demo_start') {
+    addUserMsg('Собираем пример.');
     startBuilding();
+  } else if (value === 'back_to_idea') {
+    // Человек передумал: возвращаем его идею и имя проекта, ничего не собираем.
+    addUserMsg('Вернёмся к моей идее.');
+    state.projectIdea = state.savedIdea || state.projectIdea;
+    state.projectName = (state.projectIdea.split(' ').slice(0, 3).join('_') || 'my_project').toLowerCase();
+    state.asksQuestions = false;
+    addAiMsg('system',
+      `Возвращаемся к твоей идее: «${state.projectIdea}». Можно уточнить детали словами или начать сборку.`,
+      null,
+      [{ label: '✅ Делаем!', value: 'start_build' }],
+      onTeamleadChoice
+    );
+    state.phase = 'idea';
   } else if (value === 'questions') {
     if (state.level === 'zero') {
       addAiMsg('TeamLead', 'Окей! Расскажи что хочешь создать — своими словами, не старайся говорить "правильно". Я пойму.');
