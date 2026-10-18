@@ -494,10 +494,17 @@ async function callTeamLead() {
 
 function onTeamleadChoice(value) {
   if (value === 'demo') {
-    // Zero-level: подставляем демо-проект "Супер Калькулятор"
+    // Демо — это отдельный учебный пример, а не идея человека.
+    // Раньше кнопка «давай пример» молча затирала идею (например Porsche) и вся
+    // команда собирала калькулятор — человек не понимал, почему тема сменилась.
+    state.savedIdea = state.projectIdea || '';
+    addUserMsg('Да, покажи пример.');
+    addAiMsg('system',
+      'Собираю демо-пример «Супер Калькулятор» — это учебный образец, а не твоя идея.'
+      + (state.savedIdea ? `\n\nТвоя идея сохранена: «${state.savedIdea}». После примера вернёмся к ней.` : ''),
+      null, null, null);
     state.projectIdea = 'Супер Калькулятор — многофункциональный калькулятор с историей вычислений, конвертером валют и научными функциями';
     state.projectName = 'super_calculator';
-    addUserMsg('Да, давай пример! Хочу Супер Калькулятор.');
     startBuilding();
   } else if (value === 'questions') {
     if (state.level === 'zero') {
