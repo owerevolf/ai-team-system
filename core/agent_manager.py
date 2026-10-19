@@ -218,12 +218,13 @@ class AgentManager:
         "architect": {".py", ".md", ".json", ".yml", ".yaml"},
         "backend": {".py", ".sql", ".json", ".ini", ".cfg", ".toml"},
         "frontend": {".html", ".htm", ".css", ".js", ".jsx", ".ts", ".tsx", ".svg", ".json"},
-        "devops": {".yml", ".yaml", ".sh", ".conf", ".env", ".md", ".txt", "dockerfile"},
+        "devops": {".yml", ".yaml", ".sh", ".conf", ".env", "dockerfile"},
         "tester": {".py"},
         "documentalist": {".md", ".txt", ".rst"},
     }
     # Общие файлы проекта: их может предложить любой агент.
-    COMMON_FILES = {".gitignore", "requirements.txt", ".env.example", "readme.md"}
+    # README — работа Документалиста, а не всех подряд.
+    COMMON_FILES = {".gitignore", "requirements.txt", ".env.example"}
 
     # Порядок уровней: от максимального объяснения к минимальному
     LEVEL_ORDER = ("zero", "beginner", "standard", "advanced")

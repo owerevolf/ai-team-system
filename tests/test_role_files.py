@@ -53,6 +53,27 @@ def test_common_files_are_allowed_for_any_role(tmp_path):
     assert result["success"] is True
 
 
+def test_devops_does_not_write_text_notes(tmp_path):
+    """`history.txt` от DevOps — не его работа: в прогоне он так делал."""
+    manager = make_manager(tmp_path, "devops")
+
+    result = manager._create_file({"path": "history.txt", "content": "1+1=2\n"})
+
+    assert result["success"] is False
+    assert not (tmp_path / "history.txt").exists()
+
+
+def test_readme_belongs_to_documentalist(tmp_path):
+    manager = make_manager(tmp_path, "backend")
+
+    result = manager._create_file({"path": "README.md", "content": "# x\n"})
+
+    assert result["success"] is False
+
+    documentalist = make_manager(tmp_path, "documentalist")
+    assert documentalist._create_file({"path": "README.md", "content": "# x\n"})["success"] is True
+
+
 def test_unknown_role_is_not_restricted(tmp_path):
     manager = make_manager(tmp_path, "")
 
