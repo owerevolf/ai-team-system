@@ -459,7 +459,7 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
                 # что ближе к концу промпта, а роль просит «нарисуй чертёж и спроси».
                 prompt=(
                     full_prompt
-                    + self._project_state_block()
+                    + self._project_state_block(agent_name)
                     + self._english_role_brief(agent_name)
                     + self._output_format_rule()
                 ),
@@ -468,21 +468,13 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
 
             if not is_coordinator:
                 created_files = self._extract_and_create_files(response)
-                # Записываем факт, а не намерение: следующий агент увидит список файлов.
-                try:
-                    from core import project_truth
-
-                    for name in created_files:
-                        project_truth.record_file(self.project_path, name, author=agent_name)
-                except Exception:  # noqa: BLE001
-                    pass
 
                 # Агент, который только рассказал, но не вызвал инструмент, — самая
                 # частая потеря: снаружи работа выглядит сделанной, а файлов нет.
                 # Даём ровно одну попытку с прямым требованием формата.
                 if not created_files:
                     retry_prompt = (
-                        full_prompt + self._project_state_block()
+                        full_prompt + self._project_state_block(agent_name)
                         + "\n\nВАЖНО: в прошлый раз файлов не было: либо ты описал работу словами, либо ответ оборвался на лимите длины."
                         "Сейчас верни ТОЛЬКО блоки === FILE: путь === с кодом, без рассуждений и без вопросов. "
                         "Сделай файл коротким — до 30 строк: длинный ответ обрывается и не доходит. Если файлов не нужно — напиши об этом одной строкой."
@@ -499,6 +491,24 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
                         self.logger.warning(
                             f"{agent_name}: после повторной попытки вызов инструмента так и не пришёл"
                         )
+
+                # Записываем факт после всех попыток: раньше запись шла до повтора,
+                # и файлы со второй попытки в состояние не попадали.
+                try:
+                    from core import project_state
+
+                    purpose = self._purpose_from(response)
+                    for name in created_files:
+                        project_state.record_file(
+                            self.project_path, name, author=agent_name, purpose=purpose
+                        )
+                    if agent_name == "architect" and created_files:
+                        # План архитектора — контракт для остальных: какие файлы и зачем.
+                        project_state.record_plan(
+                            self.project_path, {name: purpose for name in created_files}
+                        )
+                except Exception:  # noqa: BLE001
+                    pass
             
             result = {
             "agent": agent_name,
@@ -658,12 +668,14 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
         brief = roles.get(agent_name)
         return f"ROLE: {brief}\n\n" if brief else ""
 
-    def _project_state_block(self) -> str:
-        """Короткая справка о проекте для промпта: что уже предложено и кем."""
-        try:
-            from core import project_truth
+    def _project_state_block(self, agent_name: str = "") -> str:
+        """Короткая справка о проекте для промпта — своя для каждого агента.
 
-            target = self.project_path
+        Факты (файлы, функции, ошибки) берём из `project_state`, а не из пересказа
+        модели. Если новый модуль почему-то недоступен — откат на старый список.
+        """
+        target = self.project_path
+        try:
             if not target:
                 # Маршрут сборки не передаёт папку: берём самый свежий проект.
                 import os
@@ -676,10 +688,19 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
                     reverse=True,
                 )
                 target = folders[0] if folders else None
+            if not target:
+                return ""
 
-            return project_truth.as_prompt_block(target)
+            from core import project_state
+
+            return project_state.slice_for(target, agent_name)
         except Exception:  # noqa: BLE001 — справка не должна ломать ход агента
-            return ""
+            try:
+                from core import project_truth
+
+                return project_truth.as_prompt_block(target)
+            except Exception:  # noqa: BLE001
+                return ""
 
     @staticmethod
     def _reply_language_rule() -> str:
@@ -700,6 +721,30 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
             "ЯЗЫК ОТВЕТА: отвечай по-русски. "
             "Код, имена файлов и команд остаются как есть.\n\n"
         )
+
+    @staticmethod
+    def _purpose_from(response: str) -> str:
+        """Назначение файла — первая строка объяснения, а не строка кода.
+
+        Модель часто начинает ответ с кода или со строки зависимостей: такие
+        строки пропускаем, ищем человеческую фразу.
+        """
+        code_marks = ("==", "()", "def ", "class ", "import ", "from ", "<", ">", "{", "}", ";", "#!")
+        for line in str(response or "").splitlines():
+            raw = line.strip()
+            if not raw or raw.startswith(("```", "===", "{", "}", "<")):
+                continue
+            text = raw.strip("#*`-— ").strip()
+            if len(text) < 12:
+                continue
+            if text.lower() in {"python", "bash", "json", "html", "css", "javascript", "js", "text", "markdown"}:
+                continue
+            if any(mark in text for mark in code_marks):
+                continue
+            if len(text.split()) < 2:
+                continue
+            return text[:140]
+        return ""
 
     @staticmethod
     def _output_format_rule() -> str:
@@ -882,6 +927,9 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
 
         name = Path(rel_path).name
         lower = name.lower()
+        # Общие файлы (requirements.txt, .gitignore) может предложить любой агент.
+        if lower in self.COMMON_FILES:
+            return ""
         # Тесты — работа Тестера: в прогоне правщик переписал тестовые файлы
         # и сделал проверку хуже, хотя должен был править код.
         if (rel_path.startswith("tests/") or lower.startswith("test_")) and agent != "tester":
@@ -889,8 +937,11 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
                 f"{agent} не пишет тесты: тесты пишет Тестер. "
                 "Исправляй код, а не проверки."
             )
-        if lower in self.COMMON_FILES:
-            return ""
+        # И наоборот: Тестер проверяет, а не переписывает сам проект.
+        if agent == "tester" and not (
+            rel_path.startswith("tests/") or lower.startswith("test_")
+        ):
+            return "Тестер пишет только тесты (tests/ или test_*.py), а не код проекта."
         if Path(lower).suffix in allowed or lower in allowed:
             return ""
 

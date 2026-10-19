@@ -93,6 +93,16 @@ def test_only_tester_writes_tests(tmp_path):
     })["success"] is True
 
 
+def test_tester_writes_only_tests(tmp_path):
+    """И наоборот: Тестер не переписывает код проекта."""
+    tester = make_manager(tmp_path, "tester")
+
+    result = tester._create_file({"path": "calculator.py", "content": "x = 1\n"})
+
+    assert result["success"] is False
+    assert not (tmp_path / "calculator.py").exists()
+
+
 def test_unknown_role_is_not_restricted(tmp_path):
     manager = make_manager(tmp_path, "")
 

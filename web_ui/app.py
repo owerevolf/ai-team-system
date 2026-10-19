@@ -619,6 +619,14 @@ async def create_project_stream(req: CreateProjectRequest):
         project_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"Папка проекта: {project_dir}")
 
+        # Замысел проекта записываем сразу: без него агенты теряют смысл задачи.
+        try:
+            from core import project_state
+
+            project_state.record_intent(project_dir, req.query, req.level, req.clarifications)
+        except Exception as exc:  # noqa: BLE001 — состояние не должно ломать старт
+            logger.warning(f"Не записал замысел проекта: {exc}")
+
         yield f"data: {json.dumps({'type': 'project_dir', 'path': str(project_dir)})}\n\n"
 
         results = {}
@@ -676,9 +684,18 @@ async def create_project_stream(req: CreateProjectRequest):
 
         async def check_now(run_tests: bool):
             try:
-                return await loop.run_in_executor(
+                report = await loop.run_in_executor(
                     None, lambda: check_build(project_dir, approvals, run_tests=run_tests)
                 )
+                # В состояние пишем только полную проверку: частичная затёрла бы тесты.
+                if run_tests:
+                    try:
+                        from core import project_state
+
+                        project_state.record_check(project_dir, report.as_dict())
+                    except Exception as exc:  # noqa: BLE001
+                        logger.warning(f"Не записал проверку в состояние: {exc}")
+                return report
             except Exception as exc:  # noqa: BLE001 — проверка не должна ломать сборку
                 logger.warning(f"Проверка сборки не удалась: {exc}")
                 return None
@@ -768,6 +785,14 @@ async def create_project_stream(req: CreateProjectRequest):
                 "build_ok": bool(build_report and build_report.ok),
                 "build": build_id,
             })
+            try:
+                from core import project_state
+
+                project_state.record_review(
+                    project_dir, "fix" if needs_fix else "ok", review_text
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(f"Не записал ревью в состояние: {exc}")
 
             if not needs_fix:
                 break
