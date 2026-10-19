@@ -548,6 +548,51 @@ async def teamlead_query(req: CreateProjectRequest):
 
 # Сборка идёт одним потоком; следующий шаг — пауза между агентами,
 # чтобы человек мог поговорить с каждым (план «учебная полка»).
+def _attach_approval_sink(manager):
+    """Включает очередь подтверждений: правки идут в очередь, не на диск.
+
+    По умолчанию выключено (флаг AITEAM_REQUIRE_APPROVAL=1 включает обратно).
+    Возвращает очередь, чтобы проверка сборки учитывала предложенные файлы.
+    """
+    from core.project_manager.runtime.developer.patch_engine import RiskLevel
+    from core.project_manager.runtime.developer.developer_api import (
+        approvals_runtime,
+        patch_engine,
+    )
+
+    engine = patch_engine()
+    approvals = approvals_runtime()
+
+    def submit_for_approval(file_path, content, engine=engine, approvals=approvals):
+        # Автор — тот агент, который сейчас работает: иначе в очереди все
+        # правки были от безымянного «agent» и человек не понимал, кто что предложил.
+        author = getattr(manager, "_current_agent", "") or "agent"
+        patch = engine.generate_patch(
+            task_id="agent-write",
+            file_changes={str(file_path): content},
+            created_by=author,
+            summary=f"Правка файла {file_path.name}",
+        )
+        approvals.create_request(
+            patch_id=patch.patch_id,
+            task_id="agent-write",
+            agent_id=author,
+            summary=f"{author}: {file_path.name}",
+            risk_level=RiskLevel.MEDIUM.value,
+            project_root=str(manager.project_path or ""),
+            files_changed=[str(file_path)],
+            files_content={str(file_path): content},
+            # Diff нужен человеку до решения: без него «Применить» — это
+            # подпись под текстом, которого не видел.
+            diff_preview=(patch.files[0].diff if patch.files else ""),
+        )
+        return True
+
+    manager._patch_sink = submit_for_approval
+    logger.info("Правки агентов пойдут через очередь подтверждений")
+    return approvals
+
+
 @app.post("/api/create_project_stream")
 async def create_project_stream(req: CreateProjectRequest):
     """SSE-стриминг работы агентов (БЕЗ TeamLead — он уже был)"""
@@ -588,45 +633,15 @@ async def create_project_stream(req: CreateProjectRequest):
         # Передаём папку проекта — теперь агенты сами пишут файлы
         manager.set_project_path(project_dir)
 
-        # Правки агентов идут через движок патчей и очередь подтверждений:
-        # файл меняется только после решения человека в панели «Подтверждения».
-        approvals = None
-        try:
-            from core.project_manager.runtime.developer.patch_engine import PatchEngine, RiskLevel
-            # Один движок и одна очередь на процесс: иначе панель «Подтверждения»
-            # не найдёт патч по номеру и применение пройдёт впустую.
-            from core.project_manager.runtime.developer.developer_api import (
-                approvals_runtime, patch_engine,
-            )
-
-            engine = patch_engine()
-            approvals = approvals_runtime()
-
-            def submit_for_approval(file_path, content, engine=engine, approvals=approvals):
-                # Автор — тот агент, который сейчас работает: иначе в очереди все
-                # правки были от безымянного «agent» и человек не понимал, кто что предложил.
-                author = getattr(manager, "_current_agent", "") or "agent"
-                patch = engine.generate_patch(
-                    task_id="agent-write",
-                    file_changes={str(file_path): content},
-                    created_by=author,
-                    summary=f"Правка файла {file_path.name}",
-                )
-                approvals.create_request(
-                    patch_id=patch.patch_id,
-                    task_id="agent-write",
-                    agent_id=author,
-                    summary=f"{author}: {file_path.name}",
-                    risk_level=RiskLevel.MEDIUM.value,
-                    files_changed=[str(file_path)],
-                    files_content={str(file_path): content},
-                )
-                return True
-
-            manager._patch_sink = submit_for_approval
-            logger.info("Правки агентов пойдут через очередь подтверждений")
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(f"Очередь подтверждений недоступна, агенты пишут напрямую: {exc}")
+        # По решению владельца (19.10) сборка пишет файлы сразу на диск: очередь
+        # подтверждений тормозила и ломала ход сборки. Старое поведение включается
+        # флагом AITEAM_REQUIRE_APPROVAL=1 — код очереди остался в _attach_approval_sink.
+        require_approval = os.getenv("AITEAM_REQUIRE_APPROVAL", "0").strip() == "1"
+        if require_approval:
+            approvals = _attach_approval_sink(manager)
+        else:
+            approvals = None
+            logger.info("Файлы пишутся сразу на диск (подтверждение отключено)")
 
         import uuid
 
@@ -715,8 +730,15 @@ async def create_project_stream(req: CreateProjectRequest):
 
             await asyncio.sleep(0.1)
 
+        # Честный итог: предложенное — не то же самое, что записанное.
+        # Раньше в финале писали «файлов на диске: N», хотя N — это очередь подтверждений.
+        on_disk = [
+            path for path in all_files
+            if (project_dir / str(path).replace("\\", "/")).exists()
+        ]
+
         # Финал
-        yield f"data: {json.dumps({'type': 'done', 'project': req.project_name, 'project_dir': str(project_dir), 'total_files': len(all_files), 'files': all_files, 'build_check': build_report.summary() if build_report else '', 'build_ok': bool(build_report and build_report.ok)}, ensure_ascii=False)}\n\n"
+        yield f"data: {json.dumps({'type': 'done', 'project': req.project_name, 'project_dir': str(project_dir), 'total_files': len(all_files), 'on_disk': len(on_disk), 'files': all_files, 'build_check': build_report.summary() if build_report else '', 'build_ok': bool(build_report and build_report.ok)}, ensure_ascii=False)}\n\n"
 
         # Экспорт markdown
         try:

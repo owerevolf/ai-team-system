@@ -1090,12 +1090,19 @@ function onBuildDone(data) {
   document.getElementById('stop-btn').classList.remove('visible');
 
   const totalFiles = data && data.total_files ? data.total_files : 0;
+  const onDisk = data && typeof data.on_disk === 'number' ? data.on_disk : null;
   const projectDir = data && data.project_dir ? data.project_dir : (state.projectDir || '~/ai-team-projects');
   const mdName = `${state.projectName || 'project'}.md`;
   const checkLine = data && data.build_check ? `\n\n${data.build_check}` : '';
 
+  const filesLine = onDisk === null
+    ? `Файлов: **${totalFiles}**`
+    : (onDisk === totalFiles
+      ? `Файлов: **${totalFiles}**`
+      : `Предложено файлов: **${totalFiles}**, на диске: **${onDisk}** — остальные ждут решения в «Подтверждениях»`);
+
   const summary = totalFiles > 0
-    ? `✅ Проект создан! Файлов на диске: **${totalFiles}**\n📁 Папка: \`${projectDir}\`${checkLine}\n\nКоманда завершила работу. Что дальше?`
+    ? `✅ Проект создан! ${filesLine}\n📁 Папка: \`${projectDir}\`${checkLine}\n\nКоманда завершила работу. Что дальше?`
     : `⏳ Сборка закончилась. Если агенты предложили файлы, они ждут тебя в панели «Подтверждения»: на диск ничего не пишется без твоего решения.${checkLine}`;
 
   addAiMsg('system',

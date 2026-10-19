@@ -110,6 +110,29 @@ def test_broken_tests_make_the_build_red(project: Path) -> None:
     assert any(issue.check == "tests" for issue in report.errors)
 
 
+def test_project_api_lists_public_functions(project: Path) -> None:
+    """Тестер должен видеть, что именно можно проверить."""
+    report = check_build(project, run_tests=False)
+
+    assert any(item.startswith("src/calc.py: add(a, b)") for item in report.api)
+    assert any("run()" in item for item in report.api)
+    assert all("test_" not in item for item in report.api)
+
+
+def test_prompt_has_ready_import_line(tmp_path: Path) -> None:
+    """Готовая строка импорта: без неё тест на модели падает с NameError."""
+    root = tmp_path / "calc"
+    root.mkdir()
+    (root / "calculator.py").write_text(
+        "def add(a, b):\n    return a + b\n\ndef sub(a, b):\n    return a - b\n",
+        encoding="utf-8",
+    )
+
+    block = check_build(root, run_tests=False).as_prompt_block()
+
+    assert "from calculator import add, sub" in block
+
+
 def test_project_without_files_is_not_silently_green(tmp_path: Path) -> None:
     empty = tmp_path / "empty"
     empty.mkdir()

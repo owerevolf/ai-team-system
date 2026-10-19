@@ -48,6 +48,8 @@ SKIP_DIRS = {
     ".ruff_cache", "node_modules", "venv", ".venv", "venv_new", "env",
     "dist", "build", ".idea", ".vscode", ".cache", ".ai-team",
 }
+# Служебные файлы проекта: это не код сборки.
+SKIP_FILES = {"_truth.json"}
 
 # Порядок важен: первый существующий файл считается точкой входа.
 ENTRY_CANDIDATES = (
@@ -136,6 +138,10 @@ class BuildReport:
     files: List[str] = field(default_factory=list)
     issues: List[Issue] = field(default_factory=list)
     tests: Dict[str, Any] = field(default_factory=dict)
+    # Публичные функции и классы проекта: без них Тестер гадает, что проверять.
+    api: List[str] = field(default_factory=list)
+    # Готовые строки импорта для тестов.
+    import_lines: List[str] = field(default_factory=list)
     entry: str = ""
     pending_files: int = 0
     duration_ms: int = 0
@@ -216,6 +222,7 @@ class BuildCheck:
 
             self._check_syntax(py_files, report)
             self._check_imports(py_files, report)
+            report.api, report.import_lines = self._project_api(py_files)
             self._check_entry(report)
             self._check_assets(report)
             self._check_requirements(py_files, report)
@@ -281,6 +288,8 @@ class BuildCheck:
                 continue
             rel_parts = path.relative_to(root).parts
             if any(part in SKIP_DIRS for part in rel_parts[:-1]):
+                continue
+            if path.name in SKIP_FILES:
                 continue
             report.files.append("/".join(rel_parts))
             if path.suffix.lower() == ".py":
@@ -678,6 +687,42 @@ class BuildCheck:
         except ValueError:
             return str(path)
 
+    def _project_api(self, py_files: List[Path]) -> tuple:
+        """Публичные функции и классы проекта — чтобы Тестер проверял то, что есть.
+
+        Возвращает (список для человека, готовые строки импорта для тестов).
+        """
+        items: List[str] = []
+        imports: List[str] = []
+        for path in py_files:
+            rel = self._rel(path)
+            if rel.startswith("tests/") or path.name.startswith("test_"):
+                continue
+            try:
+                tree = ast.parse(path.read_text(encoding="utf-8-sig"))
+            except (SyntaxError, UnicodeDecodeError, OSError):
+                continue
+
+            shown: List[str] = []
+            bare: List[str] = []
+            for node in tree.body:
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    if node.name.startswith("_"):
+                        continue
+                    args = [arg.arg for arg in node.args.args][:4]
+                    shown.append(f"{node.name}({', '.join(args)})")
+                    bare.append(node.name)
+                elif isinstance(node, ast.ClassDef) and not node.name.startswith("_"):
+                    shown.append(node.name)
+
+            if not shown:
+                continue
+            items.append(f"{rel}: " + ", ".join(shown[:6]))
+            if "/" not in rel and rel.endswith(".py") and bare:
+                imports.append(f"from {rel[:-3]} import {', '.join(bare[:4])}")
+
+        return items[:10], imports[:2]
+
     def _clean_paths(self, text: str) -> str:
         """Убирает из сообщений временные абсолютные пути — они шумят в промпте."""
         for prefix in (
@@ -814,18 +859,32 @@ def _prompt_block(report: BuildReport) -> str:
         lines.append(f"Тесты: не запускались ({tests.get('reason', '')}).")
     if report.pending_files:
         lines.append(f"В проверке учтено предложенных файлов: {report.pending_files}.")
+    if report.api:
+        lines.append("Что уже есть в проекте:")
+        lines += [f"- {item}" for item in report.api[:8]]
+
+    # Готовая строка импорта: модель уверенно копирует её, а без импорта
+    # тест падает с NameError и ничего не проверяет.
+    if report.import_lines:
+        lines.append("Первая строка теста — импорт:")
+        lines += [f"  {line}" for line in report.import_lines]
     if report.errors:
         lines.append("Ошибки:")
         lines += [f"{i}. {issue.text()}" for i, issue in enumerate(report.errors[:6], 1)]
-    if report.warnings:
+    # Зависимости в подсказку Тестеру не идём: иначе он пишет тест «установлен ли пакет»
+    # вместо теста поведения. Человеку в сводке они остаются.
+    testable_warnings = [issue for issue in report.warnings if issue.check != "deps"]
+    if testable_warnings:
         lines.append("Предупреждения:")
-        lines += [f"{i}. {issue.text()}" for i, issue in enumerate(report.warnings[:4], 1)]
+        lines += [f"{i}. {issue.text()}" for i, issue in enumerate(testable_warnings[:4], 1)]
 
     lines.append(
         "Сначала напиши тест, который падает на этой поломке: сейчас красный, после починки зелёный. "
-        "Не пересказывай список — докажи его тестами."
+        "Не пересказывай список — докажи его тестами. "
+        "Проверяй поведение функций проекта, а не наличие пакетов или файлов."
         if report.errors
-        else "Ошибок импорта нет. Проверь тестами главные функции и один плохой ввод."
+        else "Ошибок импорта нет. Проверь тестами главные функции и один плохой ввод. "
+             "Проверяй поведение, а не наличие пакетов."
     )
     return _clip("\n".join(lines))
 

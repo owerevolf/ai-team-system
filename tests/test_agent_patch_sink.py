@@ -40,3 +40,14 @@ def test_write_stays_direct_without_sink(tmp_path):
 
     assert result["success"] is True
     assert (tmp_path / "обычный.py").read_text(encoding="utf-8") == "x = 1\n"
+
+
+def test_rebuild_overwrites_previous_version(tmp_path):
+    """Без очереди новый агент должен обновлять файл, а не получать «file exists»."""
+    manager = _manager(tmp_path)
+    (tmp_path / "main.py").write_text("old = True\n", encoding="utf-8")
+
+    response = '{"tool": "create_file", "path": "main.py", "content": "print(1)\\n"}'
+
+    assert manager._extract_and_create_files(response) == ["main.py"]
+    assert (tmp_path / "main.py").read_text(encoding="utf-8") == "print(1)\n"

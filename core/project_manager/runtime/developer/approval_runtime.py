@@ -46,6 +46,8 @@ class ApprovalRequest:
     summary: str = ""
     # Пометка для человека: чем эта заявка отличается от предыдущей версии.
     note: str = ""
+    # Папка проекта: после «Применить» её проверяет build_check.
+    project_root: str = ""
     risk_level: str = ApprovalLevel.MEDIUM.value
     status: str = ApprovalStatus.PENDING.value
     created_at: str = ""
@@ -79,7 +81,7 @@ class ApprovalRequest:
             "files_changed": self.files_changed,
             "lines_added": self.lines_added,
             "lines_removed": self.lines_removed,
-            "diff_preview": self.diff_preview[:500] if self.diff_preview else "",
+            "diff_preview": self.diff_preview[:3000] if self.diff_preview else "",
         }
 
 
@@ -104,7 +106,8 @@ class ApprovalRuntime:
                        files_changed: List[str] = None,
                        lines_added: int = 0, lines_removed: int = 0,
                        diff_preview: str = "",
-                       files_content: Dict[str, str] = None) -> ApprovalRequest:
+                       files_content: Dict[str, str] = None,
+                       project_root: str = "") -> ApprovalRequest:
         """Create an approval request for a patch."""
         # Один путь — одна заявка. Раньше сравнивались только имена файлов, и
         # `frontend/style.css` от Frontend исчезал, когда DevOps приносил свой
@@ -124,6 +127,7 @@ class ApprovalRuntime:
             lines_removed=lines_removed,
             diff_preview=diff_preview,
             files_content=files_content or {},
+            project_root=project_root,
         )
 
         # Auto-approve low risk

@@ -75,6 +75,24 @@ def test_history_survives_restart(tmp_path: Path, monkeypatch) -> None:
     assert any(item.status == "superseded" for item in restarted.get_history())
 
 
+def test_request_keeps_diff_and_project_root(runtime: ApprovalRuntime) -> None:
+    request = runtime.create_request(
+        patch_id="p",
+        task_id="t",
+        agent_id="backend",
+        summary="backend: main.py",
+        risk_level="medium",
+        files_changed=["C:/proj/main.py"],
+        files_content={"C:/proj/main.py": "x"},
+        diff_preview="--- a/main.py\n+++ b/main.py\n+print(1)",
+        project_root="C:/proj",
+    )
+
+    assert request.project_root == "C:/proj"
+    assert "+print(1)" in request.diff_preview
+    assert "+print(1)" in request.to_dict()["diff_preview"]
+
+
 def test_old_list_format_still_loads(tmp_path: Path, monkeypatch) -> None:
     state = tmp_path / "approvals.json"
     old = ApprovalRequest(

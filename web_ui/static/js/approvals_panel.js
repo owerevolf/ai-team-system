@@ -31,6 +31,9 @@
         '.ap-item{border:1px solid #2a3350;border-radius:10px;padding:10px 12px;margin-bottom:10px;background:#1a2030}',
         '.ap-title{font-weight:600;color:#fff;margin-bottom:4px}',
         '.ap-note{font-size:12px;color:#d9b26a;margin-bottom:6px}',
+        '.ap-diff{font:11px/1.4 Consolas,monospace;background:#0e131c;border:1px solid #232c3d;',
+        'border-radius:8px;padding:8px;margin:0 0 8px;max-height:180px;overflow:auto;',
+        'white-space:pre-wrap;color:#b9c2d6}',
         '.ap-meta{font-size:12px;color:#8b93a7;margin-bottom:8px}',
         '.ap-actions{display:flex;gap:8px}',
         '.ap-btn{flex:1;padding:8px 10px;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px}',
@@ -104,6 +107,10 @@
             if (item.note) {
                 card.appendChild(h('div', {class: 'ap-note'}, item.note));
             }
+            // Что именно изменится: без diff человек подписывает вслепую.
+            if (item.diff_preview) {
+                card.appendChild(h('pre', {class: 'ap-diff'}, item.diff_preview.slice(0, 1500)));
+            }
 
             var meta = [];
             if (item.agent_id) {
@@ -163,6 +170,12 @@
             state.status = action === 'approve'
                 ? (result.data.success ? 'Правка применена.' : 'Применить не удалось — патч не прошёл проверку.')
                 : (result.data.success ? 'Правка отклонена.' : 'Отклонить не удалось.');
+            if (action === 'approve' && result.data.success && result.data.check) {
+                var check = result.data.check;
+                state.status += check.ok
+                    ? ' Проверка: сборка сходится.'
+                    : ' Проверка: ' + (check.errors[0] || 'есть замечания');
+            }
             if (action === 'approve' && result.data.success) {
                 // Соседняя панель кода обновляется сама: сообщаем ей, что появилась правка.
                 document.dispatchEvent(new CustomEvent('aiteam:applied'));

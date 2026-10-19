@@ -417,10 +417,12 @@ async def approval_action(req: ApprovalActionRequest) -> Dict[str, Any]:
         success = _approval_runtime.approve(req.request_id, comments=req.comments)
         applied = False
         note = ""
+        project_root = ""
         if success:
             for h in _approval_runtime.get_history():
                 if h.request_id != req.request_id:
                     continue
+                project_root = getattr(h, "project_root", "") or ""
                 patch = _patch_engine.get_patch(h.patch_id)
                 if not patch:
                     # Движок мог не знать этот патч — но содержимое лежит в самой заявке.
@@ -448,11 +450,24 @@ async def approval_action(req: ApprovalActionRequest) -> Dict[str, Any]:
                 if not applied:
                     note = "применение не удалось — правка не записана"
                 break
+        # После записи говорим человеку, сходится ли проект: иначе он остаётся
+        # один с папкой и не знает, стало лучше или хуже. Быстрая проверка —
+        # без pytest, чтобы ответ не ждал минуту.
+        check = None
+        if applied and project_root:
+            try:
+                from core.build_check import check_build
+
+                check = check_build(Path(project_root), run_tests=False).as_dict()
+            except Exception as exc:  # noqa: BLE001 — проверка не отменяет применение
+                logger.warning(f"Проверка сборки после применения не удалась: {exc}")
+
         return {
             "status": "approved",
             "success": success and applied,
             "applied": applied,
             "note": note,
+            "check": check,
         }
     elif req.action == "reject":
         success = _approval_runtime.reject(req.request_id, comments=req.comments)

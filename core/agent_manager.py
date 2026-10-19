@@ -212,6 +212,19 @@ class AgentManager:
             tools_desc.append(f"## {tool.name}\n{tool.description}\nParameters: {params}")
         return "\n\n".join(tools_desc)
     
+    # Кто какие файлы пишет. Это часть работы роли, а не вкусовщина:
+    # Frontend отвечает за страницу и стили, Backend — за логику, DevOps — за запуск.
+    ROLE_FILE_KINDS = {
+        "architect": {".py", ".md", ".json", ".yml", ".yaml"},
+        "backend": {".py", ".sql", ".json", ".ini", ".cfg", ".toml"},
+        "frontend": {".html", ".htm", ".css", ".js", ".jsx", ".ts", ".tsx", ".svg", ".json"},
+        "devops": {".yml", ".yaml", ".sh", ".conf", ".env", ".md", ".txt", "dockerfile"},
+        "tester": {".py"},
+        "documentalist": {".md", ".txt", ".rst"},
+    }
+    # Общие файлы проекта: их может предложить любой агент.
+    COMMON_FILES = {".gitignore", "requirements.txt", ".env.example", "readme.md"}
+
     # Порядок уровней: от максимального объяснения к минимальному
     LEVEL_ORDER = ("zero", "beginner", "standard", "advanced")
 
@@ -757,6 +770,10 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
                         continue
 
                 tool_name = tool_data.get("tool", "create_file")
+                # Сборка идёт без подтверждений и пишет сразу на диск: более поздний
+                # агент должен уметь обновить файл, иначе его правка молча отклоняется
+                # («file exists»). Старая версия уходит в бэкап.
+                tool_data.setdefault("overwrite", True)
                 
                 if tool_name in self.tools and self.tools[tool_name].handler:
                     result = self.tools[tool_name].handler(tool_data)
@@ -855,6 +872,24 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
                 created.append(result.get("path", path))
         return created
 
+    def _role_file_error(self, name: str) -> str:
+        """Почему роль не должна писать этот файл — или пустая строка, если можно."""
+        agent = getattr(self, "_current_agent", "") or ""
+        allowed = self.ROLE_FILE_KINDS.get(agent)
+        if not allowed:
+            return ""
+
+        lower = name.lower()
+        if lower in self.COMMON_FILES:
+            return ""
+        if Path(lower).suffix in allowed or lower in allowed:
+            return ""
+
+        return (
+            f"{agent} не пишет файлы вида «{name}»: это не его часть работы. "
+            "Оставь этот файл тому, кто за него отвечает, и не создавай его."
+        )
+
     def _create_file(self, params: Dict) -> Dict[str, Any]:
         """
         Создаёт файл внутри папки проекта.
@@ -886,6 +921,18 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
 
             if file_path.is_dir():
                 return {"success": False, "error": f"path is a directory: {raw_path}"}
+
+            # Роль отвечает за свою часть работы: DevOps не верстает страницы,
+            # Frontend не пишет серверную логику. Без этого агенты молча
+            # перезаписывали чужие файлы (DevOps приносил свой style.css).
+            role_error = self._role_file_error(file_path.name)
+            if role_error:
+                self.logger.warning(role_error)
+                return {
+                    "success": False,
+                    "error": role_error,
+                    "path": str(file_path.relative_to(project_root)),
+                }
 
             backup = None
             if file_path.exists():
