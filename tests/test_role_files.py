@@ -74,6 +74,25 @@ def test_readme_belongs_to_documentalist(tmp_path):
     assert documentalist._create_file({"path": "README.md", "content": "# x\n"})["success"] is True
 
 
+def test_only_tester_writes_tests(tmp_path):
+    """В прогоне правщик переписал тесты и сделал проверку хуже."""
+    backend = make_manager(tmp_path, "backend")
+
+    result = backend._create_file({
+        "path": "tests/test_calc.py",
+        "content": "def test_x():\n    assert True\n",
+    })
+
+    assert result["success"] is False
+    assert not (tmp_path / "tests" / "test_calc.py").exists()
+
+    tester = make_manager(tmp_path, "tester")
+    assert tester._create_file({
+        "path": "tests/test_calc.py",
+        "content": "def test_x():\n    assert True\n",
+    })["success"] is True
+
+
 def test_unknown_role_is_not_restricted(tmp_path):
     manager = make_manager(tmp_path, "")
 

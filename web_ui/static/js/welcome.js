@@ -872,6 +872,19 @@ async function streamAgents() {
   }
 }
 
+function enablePauseInput(agentLabel) {
+  // На паузе вопрос разрешён: поле и кнопка должны работать.
+  const input = document.getElementById('user-input');
+  const send = document.getElementById('send-btn');
+  if (input) {
+    if (!state.inputPlaceholder) state.inputPlaceholder = input.placeholder;
+    input.disabled = false;
+    input.placeholder = 'Спроси ' + agentLabel + ': например, «зачем этот файл?»';
+    input.focus();
+  }
+  if (send) send.disabled = false;
+}
+
 function handleStreamEvent(data, markDone) {
   if (data.type === 'agent_start') {
     setAgentActive(data.agent);
@@ -926,18 +939,42 @@ function handleStreamEvent(data, markDone) {
 
     // На паузе вопрос разрешён, значит поле и кнопка должны работать.
     // Без этого приглашение «напиши вопрос» было ложью: отправка молча глохла.
-    const pauseInput = document.getElementById('user-input');
-    const pauseSend = document.getElementById('send-btn');
-    if (pauseInput) {
-      if (!state.inputPlaceholder) state.inputPlaceholder = pauseInput.placeholder;
-      pauseInput.disabled = false;
-      pauseInput.placeholder = 'Спроси ' + (AGENT_LABELS[data.agent] || data.agent)
-        + ': например, «зачем этот файл?»';
-      pauseInput.focus();
-    }
-    if (pauseSend) pauseSend.disabled = false;
+    enablePauseInput(AGENT_LABELS[data.agent] || data.agent);
   } else if (data.type === 'paused_timeout') {
     addAiMsg('system', 'Сборка остановлена: время ожидания вышло. Запусти новую, когда будет удобно.');
+  } else if (data.type === 'review') {
+    // TeamLead проверил работу: либо назначил правки, либо принял и ждёт «спасибо».
+    state.phase = 'build_paused';
+    state.pausedAgent = 'teamlead';
+    var accepted = data.verdict !== 'fix';
+    var buildOk = data.build_ok !== false;
+    setBuildStatus(accepted
+      ? (buildOk ? '✅ TeamLead принял работу' : '⚠️ Принято, но проверка с ошибками')
+      : '🔧 TeamLead назначил правки');
+
+    addAiMsg('TeamLead',
+      (data.report || 'Работа закончена.')
+      + (data.summary ? '\n\n' + data.summary : '')
+      + (accepted && !buildOk ? '\n\n⚠️ Часть ошибок осталась — можно принять как есть или попросить правки.' : ''),
+      null,
+      accepted ? [{ label: buildOk ? '✅ Спасибо, всё хорошо' : '✅ Принять как есть', value: 'accept' }] : null,
+      accepted ? function () {
+        state.pausedAgent = null;
+        state.phase = 'building';
+        var send = document.getElementById('send-btn');
+        if (send) send.disabled = true;
+        var input = document.getElementById('user-input');
+        if (input && state.inputPlaceholder) input.placeholder = state.inputPlaceholder;
+        fetch('/api/build/continue', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ build: state.buildId })
+        });
+      } : null);
+
+    if (accepted) enablePauseInput('TeamLead');
+  } else if (data.type === 'review_timeout') {
+    addAiMsg('system', 'Ждали подтверждения 30 минут — документацию не оформляли. Попросить Документалиста можно позже.');
   } else if (data.type === 'build_check') {
     // Проверка сборки целиком: результат нужен человеку, а не только Тестеру.
     // До Тестера — это его входные факты, после — итог сборки.

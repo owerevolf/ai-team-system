@@ -873,14 +873,22 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
                 created.append(result.get("path", path))
         return created
 
-    def _role_file_error(self, name: str) -> str:
+    def _role_file_error(self, rel_path: str) -> str:
         """Почему роль не должна писать этот файл — или пустая строка, если можно."""
         agent = getattr(self, "_current_agent", "") or ""
         allowed = self.ROLE_FILE_KINDS.get(agent)
         if not allowed:
             return ""
 
+        name = Path(rel_path).name
         lower = name.lower()
+        # Тесты — работа Тестера: в прогоне правщик переписал тестовые файлы
+        # и сделал проверку хуже, хотя должен был править код.
+        if (rel_path.startswith("tests/") or lower.startswith("test_")) and agent != "tester":
+            return (
+                f"{agent} не пишет тесты: тесты пишет Тестер. "
+                "Исправляй код, а не проверки."
+            )
         if lower in self.COMMON_FILES:
             return ""
         if Path(lower).suffix in allowed or lower in allowed:
@@ -926,7 +934,9 @@ python, pip, git, pytest, npm, mkdir, ls, docker, docker-compose
             # Роль отвечает за свою часть работы: DevOps не верстает страницы,
             # Frontend не пишет серверную логику. Без этого агенты молча
             # перезаписывали чужие файлы (DevOps приносил свой style.css).
-            role_error = self._role_file_error(file_path.name)
+            role_error = self._role_file_error(
+                str(file_path.relative_to(project_root)).replace("\\", "/")
+            )
             if role_error:
                 self.logger.warning(role_error)
                 return {

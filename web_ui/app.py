@@ -594,15 +594,17 @@ def _attach_approval_sink(manager):
 
 
 @app.post("/api/create_project_stream")
+@app.post("/api/create_project_stream")
 async def create_project_stream(req: CreateProjectRequest):
-    """SSE-стриминг работы агентов (БЕЗ TeamLead — он уже был)"""
+    """SSE-стриминг: команда → Тестер → ревью TeamLead → правки → принятие → Документалист."""
 
     async def event_stream():
         # Первая строка — сразу: браузер получает заголовки и не считает, что сервер молчит.
         yield ": connected\n\n"
 
-        # TeamLead уже был, запускаем остальных
-        agents = ["architect", "backend", "frontend", "devops", "tester", "documentalist"]
+        # Документалист не в общей очереди: он берётся за работу только после того,
+        # как человек принял результат и сказал спасибо.
+        agents = ["architect", "backend", "frontend", "devops", "tester"]
         full_query = f"Продолжаем проект '{req.project_name}': {req.query}"
         if req.clarifications:
             full_query += f"\nДополнения: {json.dumps(req.clarifications, ensure_ascii=False)}"
@@ -610,7 +612,6 @@ async def create_project_stream(req: CreateProjectRequest):
         level_hint = _level_hint(req.level)
         query_with_level = f"{level_hint}\n\n{full_query}"
 
-        # Папка проекта — ~/ai-team-projects/<project_name>/
         projects_root = Path.home() / "ai-team-projects"
         safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in req.project_name)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -618,24 +619,19 @@ async def create_project_stream(req: CreateProjectRequest):
         project_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"Папка проекта: {project_dir}")
 
-        # Сообщаем UI где будет проект
         yield f"data: {json.dumps({'type': 'project_dir', 'path': str(project_dir)})}\n\n"
 
         results = {}
         all_files = []
         build_report = None
 
-        # Инициализируем AgentManager и ModelRouter один раз
         from core.model_router import ModelRouter
         from core.agent_manager import AgentManager
+
         router = ModelRouter(profile=os.getenv("HARDWARE_PROFILE", "medium"))
         manager = AgentManager(model_router=router)
-        # Передаём папку проекта — теперь агенты сами пишут файлы
         manager.set_project_path(project_dir)
 
-        # По решению владельца (19.10) сборка пишет файлы сразу на диск: очередь
-        # подтверждений тормозила и ломала ход сборки. Старое поведение включается
-        # флагом AITEAM_REQUIRE_APPROVAL=1 — код очереди остался в _attach_approval_sink.
         require_approval = os.getenv("AITEAM_REQUIRE_APPROVAL", "0").strip() == "1"
         if require_approval:
             approvals = _attach_approval_sink(manager)
@@ -648,100 +644,199 @@ async def create_project_stream(req: CreateProjectRequest):
         from core.build_check import check_build
         from core.build_gates import gate as build_gate
 
-        # Каждая сборка получает свой шлюз: продолжение нажимается именно для неё.
         build_id = uuid.uuid4().hex[:12]
         yield f"data: {json.dumps({'type': 'build_id', 'build': build_id})}\n\n"
 
+        loop = asyncio.get_event_loop()
+
+        async def run_round(agent: str, task: str):
+            """Один проход агента: результат и событие «готово»."""
+            try:
+                result = await loop.run_in_executor(
+                    None, lambda: manager.run_agent(agent, task, level=req.level)
+                )
+                done = {
+                    "type": "agent_done",
+                    "agent": agent,
+                    "response": result.get("response", ""),
+                    "files": result.get("files_created", []),
+                    "summary": result.get("summary", ""),
+                }
+            except Exception as exc:  # noqa: BLE001 — ошибка агента не должна рвать сборку
+                logger.error(f"Агент {agent} ошибка: {exc}")
+                result = {"status": "error", "error": str(exc)}
+                done = {
+                    "type": "agent_done",
+                    "agent": agent,
+                    "response": str(exc),
+                    "files": [],
+                    "summary": "Ошибка",
+                }
+            return result, done
+
+        async def check_now(run_tests: bool):
+            try:
+                return await loop.run_in_executor(
+                    None, lambda: check_build(project_dir, approvals, run_tests=run_tests)
+                )
+            except Exception as exc:  # noqa: BLE001 — проверка не должна ломать сборку
+                logger.warning(f"Проверка сборки не удалась: {exc}")
+                return None
+
+        def emit(event: dict) -> str:
+            return "data: " + json.dumps(event, ensure_ascii=False) + "\n\n"
+
+        def issue_lines(report, limit: int = 6) -> str:
+            return "\n".join(f"- {issue.text()}" for issue in report.errors[:limit])
+
+        def fix_agents_for(report) -> list:
+            files = " ".join(issue.file or "" for issue in report.errors)
+            picked = []
+            if ".py" in files:
+                picked.append("backend")
+            if any(ext in files for ext in (".html", ".css", ".js")):
+                picked.append("frontend")
+            return picked or ["backend"]
+
+        def review_task(report, tester_text: str) -> str:
+            facts = report.summary() if report is not None else "проверка сборки недоступна"
+            return (
+                "Ты TeamLead. Тестер закончил. Проверь работу и отчитайся человеку.\n\n"
+                f"Факты проверки сборки:\n{facts}\n\n"
+                f"Отчёт Тестера (сокращённо):\n{(tester_text or '')[:1200]}\n\n"
+                "Напиши 5–8 строк простыми словами: что сделано, что работает, что осталось. "
+                "Не пиши код, не создавай файлы и не задавай вопросов."
+            )
+
+        def tester_query(report) -> str:
+            if report is None:
+                return query_with_level
+            return f"{query_with_level}\n\n{report.as_prompt_block()}"
+
+        # ── Основная очередь ────────────────────────────────────────────
+        interrupted = False
         for agent in agents:
-            yield f"data: {json.dumps({'type': 'agent_start', 'agent': agent})}\n\n"
+            yield emit({"type": "agent_start", "agent": agent})
             await asyncio.sleep(0)
 
             agent_query = query_with_level
             if agent == "tester":
-                # Тестер проверяет сборку целиком: до него прогоняем проверку и отдаём
-                # ему факты — какие импорты не сходятся, есть ли точка входа, какие
-                # ссылки из HTML ведут в пустоту. Список файлов этого не показывает.
-                pre_report = None
-                try:
-                    pre_report = await asyncio.get_event_loop().run_in_executor(
-                        None, lambda: check_build(project_dir, approvals, run_tests=False)
-                    )
-                except Exception as exc:  # noqa: BLE001 — без проверки Тестер тоже работает
-                    logger.warning(f"Проверка сборки перед Тестером не удалась: {exc}")
-
+                pre_report = await check_now(run_tests=False)
                 if pre_report is not None:
-                    yield (
-                        "data: " + json.dumps(
-                            {"type": "build_check", "stage": "before_tester", **pre_report.as_dict()},
-                            ensure_ascii=False,
-                        ) + "\n\n"
-                    )
-                    agent_query = (
-                        f"{query_with_level}\n\n{pre_report.as_prompt_block()}"
-                    )
+                    yield emit({"type": "build_check", "stage": "before_tester", **pre_report.as_dict()})
+                agent_query = tester_query(pre_report)
 
-            try:
-                result = await asyncio.get_event_loop().run_in_executor(
-                    None, lambda a=agent, q=agent_query: manager.run_agent(a, q, level=req.level)
+            result, done = await run_round(agent, agent_query)
+            yield emit(done)
+            if result.get("files_created"):
+                all_files.extend(result["files_created"])
+            results[agent] = result.get("response", "")
+
+            if agent == "tester":
+                build_report = await check_now(run_tests=True)
+                if build_report is not None:
+                    yield emit({"type": "build_check", "stage": "after_tester", **build_report.as_dict()})
+
+            yield emit({"type": "paused", "agent": agent, "build": build_id})
+            if not await build_gate.wait_for_continue(build_id, agent):
+                yield emit({"type": "paused_timeout", "agent": agent})
+                interrupted = True
+                break
+
+        # ── Ревью TeamLead и цикл правок ────────────────────────────────
+        MAX_FIX_CYCLES = 1
+        cycle = 0
+        while not interrupted:
+            result, done = await run_round(
+                "teamlead", review_task(build_report, results.get("tester", ""))
+            )
+            yield emit(done)
+            review_text = result.get("response", "")
+            results["teamlead_review"] = review_text
+
+            # Решение принимают факты, а не красноречие модели: ошибки проверки — это
+            # правки, чистая проверка — принятие.
+            needs_fix = (
+                build_report is not None and not build_report.ok and cycle < MAX_FIX_CYCLES
+            )
+            yield emit({
+                "type": "review",
+                "agent": "teamlead",
+                "verdict": "fix" if needs_fix else "ok",
+                "report": review_text,
+                "summary": build_report.summary() if build_report is not None else "",
+                "build_ok": bool(build_report and build_report.ok),
+                "build": build_id,
+            })
+
+            if not needs_fix:
+                break
+
+            cycle += 1
+            fix_task = (
+                "Проверка сборки нашла ошибки. Исправь их и верни файлы блоками === FILE: ... ===.\n"
+                f"{issue_lines(build_report)}\n\n"
+                "Меняй только то, что сломано: не переписывай проект целиком."
+            )
+            for agent in fix_agents_for(build_report):
+                yield emit({"type": "agent_start", "agent": agent})
+                result, done = await run_round(agent, fix_task)
+                yield emit(done)
+                if result.get("files_created"):
+                    all_files.extend(result["files_created"])
+                yield emit({"type": "paused", "agent": agent, "build": build_id})
+                if not await build_gate.wait_for_continue(build_id, agent):
+                    yield emit({"type": "paused_timeout", "agent": agent})
+                    interrupted = True
+                    break
+
+            if interrupted:
+                break
+
+            # Тестер проверяет после правок.
+            pre_report = await check_now(run_tests=False)
+            if pre_report is not None:
+                yield emit({"type": "build_check", "stage": "before_tester", **pre_report.as_dict()})
+            yield emit({"type": "agent_start", "agent": "tester"})
+            result, done = await run_round("tester", tester_query(pre_report))
+            yield emit(done)
+            if result.get("files_created"):
+                all_files.extend(result["files_created"])
+            results["tester"] = result.get("response", "")
+
+            build_report = await check_now(run_tests=True)
+            if build_report is not None:
+                yield emit({"type": "build_check", "stage": "after_tester", **build_report.as_dict()})
+
+            yield emit({"type": "paused", "agent": "tester", "build": build_id})
+            if not await build_gate.wait_for_continue(build_id, "tester"):
+                yield emit({"type": "paused_timeout", "agent": "tester"})
+                interrupted = True
+                break
+
+        # ── Принятие: «спасибо» открывает Документалиста ───────────────
+        if not interrupted:
+            accepted = await build_gate.wait_for_continue(build_id, "review")
+            if accepted:
+                yield emit({"type": "agent_start", "agent": "documentalist"})
+                doc_task = (
+                    f"{query_with_level}\n\n"
+                    "Человек принял работу и сказал спасибо. Оформи проект: README.md — что это, "
+                    "как запустить и что умеет; при необходимости — короткая инструкция в docs/."
                 )
+                result, done = await run_round("documentalist", doc_task)
+                yield emit(done)
+                if result.get("files_created"):
+                    all_files.extend(result["files_created"])
+                results["documentalist"] = result.get("response", "")
+            else:
+                yield emit({"type": "review_timeout"})
 
-                raw_response = result.get('response', '')
-                created_files = result.get('files_created', [])
-                summary = result.get('summary', '')
-                all_files.extend(created_files)
-                results[agent] = raw_response
-
-                yield f"data: {json.dumps({'type': 'agent_done', 'agent': agent, 'response': raw_response, 'files': created_files, 'summary': summary}, ensure_ascii=False)}\n\n"
-
-                if agent == "tester":
-                    # Проверка сборки целиком сразу после Тестера: его тесты уже
-                    # предложены, и человек видит результат до нажатия «Дальше».
-                    # Проверка идёт на копии, где предложенные файлы уже лежат.
-                    try:
-                        build_report = await asyncio.get_event_loop().run_in_executor(
-                            None, lambda: check_build(project_dir, approvals, run_tests=True)
-                        )
-                        yield (
-                            "data: " + json.dumps(
-                                {
-                                    "type": "build_check",
-                                    "stage": "after_tester",
-                                    **build_report.as_dict(),
-                                },
-                                ensure_ascii=False,
-                            ) + "\n\n"
-                        )
-                    except Exception as exc:  # noqa: BLE001 — проверка не должна ломать сборку
-                        logger.warning(f"Проверка сборки после Тестера не удалась: {exc}")
-
-                # Пауза после каждого агента, кроме последнего: человек читает
-                # объяснение и сам решает, когда звать следующего.
-                if agent != agents[-1]:
-                    yield f"data: {json.dumps({'type': 'paused', 'agent': agent, 'build': build_id}, ensure_ascii=False)}\n\n"
-                    resumed = await build_gate.wait_for_continue(build_id, agent)
-                    if not resumed:
-                        yield f"data: {json.dumps({'type': 'paused_timeout', 'agent': agent})}\n\n"
-                        break
-
-            except Exception as e:
-                logger.error(f"Агент {agent} ошибка: {e}")
-                results[agent] = f"Ошибка: {str(e)}"
-                yield f"data: {json.dumps({'type': 'agent_done', 'agent': agent, 'response': str(e), 'files': [], 'summary': 'Ошибка'})}\n\n"
-
-            await asyncio.sleep(0.1)
-
-        # Документалист пишет уже после Тестера, поэтому проверка на паузе видела 11
-        # файлов, а на диске их 18. Перед финалом проверяем ещё раз — уже всё.
-        if build_report is not None:
-            try:
-                build_report = await asyncio.get_event_loop().run_in_executor(
-                    None, lambda: check_build(project_dir, approvals, run_tests=True)
-                )
-            except Exception as exc:  # noqa: BLE001 — финальная сводка не должна ломать финал
-                logger.warning(f"Финальная проверка сборки не удалась: {exc}")
+        # Финальная проверка уже со всей документацией.
+        if build_report is not None and not interrupted:
+            build_report = await check_now(run_tests=True) or build_report
 
         # Честный итог: предложенное — не то же самое, что записанное.
-        # Раньше в финале писали «файлов на диске: N», хотя N — это очередь подтверждений.
         on_disk = [
             path for path in all_files
             if (project_dir / str(path).replace("\\", "/")).exists()
