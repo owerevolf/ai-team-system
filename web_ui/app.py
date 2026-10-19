@@ -761,7 +761,7 @@ async def create_project_stream(req: CreateProjectRequest):
                 break
 
         # ── Ревью TeamLead и цикл правок ────────────────────────────────
-        MAX_FIX_CYCLES = 1
+        MAX_FIX_CYCLES = 2
         cycle = 0
         while not interrupted:
             result, done = await run_round(
@@ -801,8 +801,15 @@ async def create_project_stream(req: CreateProjectRequest):
             fix_task = (
                 "Проверка сборки нашла ошибки. Исправь их и верни файлы блоками === FILE: ... ===.\n"
                 f"{issue_lines(build_report)}\n\n"
-                "Меняй только то, что сломано: не переписывай проект целиком."
             )
+            failures = (build_report.tests or {}).get("failures") or []
+            if failures:
+                fix_task += (
+                    "Падающие тесты (их не меняй — тесты пишет Тестер; чини код, который они проверяют):\n"
+                    + "\n".join(f"- {line}" for line in failures[:3])
+                    + "\n\n"
+                )
+            fix_task += "Меняй только то, что сломано: не переписывай проект целиком."
             for agent in fix_agents_for(build_report):
                 yield emit({"type": "agent_start", "agent": agent})
                 result, done = await run_round(agent, fix_task)

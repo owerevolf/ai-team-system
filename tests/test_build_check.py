@@ -143,6 +143,28 @@ def test_prompt_has_ready_import_line(tmp_path: Path) -> None:
     assert "from calculator import add, sub" in block
 
 
+def test_script_without_functions_is_not_testable(tmp_path: Path) -> None:
+    """Скрипт с `input()` формально работает, но проверить его нечем."""
+    root = tmp_path / "script"
+    root.mkdir()
+    (root / "main.py").write_text(
+        "while True:\n    value = input('число: ')\n    print(value)\n",
+        encoding="utf-8",
+    )
+
+    report = check_build(root, run_tests=False)
+
+    assert not report.ok
+    assert any(issue.check == "structure" for issue in report.errors)
+    assert any("нет ни одной функции" in issue.text() for issue in report.errors)
+
+
+def test_project_with_functions_passes_structure_check(project: Path) -> None:
+    report = check_build(project, run_tests=False)
+
+    assert not any(issue.check == "structure" for issue in report.issues)
+
+
 def test_project_without_files_is_not_silently_green(tmp_path: Path) -> None:
     empty = tmp_path / "empty"
     empty.mkdir()

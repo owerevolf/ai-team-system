@@ -223,6 +223,7 @@ class BuildCheck:
             self._check_syntax(py_files, report)
             self._check_imports(py_files, report)
             report.api, report.import_lines = self._project_api(py_files)
+            self._check_structure(report)
             self._check_entry(report)
             self._check_assets(report)
             self._check_requirements(py_files, report)
@@ -515,6 +516,31 @@ class BuildCheck:
         return declared
 
     # ── 3. точка входа ────────────────────────────────────────────────
+
+    def _check_structure(self, report: BuildReport) -> None:
+        """Есть ли в проекте что тестировать.
+
+        Скрипт с `while True: input()` формально работает, но проверить его нечем:
+        Тестер начинает выдумывать имена функций, которых нет. Лучше сказать это
+        прямо и отправить Backend вынести логику в функции.
+        """
+        code_files = [
+            name for name in report.files
+            if name.endswith(".py")
+            and not name.startswith("tests/")
+            and not Path(name).name.startswith("test_")
+        ]
+        if not code_files or report.api:
+            return
+        report.issues.append(
+            Issue(
+                "structure",
+                "error",
+                "в коде нет ни одной функции — тестировать нечего. "
+                "Вынеси вычисления в функции (например, add(a, b)) в отдельный модуль, "
+                "а запуск и ввод оставь в main.py",
+            )
+        )
 
     def _check_entry(self, report: BuildReport) -> None:
         for candidate in ENTRY_CANDIDATES:
