@@ -730,6 +730,16 @@ async def create_project_stream(req: CreateProjectRequest):
 
             await asyncio.sleep(0.1)
 
+        # Документалист пишет уже после Тестера, поэтому проверка на паузе видела 11
+        # файлов, а на диске их 18. Перед финалом проверяем ещё раз — уже всё.
+        if build_report is not None:
+            try:
+                build_report = await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: check_build(project_dir, approvals, run_tests=True)
+                )
+            except Exception as exc:  # noqa: BLE001 — финальная сводка не должна ломать финал
+                logger.warning(f"Финальная проверка сборки не удалась: {exc}")
+
         # Честный итог: предложенное — не то же самое, что записанное.
         # Раньше в финале писали «файлов на диске: N», хотя N — это очередь подтверждений.
         on_disk = [

@@ -110,6 +110,16 @@ def test_broken_tests_make_the_build_red(project: Path) -> None:
     assert any(issue.check == "tests" for issue in report.errors)
 
 
+def test_test_collection_error_is_named(project: Path) -> None:
+    """Сбор тестов упал — это надо назвать, а не писать «0 ошибок»."""
+    _write(project, "tests/test_broken.py", "import definitely_missing_module\n\n\ndef test_x():\n    assert True\n")
+
+    report = check_build(project)
+
+    assert not report.ok
+    assert any("не запустились" in issue.text() for issue in report.errors)
+
+
 def test_project_api_lists_public_functions(project: Path) -> None:
     """Тестер должен видеть, что именно можно проверить."""
     report = check_build(project, run_tests=False)

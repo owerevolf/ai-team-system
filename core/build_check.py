@@ -673,7 +673,15 @@ class BuildCheck:
         }
 
         if completed.returncode != 0:
-            detail = f"тесты падают: {failed} упало, {errors} ошибок"
+            if failed == 0 and errors == 0:
+                # Сбор тестов упал (например, тест импортирует несуществующий модуль):
+                # «0 упало, 0 ошибок» звучит как «всё хорошо» — так нельзя.
+                tail = output.strip().splitlines()[-1][:160] if output.strip() else ""
+                detail = "тесты не запустились (ошибка сбора тестов)" + (f": {tail}" if tail else "")
+            elif failed == 0:
+                detail = f"тесты не запустились: {errors} ошибок сбора"
+            else:
+                detail = f"тесты падают: {failed} упало, {errors} ошибок"
             first = [self._clean_paths(line) for line in _failure_lines(output)[:1]]
             report.issues.append(
                 Issue("tests", "error", detail + (f" ({first[0]})" if first else ""))
