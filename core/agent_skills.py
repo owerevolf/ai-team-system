@@ -92,6 +92,11 @@ def _ui_language() -> str:
         return "ru"
 
 
+def ui_language() -> str:
+    """Язык интерфейса из настроек — один источник для всех загрузчиков промптов."""
+    return _ui_language()
+
+
 def get_agent_skill_addon(agent_name: str) -> str:
     """Загружает скилл агента из core/skills/*.md с учётом языка интерфейса.
 

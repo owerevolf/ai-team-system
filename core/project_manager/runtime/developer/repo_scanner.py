@@ -171,10 +171,12 @@ class RepoScanner:
         return repo_map
 
     def _detect_frameworks(self, files: List[Path]) -> List[str]:
-        """Detect frameworks from file contents."""
+        """Detect frameworks from file contents and dependency manifests."""
         detected = set()
-        # Only check a sample of files for performance
-        sample = [f for f in files if f.suffix in ('.py', '.js', '.ts', '.tsx', '.jsx')][:50]
+        # Раньше проверялись только первые 50 файлов: в большом проекте веб-слой
+        # просто не попадал в выборку, и FastAPI «не находился». Читаем все
+        # файлы кода (по 5 КБ), а зависимости — из манифестов.
+        sample = [f for f in files if f.suffix in ('.py', '.js', '.ts', '.tsx', '.jsx')]
         for f in sample:
             try:
                 content = f.read_text(encoding='utf-8', errors='ignore')[:5000]
@@ -183,7 +185,20 @@ class RepoScanner:
                         detected.add(framework)
             except (IOError, UnicodeDecodeError):
                 pass
-        return list(detected)
+
+        for manifest in ("requirements.txt", "pyproject.toml", "Pipfile", "package.json"):
+            path = self._root / manifest
+            if not path.is_file():
+                continue
+            try:
+                content = path.read_text(encoding="utf-8", errors="ignore").lower()
+            except OSError:
+                continue
+            for framework in self.FRAMEWORK_PATTERNS:
+                if framework in content:
+                    detected.add(framework)
+
+        return sorted(detected)
 
     def _detect_package_managers(self) -> List[str]:
         """Detect package managers from config files."""

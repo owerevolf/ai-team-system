@@ -232,24 +232,39 @@ class AgentManager:
         if level not in self.LEVEL_ORDER:
             level = "advanced"
 
-        base = self._load_role_prompt(agent_name, level)
+        base = self._load_role_prompt(agent_name, level, lang)
         overlay = self._load_level_overlay(level, lang)
         if overlay:
             return f"{base}\n\n---\n\n{overlay}"
         return base
 
-    def _load_role_prompt(self, agent_name: str, level: str) -> str:
+    def _load_role_prompt(self, agent_name: str, level: str, lang: Optional[str] = None) -> str:
         """Компетенция роли: уровень-специфичный файл → скилл роли → базовый промпт."""
         if level in ("zero", "beginner"):
             level_file = self.prompts_dir / f"{agent_name}_{level}.md"
             if level_file.exists():
                 return level_file.read_text(encoding='utf-8')
 
-        # Для standard/advanced используем LVL99 skill-промпты из core/skills/
+        # Для standard/advanced берём LVL99-скиллы из core/skills/.
+        # Язык — это файл, а не ветвление: TEAMLEAD_SKILL.ru.md, TEAMLEAD_SKILL.en.md.
+        # Без этого после перевода TeamLead остался без своего скилла вообще.
+        if not lang:
+            try:
+                from .agent_skills import ui_language
+
+                lang = ui_language()
+            except Exception:  # noqa: BLE001 — без языка берём основной файл
+                lang = ""
+
         skills_dir = Path(__file__).parent / "skills"
-        skill_file = skills_dir / f"{agent_name.upper()}_SKILL.md"
-        if skill_file.exists():
-            return skill_file.read_text(encoding='utf-8')
+        candidates = []
+        if lang:
+            candidates.append(f"{agent_name.upper()}_SKILL.{str(lang).lower()}.md")
+        candidates.append(f"{agent_name.upper()}_SKILL.md")
+        for name in candidates:
+            skill_file = skills_dir / name
+            if skill_file.exists():
+                return skill_file.read_text(encoding='utf-8')
 
         # Fallback на обычный промпт из prompts/roles/
         prompt_file = self.prompts_dir / f"{agent_name}.md"
@@ -305,6 +320,10 @@ class AgentManager:
             skill_addon = get_agent_skill_addon(agent_name)
             agent_cfg = get_agent_config(agent_name)
             agent_cfg.get("temperature", 0.7)
+            # Скилл уже пришёл в шаблоне роли (advanced/standard) — второй раз не нужен:
+            # дубль раздувает промпт и путает маленькую модель.
+            if skill_addon and skill_addon.strip() in prompt_template:
+                skill_addon = ""
         except Exception as e:
             self.logger.warning(f"Не удалось загрузить скиллы для {agent_name}: {e}")
             skill_addon = ""

@@ -60,19 +60,28 @@ class TestSkillPrompts:
         assert "CHECKLIST" in architect_prompt or "checklist" in architect_prompt.lower()
 
     def test_all_agents_have_skill_files(self):
-        """All 7 agents should have skill files"""
+        """All 7 agents should have skill files (base or language-specific)"""
         skills_dir = Path(__file__).parent.parent / "core" / "skills"
         for agent in ["teamlead", "architect", "backend", "frontend", "devops", "tester", "documentalist"]:
-            skill_file = skills_dir / f"{agent.upper()}_SKILL.md"
-            assert skill_file.exists(), f"Skill file for {agent} should exist"
-            content = skill_file.read_text(encoding="utf-8")
+            candidates = [
+                skills_dir / f"{agent.upper()}_SKILL.md",
+                skills_dir / f"{agent.upper()}_SKILL.ru.md",
+                skills_dir / f"{agent.upper()}_SKILL.en.md",
+            ]
+            existing = [path for path in candidates if path.exists()]
+            assert existing, f"Skill file for {agent} should exist"
+            content = existing[0].read_text(encoding="utf-8")
             assert len(content) > 1000, f"Skill file for {agent} should be substantial"
 
     def test_skill_prompts_have_core_philosophy(self):
-        """All skill prompts should have a core philosophy section"""
+        """All skill prompts should have a philosophy section (ru or en title)"""
         for agent in ["teamlead", "architect", "backend", "frontend", "devops", "tester", "documentalist"]:
             prompt = self.mgr.get_agent_prompt(agent, "advanced")
-            assert "CORE PHILOSOPHY" in prompt or "Core Philosophy" in prompt
+            assert (
+                "CORE PHILOSOPHY" in prompt
+                or "Core Philosophy" in prompt
+                or "ПРИНЦИПЫ" in prompt
+            ), f"{agent} skill should describe its principles"
 
     def test_fallback_to_default_prompt(self):
         """Unknown agent should get default prompt"""
