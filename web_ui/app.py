@@ -802,11 +802,25 @@ async def create_project_stream(req: CreateProjectRequest):
                 "Проверка сборки нашла ошибки. Исправь их и верни файлы блоками === FILE: ... ===.\n"
                 f"{issue_lines(build_report)}\n\n"
             )
+            contract = getattr(build_report, "contract", None) or []
+            if contract:
+                fix_task += (
+                    "Тесты ждут от кода ровно это (имена должны совпадать):\n"
+                    + "\n".join(f"- {item}" for item in contract)
+                    + "\n\n"
+                )
             failures = (build_report.tests or {}).get("failures") or []
             if failures:
                 fix_task += (
                     "Падающие тесты (их не меняй — тесты пишет Тестер; чини код, который они проверяют):\n"
                     + "\n".join(f"- {line}" for line in failures[:3])
+                    + "\n\n"
+                )
+            contract = getattr(build_report, "contract", None) or []
+            if contract:
+                fix_task += (
+                    "Тесты ждут такие файлы и функции (не переименовывай их и не убирай):\n"
+                    + "\n".join(f"- {line}" for line in contract[:4])
                     + "\n\n"
                 )
             fix_task += "Меняй только то, что сломано: не переписывай проект целиком."

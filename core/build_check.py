@@ -142,6 +142,8 @@ class BuildReport:
     api: List[str] = field(default_factory=list)
     # Готовые строки импорта для тестов.
     import_lines: List[str] = field(default_factory=list)
+    # Контракт из тестов: какие функции какого модуля обязаны существовать.
+    contract: List[str] = field(default_factory=list)
     entry: str = ""
     pending_files: int = 0
     duration_ms: int = 0
@@ -176,6 +178,7 @@ class BuildReport:
             "files": len(self.files),
             "pending": self.pending_files,
             "entry": self.entry,
+            "contract": self.contract,
             "errors": [i.text() for i in self.errors][:20],
             "warnings": [i.text() for i in self.warnings][:20],
             # output_tail остаётся в отчёте для журнала, но не едет в интерфейс:
@@ -223,6 +226,7 @@ class BuildCheck:
             self._check_syntax(py_files, report)
             self._check_imports(py_files, report)
             report.api, report.import_lines = self._project_api(py_files)
+            report.contract = self._test_contract(report)
             self._check_structure(report)
             self._check_entry(report)
             self._check_assets(report)
@@ -517,6 +521,59 @@ class BuildCheck:
 
     # ── 3. точка входа ────────────────────────────────────────────────
 
+    def _test_contract(self, report: BuildReport) -> List[str]:
+        """Чего ждут тесты от кода: модуль и имена, которые они импортируют.
+
+        Тест сам говорит, что должно быть в проекте: `from calculator import add`
+        значит «файл calculator.py с функцией add». Это точная задача для
+        правщика — гораздо полезнее, чем список ошибок вообще.
+        """
+        modules: Dict[str, str] = {}
+        for name in report.files:
+            if not name.endswith(".py"):
+                continue
+            dotted = name[:-3].replace("/", ".")
+            if dotted.endswith(".__init__"):
+                dotted = dotted[: -len(".__init__")]
+            modules[dotted] = name
+        if not modules:
+            return []
+
+        def target(module: str) -> str:
+            """Файл по имени модуля: `src.calc` и `calc` одинаково понятны."""
+            if module in modules:
+                return modules[module]
+            return modules.get(module.split(".")[0], "")
+
+        wanted: Dict[str, set] = {}
+        for name in report.files:
+            if not (name.startswith("tests/") or Path(name).name.startswith("test_")):
+                continue
+            try:
+                tree = ast.parse((self._work_root / name).read_text(encoding="utf-8-sig"))
+            except (SyntaxError, UnicodeDecodeError, OSError):
+                continue
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+                    file = target(node.module)
+                    if file:
+                        names = {alias.name for alias in node.names if alias.name != "*"}
+                        wanted.setdefault(file, set()).update(names)
+                elif isinstance(node, ast.Import):
+                    for alias in node.names:
+                        file = target(alias.name)
+                        if file:
+                            wanted.setdefault(file, set())
+                elif isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+                    file = modules.get(node.value.id, "")
+                    if file:
+                        wanted.setdefault(file, set()).add(node.attr)
+
+        return [
+            f"{file}: {', '.join(sorted(names))}" if names else file
+            for file, names in sorted(wanted.items())
+        ][:6]
+
     def _check_structure(self, report: BuildReport) -> None:
         """Есть ли в проекте что тестировать.
 
@@ -547,11 +604,16 @@ class BuildCheck:
             if (self._work_root / candidate).is_file():
                 report.entry = candidate
                 return
+        # Статичный сайт запускается открытием index.html — main.py ему не нужен.
+        has_python = any(name.endswith(".py") for name in report.files)
+        if not has_python and "index.html" in report.files:
+            report.entry = "index.html"
+            return
         report.issues.append(
             Issue(
                 "entry",
-                "warning",
-                "нет точки входа (main.py/app.py) — непонятно, что запускать",
+                "error",
+                "нет точки входа (main.py/app.py) — проект нельзя запустить",
             )
         )
 

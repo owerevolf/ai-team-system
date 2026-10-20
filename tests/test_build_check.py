@@ -143,6 +143,36 @@ def test_prompt_has_ready_import_line(tmp_path: Path) -> None:
     assert "from calculator import add, sub" in block
 
 
+def test_contract_lists_what_tests_expect(project: Path) -> None:
+    """Тест сам говорит, чего ждёт от кода — это задача для правщика."""
+    _write(project, "tests/test_calc.py", "from src.calc import add\n\n\ndef test_add():\n    assert add(2, 2) == 4\n")
+
+    report = check_build(project, run_tests=False)
+
+    assert any(line.startswith("src/calc.py: add") for line in report.contract)
+
+
+def test_static_site_needs_no_main_py(tmp_path: Path) -> None:
+    root = tmp_path / "site"
+    root.mkdir()
+    (root / "index.html").write_text("<html><body>ok</body></html>", encoding="utf-8")
+
+    report = check_build(root, run_tests=False)
+
+    assert report.entry == "index.html"
+    assert not any(issue.check == "entry" for issue in report.issues)
+
+
+def test_python_project_without_entry_is_an_error(tmp_path: Path) -> None:
+    root = tmp_path / "lib"
+    root.mkdir()
+    (root / "calc.py").write_text("def add(a, b):\n    return a + b\n", encoding="utf-8")
+
+    report = check_build(root, run_tests=False)
+
+    assert any(issue.check == "entry" and issue.severity == "error" for issue in report.issues)
+
+
 def test_script_without_functions_is_not_testable(tmp_path: Path) -> None:
     """Скрипт с `input()` формально работает, но проверить его нечем."""
     root = tmp_path / "script"
@@ -163,6 +193,30 @@ def test_project_with_functions_passes_structure_check(project: Path) -> None:
     report = check_build(project, run_tests=False)
 
     assert not any(issue.check == "structure" for issue in report.issues)
+
+
+def test_contract_comes_from_test_imports(project: Path) -> None:
+    """Тест сам говорит, какие функции обязаны быть: `from src.calc import add`."""
+    _write(
+        project,
+        "tests/test_calc.py",
+        "from src.calc import add\n\n\ndef test_add():\n    assert add(1, 2) == 3\n",
+    )
+
+    report = check_build(project, run_tests=False)
+
+    assert report.contract == ["src/calc.py: add"]
+
+
+def test_missing_entry_point_is_an_error(tmp_path: Path) -> None:
+    root = tmp_path / "noentry"
+    root.mkdir()
+    (root / "calc.py").write_text("def add(a, b):\n    return a + b\n", encoding="utf-8")
+
+    report = check_build(root, run_tests=False)
+
+    assert not report.ok
+    assert any(issue.check == "entry" for issue in report.errors)
 
 
 def test_project_without_files_is_not_silently_green(tmp_path: Path) -> None:
